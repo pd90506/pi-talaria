@@ -62,15 +62,25 @@ export default function setup(pocket) {
             }
         };
 
-        return html`<form class="talaria-new" onSubmit=${make}>
+        return html`<form
+            class="talaria-new"
+            autocomplete="off"
+            data-1p-ignore
+            data-lpignore="true"
+            data-form-type="other"
+            onSubmit=${make}
+        >
             <h3>New project</h3>
             <input
                 value=${name}
-                placeholder="Name"
+                name="talaria-project"
+                placeholder="Project name"
                 maxlength="80"
                 autocomplete="off"
                 data-1p-ignore
                 data-lpignore="true"
+                data-bwignore
+                data-form-type="other"
                 onInput=${(event) => setName(event.currentTarget.value)}
             />
             <textarea
@@ -81,6 +91,8 @@ export default function setup(pocket) {
                 autocomplete="off"
                 data-1p-ignore
                 data-lpignore="true"
+                data-bwignore
+                data-form-type="other"
                 spellcheck=${false}
                 onInput=${(event) => setFolders(event.currentTarget.value)}
             ></textarea>
