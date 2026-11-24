@@ -59,6 +59,8 @@ export interface LinkedSession {
     lead?: true;
     /** A session the asking one started. */
     started?: true;
+    /** Its session id: for the module's own records, never to show the model (it knows sessions by address). */
+    session?: ConversationId;
 }
 
 /** A linked session at work, as a stall watch sees it (`LinkedSessionsApi.activity`). */
@@ -145,6 +147,11 @@ export interface LinkedSessionsApi {
     activity?(source: ConversationId): Promise<LinkedActivity[]>;
     /** Stop one stuck call of a session `source` leads; its run goes on. False when no such call runs. */
     stopCall?(source: ConversationId, request: { to: string; callId: string }): Promise<boolean>;
+    /**
+     * Hold the run-end reports for a lead that is not working, for up to `window(lead)` ms (0: none, at most 60 s), so
+     * that several reach it at once. Returns how to stop; pass that to `web.onDispose`.
+     */
+    batchReports?(window: (lead: ConversationId) => number): () => void;
     /** Call `start` with the lead each time a session it leads starts a run, whoever woke it: for a stall watch. */
     onLedRun?(
         start: (
@@ -798,6 +805,10 @@ export interface WebSession {
     readonly updatedAt: number;
     /** The session that started this one, when it is a linked session. */
     readonly linkedFrom?: number;
+    /** Pi works in it now. */
+    readonly busy?: boolean;
+    /** Why its last run failed, while that failure stands. */
+    readonly failed?: string;
 }
 
 /** Committed usage counters. Experimental, since 0.28.0. */

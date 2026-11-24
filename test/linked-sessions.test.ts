@@ -1100,3 +1100,22 @@ test("watch decides at the run's end, with nothing in flight: a lead with its an
     assert.equal(listener!({ conversationId: 2, session: 3, outcome: "done" }), undefined);
     assert.equal(notices.length, 4, "each report that went tried the store, and said so");
 });
+
+test("a lead that is not working gets the reports of runs that end close together at once, after its window", async () => {
+    const id = await source();
+    const finished = /Linked session \S+ finished its run/;
+    const stop = app.linkedSessions.batchReports((lead) => (lead === id ? 400 : 0));
+
+    try {
+        await until(() => !app.isBusy(id), "the lead to be quiet");
+        const began = Date.now();
+
+        await start(id);
+        await start(id);
+        await until(async () => (await reports(id, finished)).length === 2, "both reports");
+        // Neither came before the window closed: the first held both.
+        assert.ok(Date.now() - began >= 400, "the reports waited for the window");
+    } finally {
+        stop();
+    }
+});

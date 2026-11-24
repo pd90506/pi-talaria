@@ -22,10 +22,13 @@ import { after, before, test } from "node:test";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import type { ConversationId } from "@earendil-works/pi-durable";
 import { createHandler } from "../src/server/http.ts";
+import { threadState } from "../src/server/extensions/talaria-projects.ts";
 
 const pip = join(root, "pip");
 
 process.env.PI_TALARIA_PIP_DIR = pip;
+// Reports to a quiet coordinator wait this long to come in together.
+process.env.PI_TALARIA_REPORT_BATCH_MS = "100";
 
 /** Every request the model got, as JSON. */
 const requests: string[] = [];
@@ -86,6 +89,18 @@ before(async () => {
             const address = /^(session-\S+) · “Count”/m.exec(text)![1]!;
 
             return call("project_thread", { action: "read", to: address });
+        }
+
+        if (role === "user" && text.includes("REPORT_REVIEW")) {
+            return call("project_thread", {
+                action: "status",
+                status: "review",
+                note: "Look over the count.",
+            });
+        }
+
+        if (role === "user" && text.includes("LIST_THREADS")) {
+            return call("project_thread", { action: "list" });
         }
 
         if (role === "user" && text.includes("ASK_COORDINATOR")) {
@@ -279,4 +294,39 @@ test("a thread outside the project's folders is refused, and a session outside a
         app.sessions().some((each) => each.linkedFrom?.id === Number(plain)),
         false,
     );
+});
+
+test("a thread's state: resolved, waiting, failed, working, then its own word for its last run, else idle", () => {
+    const review = { status: "review" as const, note: "Look.", at: 200 };
+
+    assert.equal(threadState({ archived: true, busy: true }, review, 100).state, "resolved");
+    assert.deepEqual(threadState({ asks: "bash: rm", failed: "x" }, review, 100), {
+        state: "waiting",
+        note: "bash: rm",
+    });
+    assert.equal(threadState({ failed: "no model", busy: true }, review, 100).state, "failed");
+    assert.equal(threadState({ busy: true }, review, 100).state, "working");
+    assert.deepEqual(threadState({}, review, 100), { state: "review", note: "Look." });
+    // A run that started after it said so makes its word old.
+    assert.equal(threadState({}, review, 300).state, "idle");
+});
+
+test("a thread says it is ready for review: the coordinator's list and the Projects page show it", async () => {
+    const thread = app.sessions().find((each) => each.linkedFrom?.id === Number(coordinator))!;
+
+    await say(app, thread.id as never, "REPORT_REVIEW");
+    await say(app, coordinator, "LIST_THREADS");
+    assert.match(
+        (await modelTexts(app, coordinator)).join("\n"),
+        /“Count” · review: “Look over the count\.”/,
+    );
+
+    const listed = await call("owner", "projects");
+    const project = (
+        listed.data.projects as { id: string; threads: Record<string, unknown>[] }[]
+    ).find((each) => each.id === "my-app")!;
+    const row = project.threads.find((each) => each.id === thread.id)!;
+
+    assert.equal(row.state, "review");
+    assert.equal(row.note, "Look over the count.");
 });

@@ -6,6 +6,15 @@ export const pocketApi = 2;
 const PROJECTS_PATH =
     "M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z M8 10v4 M12 10v2 M16 10v6";
 
+/** Thread groups in the order they need the person: what waits on them first. Resolved ones fold away. */
+const GROUPS = [
+    ["waiting", "Waiting on you"],
+    ["failed", "Failed"],
+    ["working", "Working"],
+    ["review", "Ready for review"],
+    ["idle", "Idle"],
+];
+
 /** How long ago `at` was, in a few words. */
 function ago(at) {
     const minutes = Math.round((Date.now() - at) / 60_000);
@@ -156,9 +165,25 @@ export default function setup(pocket) {
         </div>`;
     }
 
-    /** One project: its button, which opens the coordinator, then its open threads. */
+    /** One project: its button, which opens the coordinator, then its threads by state; resolved ones folded away. */
     function Project({ project, open }) {
-        const threads = (project.threads ?? []).filter((each) => !each.resolved);
+        const [showResolved, setShowResolved] = useState(false);
+        const threads = project.threads ?? [];
+        const stateOf = (each) => each.state ?? (each.resolved ? "resolved" : "idle");
+        const resolved = threads.filter((each) => stateOf(each) === "resolved");
+        const row = (each) =>
+            html`<button
+                type="button"
+                class="list-item talaria-thread"
+                onClick=${() => open({ coordinator: each.id })}
+            >
+                <span class="grow">
+                    <span class="talaria-thread-title">${each.title}</span>
+                    <span class="muted small"
+                        >${ago(each.lastActive)}${each.note ? ` · ${each.note}` : ""}</span
+                    >
+                </span>
+            </button>`;
 
         return html`<button
                 type="button"
@@ -178,19 +203,27 @@ export default function setup(pocket) {
                     </span>
                 </span>
             </button>
-            ${threads.map(
-                (each) =>
-                    html`<button
-                        type="button"
-                        class="list-item talaria-thread"
-                        onClick=${() => open({ coordinator: each.id })}
-                    >
-                        <span class="grow">
-                            <span>${each.title}</span>
-                            <span class="muted small">${ago(each.lastActive)}</span>
-                        </span>
-                    </button>`,
-            )}`;
+            ${GROUPS.map(([state, label]) => {
+                const group = threads.filter((each) => stateOf(each) === state);
+
+                return group.length === 0
+                    ? null
+                    : html`<div class=${`talaria-group talaria-${state}`}>${label}</div>
+                          ${group.map(row)}`;
+            })}
+            ${
+                resolved.length === 0
+                    ? null
+                    : html`<button
+                              type="button"
+                              class="talaria-group talaria-toggle"
+                              aria-expanded=${showResolved}
+                              onClick=${() => setShowResolved(!showResolved)}
+                          >
+                              ${showResolved ? "Hide" : "Show"} ${resolved.length} resolved
+                          </button>
+                          ${showResolved ? resolved.map(row) : null}`
+            }`;
     }
 
     pocket.style("style.css");
