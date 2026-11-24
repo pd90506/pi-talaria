@@ -41,31 +41,59 @@ before(async () => {
 
         requests.push(JSON.stringify(request));
 
+        const call = (name: string, args: Record<string, unknown>) =>
+            fauxAssistantMessage([fauxToolCall(name, args as never)], { stopReason: "toolUse" });
+
         if (role === "user" && text.includes("START_THREAD")) {
-            return fauxAssistantMessage(
-                [
-                    fauxToolCall("project_thread", {
-                        action: "start",
-                        folder: work,
-                        title: "Count",
-                        message: "Count the files.",
-                    }),
-                ],
-                { stopReason: "toolUse" },
-            );
+            return call("project_thread", {
+                action: "start",
+                folder: work,
+                title: "Count",
+                message: "Count the files.",
+                quotes: ["START_THREAD please"],
+            });
+        }
+
+        if (role === "user" && text.includes("FAKE_QUOTE")) {
+            return call("project_thread", {
+                action: "start",
+                message: "Look around.",
+                quotes: ["words nobody typed"],
+            });
         }
 
         if (role === "user" && text.includes("BAD_THREAD")) {
-            return fauxAssistantMessage(
-                [
-                    fauxToolCall("project_thread", {
-                        action: "start",
-                        folder: root,
-                        message: "Look around.",
-                    }),
-                ],
-                { stopReason: "toolUse" },
-            );
+            return call("project_thread", {
+                action: "start",
+                folder: root,
+                message: "Look around.",
+            });
+        }
+
+        if (role === "user" && text.includes("RUN_BASH")) {
+            return call("bash", { command: "echo hi" });
+        }
+
+        if (role === "user" && text.includes("READ_THREAD")) {
+            return call("project_thread", { action: "list" });
+        }
+
+        if (
+            role === "toolResult" &&
+            /^(session-\S+) · “Count”/m.test(text) &&
+            !text.includes("Messages of")
+        ) {
+            const address = /^(session-\S+) · “Count”/m.exec(text)![1]!;
+
+            return call("project_thread", { action: "read", to: address });
+        }
+
+        if (role === "user" && text.includes("ASK_COORDINATOR")) {
+            return call("project_thread", {
+                action: "coordinator",
+                message: "Please start a separate thread for this.",
+                quotes: ["ASK_COORDINATOR now"],
+            });
         }
 
         if (role === "toolResult") {
@@ -153,13 +181,13 @@ test("only the owner makes and lists projects; a bad name or folder makes nothin
     assert.equal(existsSync(join(pip, "projects", "elsewhere")), false);
 });
 
-test("the coordinator's prompt says it coordinates the project, and its thread starts in the project's folder", async () => {
+test("the coordinator's prompt says it coordinates the project, and its thread starts in the project's folder with the person's words", async () => {
     await app.commands.configure(coordinator, owner(app), {
         model: { provider: "faux", modelId: "faux-1" },
         thinkingLevel: "off",
     });
     requests.length = 0;
-    await say(app, coordinator, "START_THREAD");
+    await say(app, coordinator, "START_THREAD please");
 
     assert.match(requests.join("\n"), /You are the coordinator of the project \\"My App\\"/);
     const thread = app.sessions().find((each) => each.linkedFrom?.id === Number(coordinator));
@@ -169,14 +197,17 @@ test("the coordinator's prompt says it coordinates the project, and its thread s
     await until(
         async () =>
             (await modelTexts(app, thread.id as never)).some((text) =>
-                /You are a thread of the project \\*"My App/.test(text),
+                text.includes("Task for a new thread of the project"),
             ),
         "the thread's brief",
     );
     const brief = (await modelTexts(app, thread.id as never)).join("\n");
 
-    assert.match(brief, /with the background tool, or give long work to a subagent/);
+    assert.match(brief, /<project-message from=\\"coordinator\\" project=\\"My App\\">/);
     assert.match(brief, /Count the files\./);
+    assert.match(brief, /<cited author=\\"user\\"[^>]*>\\nSTART_THREAD please/);
+    // The thread's own rules are in its prompt.
+    assert.match(requests.join("\n"), /You are a thread of the project \\"My App\\"/);
 
     // The thread's final answer comes back to the coordinator by itself.
     await until(
@@ -184,6 +215,50 @@ test("the coordinator's prompt says it coordinates the project, and its thread s
             (await modelTexts(app, coordinator)).some((text) => text.includes("Done: 3 files.")),
         "the thread's report",
     );
+});
+
+test("the coordinator cannot pass off its own words as the person's, nor run commands", async () => {
+    await say(app, coordinator, "FAKE_QUOTE");
+    assert.match(
+        (await modelTexts(app, coordinator)).join("\n"),
+        /is not something the person typed in this conversation/,
+    );
+
+    await say(app, coordinator, "RUN_BASH");
+    assert.match(
+        (await modelTexts(app, coordinator)).join("\n"),
+        /bash is off in a project's coordinator/,
+    );
+});
+
+test("the coordinator reads a thread's messages, and a thread messages its coordinator", async () => {
+    await say(app, coordinator, "READ_THREAD");
+    await until(
+        async () =>
+            (await modelTexts(app, coordinator)).some((text) =>
+                text.includes("Messages of session-"),
+            ),
+        "the thread's messages",
+    );
+    const read = (await modelTexts(app, coordinator)).join("\n");
+
+    assert.match(read, /--- thread/);
+    assert.match(read, /Done: 3 files\./);
+
+    const thread = app.sessions().find((each) => each.linkedFrom?.id === Number(coordinator))!;
+
+    await say(app, thread.id as never, "ASK_COORDINATOR now");
+    await until(
+        async () =>
+            (await modelTexts(app, coordinator)).some((text) =>
+                text.includes("Please start a separate thread for this."),
+            ),
+        "the thread's message",
+    );
+    const got = (await modelTexts(app, coordinator)).join("\n");
+
+    assert.match(got, /<project-message from=\\"thread\\"/);
+    assert.match(got, /<cited author=\\"user\\"[^>]*>\\nASK_COORDINATOR now/);
 });
 
 test("a thread outside the project's folders is refused, and a session outside a project has no threads", async () => {
@@ -198,7 +273,7 @@ test("a thread outside the project's folders is refused, and a session outside a
     await say(app, plain, "START_THREAD");
     assert.match(
         (await modelTexts(app, plain)).join("\n"),
-        /works only in a project's coordinator session/,
+        /works only in a project's coordinator session, or in a thread it started/,
     );
     assert.equal(
         app.sessions().some((each) => each.linkedFrom?.id === Number(plain)),

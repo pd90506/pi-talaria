@@ -35,6 +35,7 @@ import { ChooseModelError, describe, HttpError } from "./errors.ts";
 import { defang, INVISIBLE_CLASS } from "./fence.ts";
 import { isThinkingLevel, levelFor, resolveModel, THINKING_LEVELS } from "./models.ts";
 import { requestFor } from "./requests.ts";
+import { type SessionMessage, sessionMessages } from "./session-messages.ts";
 import { callTimeoutMs, progressOf, waitingOn } from "./stall-facts.ts";
 
 const context = BACKGROUND_CONTEXT;
@@ -637,8 +638,13 @@ export class LinkedSessions implements LinkedSessionsApi {
                 app.canSee(user, each.id as unknown as ConversationId),
             );
 
+            const lead = app.sessionMeta(source)?.linkedFrom?.id === each.id;
+            const started = each.linkedFrom?.id === Number(source);
+
             return {
                 address: addresses.get(each.id)!,
+                ...(lead ? { lead: true as const } : {}),
+                ...(started ? { started: true as const } : {}),
                 ...(shared
                     ? {
                           title: each.title,
@@ -650,6 +656,33 @@ export class LinkedSessions implements LinkedSessionsApi {
                     : {}),
             };
         });
+    }
+
+    /** Messages of a session `source` started, by address; only when the person Pi works for there sees it. */
+    async read(
+        source: ConversationId,
+        request: { to: string; limit?: number; before?: number },
+    ): Promise<{ messages: SessionMessage[]; before?: number }> {
+        const app = this.#app;
+        const user = this.#person(source);
+        const peers = this.#family(source, user).filter(
+            (each) => each.linkedFrom?.id === Number(source),
+        );
+        const addresses = await this.#addresses(
+            source,
+            peers.map((each) => each.id),
+        );
+        const target = peers.find((each) => addresses.get(each.id) === request.to);
+
+        if (target === undefined) {
+            throw new HttpError(404, "No session this one started has that address.");
+        }
+
+        const id = target.id as unknown as ConversationId;
+
+        app.requireSee(user, id);
+
+        return sessionMessages(app, id, request);
     }
 
     #family(source: ConversationId, user: User) {
@@ -683,6 +716,7 @@ export class LinkedSessions implements LinkedSessionsApi {
                 busy: each.busy,
                 archived: each.archived === true,
                 failed: each.failure,
+                linkedFrom: each.linkedFrom,
             }));
     }
 
