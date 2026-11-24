@@ -94,8 +94,17 @@ export class Auth {
     /** One-time sign-in links for the owner: the code, and when it ends. Only in memory, so a restart ends them. */
     readonly #links = new Map<string, number>();
 
-    constructor(config: ConfigStore) {
+    /**
+     * Talaria: the Tailscale login whose requests are the owner's without a token (`PI_TALARIA_TAILSCALE_LOGIN`).
+     * `tailscale serve` sets `Tailscale-User-Login` for requests from untagged tailnet devices and drops a value the
+     * client sent. Only set this when the server is reachable through `tailscale serve` alone, such as on `--socket` in
+     * a folder only its user can open: anything that reaches the server directly could send the header itself.
+     */
+    readonly #tailscaleLogin: string | undefined;
+
+    constructor(config: ConfigStore, tailscaleLogin = process.env.PI_TALARIA_TAILSCALE_LOGIN) {
         this.#config = config;
+        this.#tailscaleLogin = tailscaleLogin?.trim().toLowerCase() || undefined;
     }
 
     user(request: IncomingMessage): User | undefined {
@@ -108,10 +117,24 @@ export class Auth {
                 return this.#config.userByToken(bearer.slice(7).trim());
             }
 
+            return this.#tailscaleOwner(request);
+        }
+
+        return this.#config.userByToken(token) ?? this.#tailscaleOwner(request);
+    }
+
+    #tailscaleOwner(request: IncomingMessage): User | undefined {
+        if (this.#tailscaleLogin === undefined) {
             return undefined;
         }
 
-        return this.#config.userByToken(token);
+        const login = String(request.headers["tailscale-user-login"] ?? "")
+            .trim()
+            .toLowerCase();
+
+        return login === this.#tailscaleLogin
+            ? this.#config.userByToken(this.#config.ownerToken)
+            : undefined;
     }
 
     tokenUser(token: string): User | undefined {
