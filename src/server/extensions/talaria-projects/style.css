@@ -43,3 +43,32 @@
 .talaria-thread {
     padding-left: 2rem;
 }
+
+.talaria-group {
+    padding: 8px 0 2px 2rem;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    opacity: 0.8;
+}
+
+.talaria-waiting,
+.talaria-failed {
+    color: var(--err);
+    opacity: 1;
+}
+
+.talaria-toggle {
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    min-height: 32px;
+}
+
+.talaria-thread-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}

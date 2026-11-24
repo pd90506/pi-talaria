@@ -43,6 +43,56 @@ export const Projects = defineDoc<{ items: Record<string, ProjectRecord> }>({
     initial: () => ({ items: {} }),
 });
 
+/** A state a thread gives itself, for when its run ends (`project_thread status`). Stored data: never rename a field. */
+export type ThreadReport = { status: "waiting" | "review" | "idle"; note?: string; at: number };
+
+/** Each thread's own word on its state, by its session id. Stored data: never rename the kind. */
+export const ThreadReports = defineDoc<{ items: Record<string, ThreadReport> }>({
+    kind: "x.talaria-projects.thread-reports",
+    version: 1,
+    scope: "session",
+    checkpointWhen: () => false,
+    initial: () => ({ items: {} }),
+});
+
+/** Where a thread stands, as the Projects page and the coordinator see it. */
+export type ThreadState = "waiting" | "failed" | "working" | "review" | "idle" | "resolved";
+
+/**
+ * A thread's state: resolved when archived; waiting while a call of it waits for the person; failed while its last
+ * run's failure stands; working while it runs; else what it said of itself in its last run, or idle.
+ */
+export function threadState(
+    thread: { archived?: boolean; busy?: boolean; failed?: string; asks?: string },
+    report: ThreadReport | undefined,
+    lastStart: number | undefined,
+): { state: ThreadState; note?: string } {
+    if (thread.archived === true) {
+        return { state: "resolved" };
+    }
+
+    if (thread.asks !== undefined) {
+        return { state: "waiting", note: thread.asks };
+    }
+
+    if (thread.failed !== undefined) {
+        return { state: "failed", note: thread.failed };
+    }
+
+    if (thread.busy === true) {
+        return { state: "working" };
+    }
+
+    if (report !== undefined && report.at >= (lastStart ?? 0)) {
+        return {
+            state: report.status,
+            ...(report.note === undefined ? {} : { note: report.note }),
+        };
+    }
+
+    return { state: "idle" };
+}
+
 /** What `project.json` in a project's folder holds. People and the coordinator edit it; the app reads it fresh. */
 interface ProjectFile {
     name?: string;
@@ -57,6 +107,20 @@ const MAX_ID = 48;
 const MAX_QUOTE_PAGES = 4;
 /** Where `project_thread read` cuts a long message. */
 const READ_CHARS = 8_000;
+
+/** How long a quiet coordinator's reports are held to come in together: `PI_TALARIA_REPORT_BATCH_MS`, or 15 s. */
+const reportBatchMs = (): number => {
+    const given = Number(process.env.PI_TALARIA_REPORT_BATCH_MS);
+
+    return Number.isFinite(given) && given >= 0 ? given : 15_000;
+};
+
+/** The states the coordinator's prompt flags: those that need someone. Working and idle change every run. */
+const FLAGGED: Partial<Record<ThreadState, string>> = {
+    waiting: "waiting on the person",
+    failed: "failed",
+    review: "ready for review",
+};
 
 /** Where pip keeps its folders: `PI_TALARIA_PIP_DIR`, or `~/pip`. */
 export function pipRoot(): string {
@@ -257,6 +321,7 @@ function coordinatorRules(project: { id: string; folder: string; file: ProjectFi
         "- The person has not read any thread. Never refer to something only a thread said (its option names, its file names, its terms) as if they know it; explain it in plain words, or leave it out.",
         "- Bring back only the decisions the person really has to make, first, before any summary of the work. Settle small things yourself or let the thread decide, and say what was decided.",
         "- Resolving: when a thread's work has ended and nothing is left for it or the person to do, resolve it (project_thread resolve) in the turn you pass its report on, and say so in a few words. Leave it open while anyone owes a next step: a review, an answer, a document the person may still want changed, a merge. When unsure, leave it open. Sending to a resolved thread reopens it.",
+        "- Thread states: working, waiting (on the person: an approval, or a question it asked), failed, review (done, for the person to look over), idle, resolved. Your prompt lists open threads and flags those waiting, failed, or ready for review; project_thread list gives every state now. When asked for status, list every thread: what waits on the person first, then what is working, then what is done.",
         "- Thread reports are messages in this conversation, so after a summary only the summary keeps them. When you need what a thread did or said and it is not here or in project memory, read that thread with project_thread read (newest first, paged); one thread at a time, only as far back as you need.",
         '- Preferences such as "propose before starting" or "at most two threads at a time" go into project memory; follow them.',
         "- Write in the language the person writes in.",
@@ -277,7 +342,7 @@ function threadRules(project: { id: string; file: ProjectFile }): string {
         "- You cannot start sessions. When the person asks you here for something with a different goal from your task, do not do it here: ask the coordinator with project_thread coordinator, putting their exact words in quotes, tell the person in one line that it went to the coordinator for its own thread, and carry on. Use it only to ask the coordinator for something, never for status or results.",
         "- To coordinate with another thread of this project (shared files, a dependency, a handoff), message it with the team tool (list, then send). Only when your work depends on theirs, or theirs on yours.",
         "- Your final answer is relayed to the coordinator, who passes it on to a person who never reads this thread. Put first anything they must decide, each option in plain words with what happens if chosen and your recommendation; settle small choices yourself. Do not lean on names you made up here without saying what they mean.",
-        "- When the task is done, end with a short final answer: what you did, where the results are, and what is left open.",
+        '- When the task is done, end with a short final answer: what you did, where the results are, and what is left open. Before it, say where you stand with project_thread status: "review" when the person should look something over (a document, a pull request, a change), "waiting" with the question as the note when you need their answer or a decision, "idle" when nothing is left for them. A call waiting for the person\'s approval marks you waiting by itself.',
         "- Write in the language of the person the project is for.",
     ].join("\n");
 }
@@ -341,6 +406,53 @@ const linkText = (text: string): string => text.replace(/[[\]\\]/g, "\\$&");
 export default function createTalariaProjects(host: PocketHost, web?: ExtensionWeb) {
     const linked = host.linkedSessions;
     const { text } = host;
+    /** When each session's newest run started: a thread's word on its state holds from that run on. */
+    const lastStart = new Map<number, number>();
+    const stopStarts = host.on("run.started", (run) => {
+        if (run.conversationId === run.session) {
+            lastStart.set(run.conversationId, Date.now());
+        }
+    });
+    // Threads that end close together reach their coordinator at once, in one turn.
+    const stopBatch = linked.batchReports?.((lead) =>
+        projectAt(host.cwdOf(lead)) === undefined ? 0 : reportBatchMs(),
+    );
+
+    web?.onDispose(stopStarts);
+
+    if (stopBatch !== undefined) {
+        web?.onDispose(stopBatch);
+    }
+
+    /** What a thread waits on the person for, from its calls waiting for approval or an answer; undefined: none. */
+    function asks(thread: number): string | undefined {
+        try {
+            const waiting = host.pendingApprovals.list(thread as unknown as ConversationId);
+
+            return waiting.length === 0
+                ? undefined
+                : waiting
+                      .map((each) => each.summary)
+                      .join("; ")
+                      .slice(0, 200) || "a call waits for you";
+        } catch {
+            return undefined;
+        }
+    }
+
+    /** A thread's state, from its session as listed and its own word. */
+    const stateOf = (
+        thread: { session?: number; archived?: boolean; busy?: boolean; failed?: string },
+        reports: Record<string, ThreadReport>,
+    ) =>
+        threadState(
+            {
+                ...thread,
+                ...(thread.session === undefined ? {} : { asks: asks(thread.session) }),
+            },
+            thread.session === undefined ? undefined : reports[String(thread.session)],
+            thread.session === undefined ? undefined : lastStart.get(thread.session),
+        );
 
     if (web !== undefined) {
         web.client("talaria-projects");
@@ -348,6 +460,7 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
         // Every project, with when its coordinator last moved, newest first.
         web.route("GET", "projects", async (request) => {
             const doc = await request.snapshot(Projects, request.context);
+            const reports = (await request.snapshot(ThreadReports, request.context))?.items ?? {};
             const sessions = new Map(
                 (typeof request.sessions === "function" ? request.sessions() : []).map((each) => [
                     each.id,
@@ -360,13 +473,19 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
                 const threads = [...sessions.values()]
                     .filter((each) => each.linkedFrom === project.coordinator)
                     .sort((x, y) => y.updatedAt - x.updatedAt)
-                    .map((each) => ({
-                        id: each.id,
-                        title: each.title,
-                        cwd: each.cwd,
-                        resolved: each.archived,
-                        lastActive: each.updatedAt,
-                    }));
+                    .map((each) => {
+                        const { state, note } = stateOf({ ...each, session: each.id }, reports);
+
+                        return {
+                            id: each.id,
+                            title: each.title,
+                            cwd: each.cwd,
+                            resolved: each.archived,
+                            state,
+                            ...(note === undefined ? {} : { note }),
+                            lastActive: each.updatedAt,
+                        };
+                    });
 
                 return {
                     ...project,
@@ -518,14 +637,24 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
             .join("\n");
     }
 
-    const actions = ["start", "list", "send", "read", "resolve", "reopen", "coordinator"] as const;
+    const actions = [
+        "start",
+        "list",
+        "send",
+        "read",
+        "resolve",
+        "reopen",
+        "coordinator",
+        "status",
+    ] as const;
     const thread = defineTool({
         name: "project_thread",
         description:
             "A project's threads, each a linked session in one of the project's folders. For the coordinator: " +
             "start (folder, title, and a self-contained task as message), list (threads by address, with state), " +
             "send (a message to an address; mode steer, interrupt or queue), read (a thread's messages, newest first, paged), " +
-            "resolve / reopen (a finished thread). For a thread: coordinator (a message to the coordinator). " +
+            "resolve / reopen (a finished thread). For a thread: coordinator (a message to the coordinator), " +
+            "status (waiting, review or idle, with a note: your state once this run ends). " +
             "start, send and coordinator take quotes: the person's exact words, checked and passed on as theirs.",
         parameters: obj({
             action: union(actions.map((each) => literal(each))),
@@ -543,6 +672,15 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
                 }),
             ),
             to: opt(str({ description: "send, read, resolve, reopen: an address from list" })),
+            status: opt(
+                union([literal("waiting"), literal("review"), literal("idle")], {
+                    description:
+                        "status: waiting (on the person), review (done, for the person to look over), or idle",
+                }),
+            ),
+            note: opt(
+                str({ description: "status: one line, what it waits on or what to look at" }),
+            ),
             mode: opt(
                 union([literal("steer"), literal("interrupt"), literal("queue")], {
                     description: "send: steer (default), interrupt, or queue",
@@ -572,9 +710,30 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
             const key = `x.talaria-projects:${api.taskId}:${api.callId}`;
 
             if (found.role === "thread") {
+                if (args.action === "status") {
+                    if (args.status === undefined) {
+                        throw new Error("status needs a status: waiting, review, or idle.");
+                    }
+
+                    const report: ThreadReport = {
+                        status: args.status,
+                        ...(args.note?.trim() ? { note: args.note.trim().slice(0, 200) } : {}),
+                        at: Date.now(),
+                    };
+
+                    await api.commit(async (tx) => {
+                        (await tx.doc(ThreadReports)).items[String(source)] = report;
+                    }, context);
+                    web?.send("changed");
+
+                    return reply(
+                        `Your state is ${args.status} once this run ends. Your final answer still goes to the coordinator by itself.`,
+                    );
+                }
+
                 if (args.action !== "coordinator") {
                     throw new Error(
-                        "A thread uses only the coordinator action: to message another thread, use the team tool.",
+                        "A thread uses only the coordinator and status actions: to message another thread, use the team tool.",
                     );
                 }
 
@@ -601,24 +760,23 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
                 );
             }
 
-            if (args.action === "coordinator") {
-                throw new Error("You are the coordinator: coordinator is a thread's action.");
+            if (args.action === "coordinator" || args.action === "status") {
+                throw new Error(`You are the coordinator: ${args.action} is a thread's action.`);
             }
 
             if (args.action === "list") {
                 const all = (await linked.list(source)).filter((each) => each.started === true);
-                const line = (each: (typeof all)[number]) =>
-                    each.title === undefined
-                        ? `${each.address} · details hidden`
-                        : `${each.address} · ${text.quoted(each.title)} · ${
-                              each.archived
-                                  ? "resolved"
-                                  : each.failed !== undefined
-                                    ? `failed: ${text.quoted(each.failed)}`
-                                    : each.busy
-                                      ? "working"
-                                      : "idle"
-                          } · ${text.quoted(each.cwd ?? "")}`;
+                const reports = (await api.snapshot(ThreadReports, context))?.items ?? {};
+
+                const line = (each: (typeof all)[number]) => {
+                    if (each.title === undefined) {
+                        return `${each.address} · details hidden`;
+                    }
+
+                    const { state, note } = stateOf(each, reports);
+
+                    return `${each.address} · ${text.quoted(each.title)} · ${state}${note === undefined ? "" : `: ${text.quoted(note)}`} · ${text.quoted(each.cwd ?? "")}`;
+                };
 
                 return reply(all.length === 0 ? "No threads yet." : all.map(line).join("\n"));
             }
@@ -758,8 +916,11 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
         ),
     );
 
-    /** The coordinator's view of its open threads: low churn, so its prompt changes only when one starts, ends, or fails. */
-    async function openThreads(conversation: ConversationId): Promise<string | undefined> {
+    /** The coordinator's view of its open threads: low churn, so its prompt changes only when one starts, ends, or needs someone. */
+    async function openThreads(
+        conversation: ConversationId,
+        reports: Record<string, ThreadReport>,
+    ): Promise<string | undefined> {
         let all: Awaited<ReturnType<typeof linked.list>>;
 
         try {
@@ -776,12 +937,12 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
 
         return [
             "Open threads (project_thread list gives who is working now):",
-            ...open
-                .slice(0, 15)
-                .map(
-                    (each) =>
-                        `- ${each.address}${each.title === undefined ? "" : ` · ${text.quoted(each.title)}`}${each.failed === undefined ? "" : ` [failed: ${text.quoted(each.failed)}]`}`,
-                ),
+            ...open.slice(0, 15).map((each) => {
+                const { state, note } = stateOf(each, reports);
+                const flag = FLAGGED[state];
+
+                return `- ${each.address}${each.title === undefined ? "" : ` · ${text.quoted(each.title)}`}${flag === undefined ? "" : ` [${flag}${note === undefined ? "" : `: ${text.quoted(note)}`}]`}`;
+            }),
         ].join("\n");
     }
 
@@ -943,7 +1104,10 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
                         return threadRules(found.project);
                     }
 
-                    const threads = await openThreads(conversationId);
+                    const threads = await openThreads(
+                        conversationId,
+                        (await read.snapshot(ThreadReports, context))?.items ?? {},
+                    );
 
                     return [
                         coordinatorRules(found.project),

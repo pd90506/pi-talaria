@@ -1,6 +1,6 @@
 // Projects' page in a real Chromium, at a phone's size: the rail button opens it, the form makes a project, and the
 // app opens the new project's coordinator; back on the page, the project is listed.
-import { type App, cleanUp, openApp, root, scriptedModel, until } from "./helpers.ts";
+import { type App, cleanUp, context, openApp, root, say, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -9,6 +9,8 @@ import { after, before, test } from "node:test";
 import { Browsers } from "../src/server/browser.ts";
 import { findBrowser } from "../src/server/browser/discovery.ts";
 import type { BrowserPage } from "../src/server/browser/page.ts";
+import type { ConversationId } from "@earendil-works/pi-durable";
+import { ThreadReports } from "../src/server/extensions/talaria-projects.ts";
 import { createHandler } from "../src/server/http.ts";
 
 process.env.PI_TALARIA_PIP_DIR = join(root, "pip");
@@ -130,5 +132,57 @@ test("the Projects page makes a project and opens its coordinator", real, async 
         const shot = await page.screenshot({ fullPage: true });
 
         writeFileSync(join(process.env.PI_TALARIA_SHOTS, "listed.jpg"), shot.data, "base64");
+    }
+});
+
+test("the Projects page lists a project's threads by state", real, async () => {
+    const coordinator = app
+        .sessions()
+        .find((each) => each.cwd === join(root, "pip", "projects", "phone-app"))!;
+    const lead = coordinator.id as unknown as ConversationId;
+
+    await say(app, lead, "hello");
+    const { session: done } = await app.linkedSessions.start(
+        lead,
+        { title: "Write the notes", message: "a task" },
+        "ui-review",
+    );
+    const { session: quiet } = await app.linkedSessions.start(
+        lead,
+        { title: "Count the files", message: "a task" },
+        "ui-idle",
+    );
+
+    await until(() => !app.isBusy(done) && !app.isBusy(quiet), "the threads to finish");
+    await app.harness.commit(async (tx) => {
+        (await tx.doc(ThreadReports)).items[String(done)] = {
+            status: "review",
+            note: "Look over the notes.",
+            at: Date.now(),
+        };
+    }, context);
+
+    await page.navigate(`${base}/`);
+    await until(() => has('.rail-ext[title="Projects"]'), "the Projects rail button");
+    await inPage(`document.querySelector('.rail-ext[title="Projects"]').click(); return "null"`);
+    await until(() => has(".talaria-review"), "the Ready for review group");
+    assert.deepEqual(
+        await inPage<string[]>(
+            `return JSON.stringify([...document.querySelectorAll(".talaria-group, .talaria-thread-title")].map((each) => each.textContent.trim()))`,
+        ),
+        ["Ready for review", "Write the notes", "Idle", "Count the files"],
+    );
+    assert.equal(
+        await inPage<boolean>(
+            `return JSON.stringify(document.documentElement.scrollWidth <= window.innerWidth)`,
+        ),
+        true,
+        "nothing wider than the phone",
+    );
+
+    if (process.env.PI_TALARIA_SHOTS !== undefined) {
+        const shot = await page.screenshot({ fullPage: true });
+
+        writeFileSync(join(process.env.PI_TALARIA_SHOTS, "threads.jpg"), shot.data, "base64");
     }
 });

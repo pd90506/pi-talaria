@@ -139,6 +139,8 @@ export async function extensionRoute(
                     ...(session.linkedFrom === undefined
                         ? {}
                         : { linkedFrom: session.linkedFrom.id }),
+                    ...(session.busy ? { busy: true } : {}),
+                    ...(session.failure === undefined ? {} : { failed: session.failure }),
                 })),
             ...bound,
         };

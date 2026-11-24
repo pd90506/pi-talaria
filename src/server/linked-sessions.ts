@@ -61,6 +61,8 @@ const MAX_MESSAGE = 20_000;
 const MAX_TITLE = 120;
 /** How much of a linked session's final answer its report carries: the rest is in the session. */
 const MAX_REPORT = 6_000;
+/** The longest a lead's reports are held to come in together (`batchReports`). */
+const MAX_BATCH_MS = 60_000;
 const INVISIBLE = new RegExp(`[${INVISIBLE_CLASS}]`, "gu");
 
 function tooLong(message: string): void {
@@ -108,6 +110,10 @@ export function callKey(source: ConversationId, key: string): string {
 
 export class LinkedSessions implements LinkedSessionsApi {
     readonly #app: PocketApp;
+    /** How long each module would hold a quiet lead's reports, to bring several in at once (`batchReports`). */
+    readonly #batchers = new Set<(lead: ConversationId) => number>();
+    /** The open window of each lead whose reports are held: they all go when it closes. */
+    readonly #windows = new Map<number, Promise<void>>();
 
     constructor(app: PocketApp) {
         this.#app = app;
@@ -434,6 +440,60 @@ export class LinkedSessions implements LinkedSessionsApi {
         });
     }
 
+    /**
+     * Hold the reports for a lead that is not working, for up to `window(lead)` ms (the longest any module asks; 0: none),
+     * so that runs which end close together reach it at once and it answers them in one turn. Reports for a working lead
+     * go at once: they join its run at its next pause. Until the returned function is called.
+     */
+    batchReports(window: (lead: ConversationId) => number): () => void {
+        this.#batchers.add(window);
+
+        return () => {
+            this.#batchers.delete(window);
+        };
+    }
+
+    /** Wait until the lead's window closes: the one open now, or a new one of `ms`. */
+    #held(lead: ConversationId): Promise<void> | undefined {
+        if (this.#app.isBusy(lead)) {
+            return undefined;
+        }
+
+        const open = this.#windows.get(Number(lead));
+
+        if (open !== undefined) {
+            return open;
+        }
+
+        const ms = Math.max(
+            0,
+            ...[...this.#batchers].map((each) => {
+                try {
+                    const value = each(lead);
+
+                    return Number.isFinite(value) ? Math.min(value, MAX_BATCH_MS) : 0;
+                } catch {
+                    return 0;
+                }
+            }),
+        );
+
+        if (ms <= 0) {
+            return undefined;
+        }
+
+        const window = new Promise<void>((resolve) => {
+            setTimeout(() => {
+                this.#windows.delete(Number(lead));
+                resolve();
+            }, ms).unref?.();
+        });
+
+        this.#windows.set(Number(lead), window);
+
+        return window;
+    }
+
     /** The report of `id`'s run to `lead`, keyed by what the run left, so a run reports once. */
     async #report(
         id: ConversationId,
@@ -480,6 +540,7 @@ export class LinkedSessions implements LinkedSessionsApi {
                   : "its run was stopped";
         const user = this.#person(id);
 
+        await this.#held(lead);
         await this.#deliver(
             id,
             lead,
@@ -643,6 +704,7 @@ export class LinkedSessions implements LinkedSessionsApi {
 
             return {
                 address: addresses.get(each.id)!,
+                session: each.id as unknown as ConversationId,
                 ...(lead ? { lead: true as const } : {}),
                 ...(started ? { started: true as const } : {}),
                 ...(shared
