@@ -285,7 +285,7 @@ test(
     "a filter's button does its one thing, and while its match is set the list keeps only what it keeps",
     real,
     async () => {
-        const button = '.sidebar [data-part="session-filter"]';
+        const button = '.sidebar [data-part="session-filter"][title="Only one"]';
 
         await page.click({ selector: button });
         await until(async () => (await value<boolean>("filterRan")) === true, "the filter's run");
@@ -462,7 +462,7 @@ test(
         await until(
             () =>
                 inPage<boolean>(
-                    `return JSON.stringify(document.querySelector('.sidebar [data-part="session-filter"]') !== null)`,
+                    `return JSON.stringify(document.querySelector('.sidebar [data-part="session-filter"][title="Filter by tag"]') !== null)`,
                 ),
             "the tag filter",
         );

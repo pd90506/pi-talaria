@@ -202,6 +202,14 @@ test("a taken app key opens neither a sheet nor the launcher, in both boxes", re
 });
 
 test("the Keyboard shortcuts sheet lists the modules' keys", real, async () => {
+    // PiP closed: the session is back in its place, and its box took the focus back.
+    await until(
+        () =>
+            inPage<boolean>(
+                `return JSON.stringify(!document.querySelector(".pip-composer") && document.activeElement === document.querySelector(".composer textarea"))`,
+            ),
+        "the session's box again",
+    );
     await inPage(`document.activeElement?.blur(); return "null"`);
     await page.press("?");
     await until(
