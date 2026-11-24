@@ -68,6 +68,9 @@ export default function setup(pocket) {
                 value=${name}
                 placeholder="Name"
                 maxlength="80"
+                autocomplete="off"
+                data-1p-ignore
+                data-lpignore="true"
                 onInput=${(event) => setName(event.currentTarget.value)}
             />
             <textarea
@@ -75,6 +78,9 @@ export default function setup(pocket) {
                 value=${folders}
                 placeholder="Folders for threads, one a line (optional), e.g. ~/repo/app"
                 autocapitalize="none"
+                autocomplete="off"
+                data-1p-ignore
+                data-lpignore="true"
                 spellcheck=${false}
                 onInput=${(event) => setFolders(event.currentTarget.value)}
             ></textarea>
