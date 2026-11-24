@@ -1,180 +1,207 @@
-// Projects (`extensions/talaria-projects.ts`): PiP alone has the projects tool; a create makes the folder, its files,
-// and one coordinator session working there, and a replay makes no second one; Agent Teams is on, so the coordinator
-// can start threads; the page's routes list projects with their threads and make new ones.
+// Projects (`extensions/talaria-projects.ts`): making a project over HTTP makes its folder, its files, and its
+// coordinator session; the coordinator's prompt says what it is; it starts threads only in the project's folders, and
+// gets each thread's report by itself.
 import {
-    type App,
     cleanUp,
-    context,
     lastText,
+    modelTexts,
     newSession,
     openApp,
     owner,
     root,
     say,
     scriptedModel,
+    until,
+    work,
 } from "./helpers.ts";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
-import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import type { ConversationId } from "@earendil-works/pi-durable";
-import { ProjectsDoc, slugOf } from "../src/server/extensions/talaria-projects.ts";
 import { createHandler } from "../src/server/http.ts";
 
-const pipDir = join(root, "pip");
+const pip = join(root, "pip");
 
-process.env.PI_TALARIA_PIP_DIR = pipDir;
+process.env.PI_TALARIA_PIP_DIR = pip;
 
-const route: FauxResponseStep = (request) => {
-    const { role, text } = lastText(request as never);
-
-    if (role === "toolResult") {
-        return fauxAssistantMessage([fauxText(`done: ${text}`)]);
-    }
-
-    const [verb = "", ...rest] = text.replace(/^\[from: [^\]]+\] /, "").split(" ");
-
-    if (verb === "call") {
-        const [name = "", ...json] = rest;
-
-        return fauxAssistantMessage(
-            [fauxToolCall(name, JSON.parse(json.join(" ")) as Parameters<typeof fauxToolCall>[1])],
-            { stopReason: "toolUse" },
-        );
-    }
-
-    return fauxAssistantMessage([fauxText(`echo: ${text}`)]);
-};
-
-const dataDir = join(root, "projects-data");
-let app: App;
+/** Every request the model got, as JSON. */
+const requests: string[] = [];
+let app: Awaited<ReturnType<typeof openApp>>;
 let server: Server;
 let base = "";
+const tokens: Record<string, string> = {};
 
 before(async () => {
-    app = await openApp(scriptedModel(route), dataDir);
+    mkdirSync(work, { recursive: true });
+    const model = scriptedModel((request) => {
+        const { text, role } = lastText(request as never);
+
+        requests.push(JSON.stringify(request));
+
+        if (role === "user" && text.includes("START_THREAD")) {
+            return fauxAssistantMessage(
+                [
+                    fauxToolCall("project_thread", {
+                        action: "start",
+                        folder: work,
+                        title: "Count",
+                        message: "Count the files.",
+                    }),
+                ],
+                { stopReason: "toolUse" },
+            );
+        }
+
+        if (role === "user" && text.includes("BAD_THREAD")) {
+            return fauxAssistantMessage(
+                [
+                    fauxToolCall("project_thread", {
+                        action: "start",
+                        folder: root,
+                        message: "Look around.",
+                    }),
+                ],
+                { stopReason: "toolUse" },
+            );
+        }
+
+        if (role === "toolResult") {
+            return fauxAssistantMessage([fauxText(`tool said: ${text}`)]);
+        }
+
+        return fauxAssistantMessage([fauxText("Done: 3 files.")]);
+    });
+
+    app = await openApp(model);
+    app.config.lastModel = { provider: "faux", modelId: "faux-1", thinkingLevel: "off" };
     server = createServer(
         createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }),
     );
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+    tokens.owner = app.config.ownerToken;
+    tokens.guest = app.config.addUser("Gale", "guest").token;
 });
 
 after(async () => {
-    server.closeAllConnections();
-    server.close();
-    await app.close();
+    server?.closeAllConnections();
+    server?.close();
+    await app?.close();
     cleanUp();
 });
 
-async function pip(): Promise<ConversationId> {
-    const id = await app.pip.ensure(owner(app));
-
-    await app.commands.configure(id, owner(app), {
-        model: { provider: "faux", modelId: "faux-1" },
-        thinkingLevel: "off",
-    });
-
-    return id;
-}
-
-const toolsOf = async (conversation: ConversationId) =>
-    (await (await app.conversation(conversation)).agent(context)).tools.map((each) => each.name);
-
-const projects = async () => (await app.harness.snapshot(ProjectsDoc, context))?.items ?? {};
-
-async function api(path: string, body?: unknown) {
+async function call(who: string, path: string, body?: unknown) {
     const response = await fetch(`${base}/api/x/talaria-projects/${path}`, {
         method: body === undefined ? "GET" : "POST",
         headers: {
-            authorization: `Bearer ${app.config.ownerToken}`,
+            authorization: `Bearer ${tokens[who]!}`,
             "x-pocket": "1",
             ...(body === undefined ? {} : { "content-type": "application/json" }),
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
 
-    return { status: response.status, body: (await response.json()) as unknown };
+    return { status: response.status, data: (await response.json()) as Record<string, unknown> };
 }
 
-test("folder names keep letters of any script", () => {
-    assert.equal(slugOf("Talaria Agent"), "talaria-agent");
-    assert.equal(slugOf("个人 助理!"), "个人-助理");
-    assert.throws(() => slugOf("!!"), /letter or a digit/);
-});
+let coordinator: ConversationId;
 
-test("only PiP has the projects tool", async () => {
-    const id = await pip();
-    const session = await newSession(app);
-
-    assert.ok((await toolsOf(id)).includes("projects"));
-    assert.ok(!(await toolsOf(session)).includes("projects"));
-});
-
-test("PiP makes a project: its folder, its files, and one coordinator working there", async () => {
-    const id = await pip();
-    const args = {
-        action: "create",
-        name: "Home Lab",
-        purpose: "Keep the NUC running.",
-        folders: ["~/repo/lab"],
-    };
-
-    await say(app, id, `call projects ${JSON.stringify(args)}`);
-
-    const project = (await projects())["home-lab"];
-
-    assert.ok(project !== undefined);
-    assert.equal(project.folder, join(pipDir, "projects", "home-lab"));
-    assert.equal(project.status, "active");
-    assert.ok(existsSync(join(pipDir, "home")));
-    assert.ok(existsSync(join(project.folder, "memory")));
-    assert.match(
-        readFileSync(join(project.folder, "AGENTS.md"), "utf8"),
-        /coordinator[\s\S]*thread 规则/,
-    );
-    assert.deepEqual(
-        JSON.parse(readFileSync(join(project.folder, "project.json"), "utf8")).folders,
-        ["~/repo/lab"],
-    );
-
-    const coordinator = project.coordinator as unknown as ConversationId;
-
-    assert.equal(app.cwdOf(coordinator), project.folder);
-    assert.equal(app.sessionMeta(coordinator)?.title, "Home Lab");
-    // Agent Teams is on by default: the coordinator can start threads.
-    assert.ok((await toolsOf(coordinator)).includes("team"));
-
-    // A second create of the same name makes nothing new.
-    const before = app.sessions().length;
-
-    await say(app, id, `call projects ${JSON.stringify(args)}`);
-    assert.equal(app.sessions().length, before);
-    assert.equal(Object.keys(await projects()).length, 1);
-
-    await say(app, id, `call projects ${JSON.stringify({ action: "list" })}`);
-    const entries = await app.transcripts.allEntries(id, true);
-    const last = JSON.stringify(entries.at(-1));
-
-    assert.match(last, /home-lab: \[Home Lab\]\(\/s\/\d+\) · active/);
-});
-
-test("the page lists projects with their threads, and makes new ones", async () => {
-    const made = await api("projects", { name: "Writing", purpose: "", folders: [] });
+test("the owner makes a project: its folder, project.json, AGENTS.md, and a coordinator session there", async () => {
+    const made = await call("owner", "projects", { name: "My App", folders: [work] });
 
     assert.equal(made.status, 200);
-    const project = made.body as { id: string; coordinator: number; folder: string };
+    assert.equal(made.data.id, "my-app");
+    const folder = join(pip, "projects", "my-app");
 
-    assert.equal(project.id, "writing");
-    assert.equal(app.cwdOf(project.coordinator as unknown as ConversationId), project.folder);
-    assert.equal((await api("projects", { name: "writing" })).status, 409);
-    assert.equal((await api("projects", { name: " " })).status, 400);
+    assert.equal(made.data.folder, folder);
+    assert.deepEqual(JSON.parse(readFileSync(join(folder, "project.json"), "utf8")), {
+        name: "My App",
+        folders: [work],
+    });
+    assert.match(readFileSync(join(folder, "AGENTS.md"), "utf8"), /^# My App/);
+    coordinator = made.data.coordinator as unknown as ConversationId;
+    const session = app.sessions().find((each) => each.id === Number(coordinator));
 
-    const listed = (await api("projects")).body as { id: string; threads: unknown[] }[];
+    assert.ok(session, "the coordinator session");
+    assert.equal(session.title, "My App");
 
-    assert.deepEqual(listed.map((each) => each.id).sort(), ["home-lab", "writing"]);
-    assert.ok(listed.every((each) => Array.isArray(each.threads)));
+    // The same name again gets a folder of its own.
+    const again = await call("owner", "projects", { name: "My App" });
+
+    assert.equal(again.data.id, "my-app-2");
+
+    const listed = await call("owner", "projects");
+    const projects = listed.data.projects as { id: string; name: string }[];
+
+    assert.deepEqual(projects.map((each) => each.id).sort(), ["my-app", "my-app-2"]);
+});
+
+test("only the owner makes and lists projects; a bad name or folder makes nothing", async () => {
+    assert.equal((await call("guest", "projects")).status, 404);
+    assert.equal((await call("guest", "projects", { name: "Theirs" })).status, 404);
+    assert.equal((await call("owner", "projects", { name: "  " })).status, 400);
+
+    const missing = await call("owner", "projects", {
+        name: "Elsewhere",
+        folders: ["/no/such/folder"],
+    });
+
+    assert.equal(missing.status, 400);
+    assert.equal(existsSync(join(pip, "projects", "elsewhere")), false);
+});
+
+test("the coordinator's prompt says it coordinates the project, and its thread starts in the project's folder", async () => {
+    await app.commands.configure(coordinator, owner(app), {
+        model: { provider: "faux", modelId: "faux-1" },
+        thinkingLevel: "off",
+    });
+    requests.length = 0;
+    await say(app, coordinator, "START_THREAD");
+
+    assert.match(requests.join("\n"), /You are the coordinator of the project \\"My App\\"/);
+    const thread = app.sessions().find((each) => each.linkedFrom?.id === Number(coordinator));
+
+    assert.ok(thread, "a thread");
+    assert.equal(thread.cwd, work);
+    await until(
+        async () =>
+            (await modelTexts(app, thread.id as never)).some((text) =>
+                /You are a thread of the project \\*"My App/.test(text),
+            ),
+        "the thread's brief",
+    );
+    const brief = (await modelTexts(app, thread.id as never)).join("\n");
+
+    assert.match(brief, /with the background tool, or give long work to a subagent/);
+    assert.match(brief, /Count the files\./);
+
+    // The thread's final answer comes back to the coordinator by itself.
+    await until(
+        async () =>
+            (await modelTexts(app, coordinator)).some((text) => text.includes("Done: 3 files.")),
+        "the thread's report",
+    );
+});
+
+test("a thread outside the project's folders is refused, and a session outside a project has no threads", async () => {
+    await say(app, coordinator, "BAD_THREAD");
+    assert.match(
+        (await modelTexts(app, coordinator)).join("\n"),
+        /is not one of this project's folders/,
+    );
+
+    const plain = await newSession(app);
+
+    await say(app, plain, "START_THREAD");
+    assert.match(
+        (await modelTexts(app, plain)).join("\n"),
+        /works only in a project's coordinator session/,
+    );
+    assert.equal(
+        app.sessions().some((each) => each.linkedFrom?.id === Number(plain)),
+        false,
+    );
 });

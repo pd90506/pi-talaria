@@ -1,30 +1,32 @@
 /**
- * Projects for pip / project / thread: each project is a folder in ~/pip/projects with one resident coordinator
- * session, which starts threads (linked sessions) for the work and hears their reports. PiP lists and creates them.
+ * Projects: each has a resident coordinator session in its own folder under ~/pip/projects, which starts threads
+ * (linked sessions) in the project's folders and gets their reports.
  */
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { arr, obj, opt, str, union } from "@earendil-works/pi-schema";
 import { defineDoc, defineExtension, defineTool, section } from "@earendil-works/pi-durable";
 // Types only: at run time this module uses nothing of Pi Pocket's but the host and web.
-import type { ExtensionWeb, PocketHost, WebRequest } from "../host.ts";
+import type { ExtensionWeb, PocketHost } from "../host.ts";
 import { PROJECTS_PIP_EXTENSION } from "../pip.ts";
 import { literal } from "../tool-schema.ts";
 
-export type Project = {
-    /** The folder's name under ~/pip/projects, which is also the id. */
+/** One project, as the app lists it. Stored data: never rename a field or change what it means. */
+export type ProjectRecord = {
+    /** The project's folder name under `projects/`, and its id in routes. */
     id: string;
     name: string;
+    /** The coordinator's folder: `<root>/projects/<id>`. */
     folder: string;
-    /** The coordinator session's id, as in its address (`/s/12`). */
+    /** The coordinator session's id. */
     coordinator: number;
     status: "active" | "archived";
     createdAt: number;
 };
 
 /** Every project, by id. Stored data: never rename the kind. */
-export const ProjectsDoc = defineDoc<{ items: Record<string, Project> }>({
+export const Projects = defineDoc<{ items: Record<string, ProjectRecord> }>({
     kind: "x.talaria-projects.projects",
     version: 1,
     scope: "session",
@@ -32,138 +34,439 @@ export const ProjectsDoc = defineDoc<{ items: Record<string, Project> }>({
     initial: () => ({ items: {} }),
 });
 
-const MAX_NAME = 60;
-const MAX_PURPOSE = 2000;
+/** What `project.json` in a project's folder holds. People and the coordinator edit it; the app reads it fresh. */
+interface ProjectFile {
+    name?: string;
+    /** Folders that the project's threads may work in, besides the project's own folder. */
+    folders?: string[];
+}
+
+const MAX_NAME = 80;
 const MAX_FOLDERS = 20;
+const MAX_ID = 48;
 
-/** `~/pip`, or `PI_TALARIA_PIP_DIR` (tests use their own). */
+/** Where pip keeps its folders: `PI_TALARIA_PIP_DIR`, or `~/pip`. */
 export function pipRoot(): string {
-    return process.env.PI_TALARIA_PIP_DIR ?? join(homedir(), "pip");
+    const given = process.env.PI_TALARIA_PIP_DIR?.trim();
+
+    return given ? resolve(expandHome(given)) : join(homedir(), "pip");
 }
 
-/** A project's name as one trimmed line, or an error. */
-function nameOf(value: unknown): string {
-    const name = typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
-
-    if (name === "" || [...name].length > MAX_NAME) {
-        throw new Error(`A project's name is 1 to ${String(MAX_NAME)} characters.`);
+/** `~` and `~/…` as the home folder; other paths as they are. */
+function expandHome(path: string): string {
+    if (path === "~") {
+        return homedir();
     }
 
-    if (/[\p{Cc}\p{Bidi_Control}\u2028\u2029]/u.test(name)) {
-        throw new Error("A project's name has no control characters.");
-    }
-
-    return name;
+    return path.startsWith("~/") ? join(homedir(), path.slice(2)) : path;
 }
 
-/** The folder name for a project's name: letters and digits of any script, with `-` for the rest. */
-export function slugOf(name: string): string {
-    const slug = name
+/** Whether `path` is `folder` or inside it. */
+function within(path: string, folder: string): boolean {
+    const rel = relative(folder, path);
+
+    return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+}
+
+/** A folder name for a project: letters and digits of any script and `-`, from its name; "" when it has none. */
+export function projectId(name: string): string {
+    return name
+        .normalize("NFKC")
         .toLowerCase()
-        .replace(/[^\p{L}\p{N}_-]+/gu, "-")
-        .replace(/-+/g, "-")
-        .replace(/^-|-$/g, "");
-
-    if (slug === "" || slug === "." || slug === "..") {
-        throw new Error("Give the project a name with a letter or a digit in it.");
-    }
-
-    return slug;
+        .replace(/[^\p{L}\p{N}]+/gu, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, MAX_ID)
+        .replace(/-+$/g, "");
 }
 
-/** The coordinator's instructions, in the project's AGENTS.md, which its session reads with every request. */
-function agentsMd(name: string, purpose: string): string {
+/** The project whose folder is `cwd`, read from its `project.json`; undefined for any other folder. */
+export function projectAt(
+    cwd: string | undefined,
+): { id: string; folder: string; file: ProjectFile } | undefined {
+    if (cwd === undefined) {
+        return undefined;
+    }
+
+    const projects = join(pipRoot(), "projects");
+    const folder = resolve(cwd);
+    const rel = relative(projects, folder);
+
+    if (
+        rel === "" ||
+        rel.startsWith("..") ||
+        isAbsolute(rel) ||
+        rel.includes("/") ||
+        rel.includes("\\")
+    ) {
+        return undefined;
+    }
+
+    const path = join(folder, "project.json");
+
+    if (!existsSync(path)) {
+        return undefined;
+    }
+
+    return { id: rel, folder, file: readProjectFile(path) };
+}
+
+/** The last good read of each `project.json`, by path and modification time: the prompt asks on each request. */
+const files = new Map<string, { mtime: number; file: ProjectFile }>();
+
+function readProjectFile(path: string): ProjectFile {
+    let mtime = 0;
+
+    try {
+        mtime = statSync(path).mtimeMs;
+    } catch {
+        return {};
+    }
+
+    const kept = files.get(path);
+
+    if (kept?.mtime === mtime) {
+        return kept.file;
+    }
+
+    let file: ProjectFile = {};
+
+    try {
+        const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
+
+        if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+            const { name, folders } = parsed as Record<string, unknown>;
+
+            file = {
+                ...(typeof name === "string" ? { name } : {}),
+                ...(Array.isArray(folders)
+                    ? {
+                          folders: folders
+                              .filter(
+                                  (each): each is string =>
+                                      typeof each === "string" && each.trim() !== "",
+                              )
+                              .slice(0, MAX_FOLDERS),
+                      }
+                    : {}),
+            };
+        }
+    } catch {
+        // A file that does not parse lists no folders; the coordinator can mend it.
+    }
+
+    files.set(path, { mtime, file });
+
+    return file;
+}
+
+/** The folders a project's threads may work in: its own, and those `project.json` lists, as absolute paths. */
+export function threadFolders(project: { folder: string; file: ProjectFile }): string[] {
+    return [
+        project.folder,
+        ...(project.file.folders ?? []).map((each) =>
+            resolve(project.folder, expandHome(each.trim())),
+        ),
+    ];
+}
+
+/** The project's instructions file as a new project starts it. The coordinator reads it on each request. */
+function agentsTemplate(name: string): string {
     return `# ${name}
 
-${purpose === "" ? "（这个 project 的目标：和用户讨论后写在这里。）" : purpose}
+This folder is the home of the project "${name}". Its coordinator session works here.
 
-## 你的角色
+## Goal
 
-你是这个 project 的 coordinator：project 里唯一常驻的会话。用户在这里和你讨论这个 project；具体的工作交给 thread 去做。
+(What this project is for. Write it here, or ask the coordinator to.)
 
-- 一件具体的工作开一个 thread：用 team 工具的 start。thread 的文件夹（cwd）从 project.json 的 folders 里选；没有合适的就先问用户，并把用户给的文件夹写进 project.json。
-- thread 看不到你的对话。第一条消息要写完整：目标、相关路径、已知情况、限制，以及用户说过的相关原话（原文照抄，不要只转述）。
-- 每个 thread 的第一条消息末尾，原样附上下面的“thread 规则”。
-- thread 跑完会把最后的回答自动发回给你：不要轮询，也不要催它汇报。收到后告诉用户结果，还需要用户决定的事要问清楚。
-- 一个 thread 的事做完了，把它归档（team 工具的 archive）；之后需要可以再取消归档。
+## Notes
 
-## thread 规则（原样附给每个 thread）
-
-- 你是 project「${name}」的一个 thread，由 coordinator 开出，文件夹固定，不能换。
-- 耗时长的命令一律放到后台（background 工具）或交给 subagent，保证 coordinator 的消息随时能进来。
-- 不要再开 linked session；需要帮手就用 subagent。
-- 最后一条回答按这个格式写：做了什么；结果（附路径或链接）；还需要谁决定什么。
+- Threads may work in this folder and in the folders that \`project.json\` lists under \`folders\`.
 `;
 }
 
-/** Make a project's folder and files; nothing that is there already is overwritten. */
-export function scaffold(name: string, purpose: string, folders: string[]): string {
-    const root = pipRoot();
-    const folder = join(root, "projects", slugOf(name));
+/** The rules a coordinator gets in its system prompt. */
+function coordinatorRules(project: { id: string; folder: string; file: ProjectFile }): string {
+    const name = project.file.name ?? project.id;
+    const folders = threadFolders(project);
 
-    mkdirSync(join(root, "home"), { recursive: true });
-    mkdirSync(join(folder, "memory"), { recursive: true });
-
-    const agents = join(folder, "AGENTS.md");
-    const json = join(folder, "project.json");
-
-    if (!existsSync(agents)) {
-        writeFileSync(agents, agentsMd(name, purpose));
-    }
-
-    if (!existsSync(json)) {
-        writeFileSync(
-            json,
-            `${JSON.stringify({ name, purpose, folders, createdAt: new Date().toISOString() }, null, 4)}\n`,
-        );
-    }
-
-    return folder;
+    return [
+        `You are the coordinator of the project ${JSON.stringify(name)}. The person you work for spends most of their time with you: plan the work with them, keep track of what is decided, and answer for the project as a whole.`,
+        `For a concrete piece of work (a change in a repository, a long job, research), start a thread with the project_thread tool: an ordinary session of its own, in one of the project's folders. A thread does not see your history: brief it fully (goal, folder, what is known, limits, what to report). When its run ends, its final answer comes back to you by itself: do not poll, and do not ask it to report. Start what you need, end your turn, and wait. Do short things yourself.`,
+        `Threads may work in: ${folders.map((each) => JSON.stringify(each)).join(", ")}. To allow another folder, add it to "folders" in ${JSON.stringify(join(project.folder, "project.json"))} (the person decides which folders).`,
+        `When a thread is done and its result is taken, resolve it (project_thread resolve). Reopen it to go on with the same work.`,
+    ].join("\n");
 }
 
-function purposeOf(value: unknown): string {
-    const purpose = typeof value === "string" ? value.trim() : "";
-
-    if ([...purpose].length > MAX_PURPOSE) {
-        throw new Error(`A project's purpose is at most ${String(MAX_PURPOSE)} characters.`);
-    }
-
-    return purpose;
+/** The first lines of each thread's first message: where it belongs, and how to work and report. */
+function threadBrief(name: string, folder: string, task: string): string {
+    return [
+        `You are a thread of the project ${JSON.stringify(name)}, started by its coordinator. You work in ${JSON.stringify(folder)} and nowhere else.`,
+        `- Keep yourself free for the coordinator's messages: run long commands (builds, test suites, servers) with the background tool, or give long work to a subagent. Do not wait on them in the foreground.`,
+        `- You cannot start other sessions. You may use subagents.`,
+        `- Your final answer goes back to the coordinator by itself. Write it as a report: what you did, the result, and what someone still has to decide. Write in the language of the person the project is for.`,
+        "",
+        "Task:",
+        task,
+    ].join("\n");
 }
 
-function foldersOf(value: unknown): string[] {
-    if (value === undefined) {
-        return [];
+/** Why a project's name or folders are refused; undefined when they are fine. */
+function refusal(name: string, folders: string[]): string | undefined {
+    if (name === "" || [...name].length > MAX_NAME || /[\p{Cc}\p{Bidi_Control}]/u.test(name)) {
+        return `A project's name is 1 to ${MAX_NAME} characters, on one line.`;
     }
 
-    if (!Array.isArray(value) || value.length > MAX_FOLDERS) {
-        throw new Error(`Folders are a list of at most ${String(MAX_FOLDERS)} paths.`);
+    if (folders.length > MAX_FOLDERS) {
+        return `Folders are a list of up to ${MAX_FOLDERS} paths.`;
     }
 
-    return value.map((each) => {
-        const path = typeof each === "string" ? each.trim() : "";
+    for (const each of folders) {
+        const path = resolve(expandHome(each));
 
-        if (path === "" || !(path.startsWith("/") || path.startsWith("~/"))) {
-            throw new Error("Each folder is an absolute or ~/ path.");
+        if (!isAbsolute(expandHome(each)) || !existsSync(path) || !statSync(path).isDirectory()) {
+            return `${each} is not a folder on this machine. Give an absolute path or ~/….`;
         }
+    }
 
-        return path;
-    });
+    return undefined;
 }
+
+/** A new project's folder and files, under an id no project has yet: `name`, or `name-2`, and so on. */
+function makeFolder(name: string, folders: string[], taken: ReadonlySet<string>) {
+    const projects = join(pipRoot(), "projects");
+    const base = projectId(name) || "project";
+    let id = base;
+
+    for (let n = 2; taken.has(id) || existsSync(join(projects, id)); n++) {
+        id = `${base}-${n}`;
+    }
+
+    const folder = join(projects, id);
+
+    mkdirSync(join(pipRoot(), "home"), { recursive: true });
+    mkdirSync(join(folder, "memory"), { recursive: true, mode: 0o700 });
+    writeFileSync(join(folder, "project.json"), `${JSON.stringify({ name, folders }, null, 4)}\n`, {
+        flag: "wx",
+    });
+    writeFileSync(join(folder, "AGENTS.md"), agentsTemplate(name), { flag: "wx" });
+
+    return { id, folder };
+}
+
+const PIP_GUIDE = `Projects: the person keeps their work in projects (folders under ~/pip/projects). Each has one resident coordinator session, which starts threads for the work. Use the projects tool to list them, make one when the person asks, and archive or bring one back. Link a project as [its name](/s/COORDINATOR_ID), so it opens with a tap. To ask a project something, send its coordinator a message with session_send and wait for the report. To hand the person over, send the coordinator what it needs (the person's own words, quoted as they wrote them, then your summary) and give the person the link. Do not start sessions in a project's folders yourself: its coordinator starts its threads.`;
 
 const reply = (text: string) => ({ output: [{ type: "text" as const, text }] });
 const linkText = (text: string): string => text.replace(/[[\]\\]/g, "\\$&");
 
-const PIP_GUIDE = `Projects: the person keeps their work in projects (in ~/pip/projects). Each project has one resident coordinator session, which starts threads for the work. Use the projects tool to list them, make one when the person asks, and archive or bring one back. Link a project as [its name](/s/COORDINATOR_ID), so it opens with a tap. To ask a project something, send its coordinator a message with session_send and wait for the report; to hand the person over, send the coordinator what it needs (the person's own words, quoted as they wrote them, then your summary) and give the person the link. Never start sessions inside a project's folder yourself: the coordinator starts its threads.`;
-
 export default function createTalariaProjects(host: PocketHost, web?: ExtensionWeb) {
-    mkdirSync(join(pipRoot(), "home"), { recursive: true });
-    mkdirSync(join(pipRoot(), "projects"), { recursive: true });
+    const linked = host.linkedSessions;
+    const { text } = host;
+
+    if (web !== undefined) {
+        web.client("talaria-projects");
+
+        // Every project, with when its coordinator last moved, newest first.
+        web.route("GET", "projects", async (request) => {
+            const doc = await request.snapshot(Projects, request.context);
+            const sessions = new Map(
+                (typeof request.sessions === "function" ? request.sessions() : []).map((each) => [
+                    each.id,
+                    each,
+                ]),
+            );
+            const items = Object.values(doc?.items ?? {}).map((project) => {
+                const session = sessions.get(project.coordinator);
+                const file = projectAt(project.folder)?.file;
+                const threads = [...sessions.values()]
+                    .filter((each) => each.linkedFrom === project.coordinator)
+                    .sort((x, y) => y.updatedAt - x.updatedAt)
+                    .map((each) => ({
+                        id: each.id,
+                        title: each.title,
+                        cwd: each.cwd,
+                        resolved: each.archived,
+                        lastActive: each.updatedAt,
+                    }));
+
+                return {
+                    ...project,
+                    threads,
+                    name: file?.name ?? project.name,
+                    folders: file?.folders ?? [],
+                    lastActive: Math.max(
+                        session?.updatedAt ?? project.createdAt,
+                        ...threads.map((each) => each.lastActive),
+                    ),
+                    missing: session === undefined,
+                };
+            });
+
+            items.sort((a, b) => b.lastActive - a.lastActive);
+
+            return { root: pipRoot(), projects: items };
+        });
+
+        // A new project: its folder, its files, and its coordinator session.
+        web.route("POST", "projects", async (request) => {
+            if (typeof request.createSession !== "function") {
+                throw web.error(503, "Projects need a server restart before they can be made.");
+            }
+
+            const name =
+                typeof request.body.name === "string"
+                    ? request.body.name.trim().replace(/\s+/g, " ")
+                    : "";
+            const given = request.body.folders;
+
+            if (
+                given !== undefined &&
+                (!Array.isArray(given) || !given.every((each) => typeof each === "string"))
+            ) {
+                throw web.error(400, `Folders are a list of up to ${MAX_FOLDERS} paths.`);
+            }
+
+            const folders = ((given ?? []) as string[]).map((each) => each.trim()).filter(Boolean);
+            const refused = refusal(name, folders);
+
+            if (refused !== undefined) {
+                throw web.error(400, refused);
+            }
+
+            const doc = await request.snapshot(Projects, request.context);
+            const { id, folder } = makeFolder(
+                name,
+                folders,
+                new Set(Object.keys(doc?.items ?? {})),
+            );
+
+            const { id: coordinator } = await request.createSession({ cwd: folder, title: name });
+            const record: ProjectRecord = {
+                id,
+                name,
+                folder,
+                coordinator,
+                status: "active",
+                createdAt: Date.now(),
+            };
+
+            await request.commit(async (tx) => {
+                const state = await tx.doc(Projects);
+
+                state.items[id] = record;
+            });
+            web.send("changed");
+
+            return record;
+        });
+    }
+
+    const actions = ["start", "list", "send", "resolve", "reopen"] as const;
+
+    const thread = defineTool({
+        name: "project_thread",
+        description:
+            "For a project's coordinator only: its threads, each a linked session in one of the project's folders. " +
+            "start: folder, title, and a task that holds all the thread needs. list: the threads, by address. " +
+            "send: a message to an address. resolve / reopen: archive a finished thread, or bring it back.",
+        parameters: obj({
+            action: union(actions.map((each) => literal(each))),
+            folder: opt(
+                str({
+                    description: "start: one of the project's folders; left out: the project's own",
+                }),
+            ),
+            title: opt(str({ description: "start: the thread's title" })),
+            message: opt(str({ description: "start: the task; send: the message" })),
+            to: opt(str({ description: "send, resolve, reopen: an address from list" })),
+        }),
+        replay: "safe",
+        execute: async (args, api, context) => {
+            const project = projectAt((await api.agent(context)).cwd);
+
+            if (project === undefined) {
+                throw new Error(
+                    "project_thread works only in a project's coordinator session (a session in a folder under ~/pip/projects).",
+                );
+            }
+
+            const key = `x.talaria-projects:${api.taskId}:${api.callId}`;
+            const source = api.conversationId;
+
+            if (args.action === "list") {
+                const found = await linked.list(source);
+                const line = (each: (typeof found)[number]) =>
+                    each.title === undefined
+                        ? `${each.address} · details hidden`
+                        : `${each.address} · ${text.quoted(each.title)} · ${each.busy ? "working" : "idle"}${each.archived ? " · resolved" : ""} · ${text.quoted(each.cwd ?? "")}`;
+
+                return reply(found.length === 0 ? "No threads yet." : found.map(line).join("\n"));
+            }
+
+            if (args.action === "start") {
+                if (!args.message?.trim()) {
+                    throw new Error("start needs the task as message.");
+                }
+
+                const allowed = threadFolders(project);
+                const folder = args.folder?.trim()
+                    ? resolve(project.folder, expandHome(args.folder.trim()))
+                    : project.folder;
+
+                if (!allowed.some((each) => within(folder, each))) {
+                    throw new Error(
+                        `${folder} is not one of this project's folders (${allowed.join(", ")}). Ask the person whether to add it to project.json; do not work around it.`,
+                    );
+                }
+
+                const name = project.file.name ?? project.id;
+                const { address } = await linked.start(
+                    source,
+                    {
+                        title: args.title?.trim() || undefined,
+                        message: threadBrief(name, folder, args.message.trim()),
+                        cwd: folder,
+                    },
+                    key,
+                );
+
+                return reply(
+                    `Started thread ${address} in ${folder}. Its report comes back by itself when its run ends: end your turn and wait; do not poll.`,
+                );
+            }
+
+            if (args.to === undefined || args.to.trim() === "") {
+                throw new Error(`${args.action} needs an address, from list.`);
+            }
+
+            if (args.action === "send") {
+                if (!args.message?.trim()) {
+                    throw new Error("send needs a message.");
+                }
+
+                await linked.send(source, { to: args.to, message: args.message }, key);
+
+                return reply(
+                    `Message taken by ${args.to}. Its answer comes back by itself: do not poll.`,
+                );
+            }
+
+            const { archived } = await linked.archive(
+                source,
+                { to: args.to, archived: args.action === "resolve" },
+                key,
+            );
+
+            return reply(
+                archived ? `Thread ${args.to} is resolved.` : `Thread ${args.to} is open again.`,
+            );
+        },
+    });
 
     const projects = defineTool({
         name: "projects",
         description:
-            "List the person's projects (most recently active first), make a new one with its coordinator session, or archive or bring one back. list needs nothing; create needs name, and takes purpose and folders (the folders its threads may work in); archive and reactivate need project (its id).",
+            "The person's projects, most recently active first; make a new one with its coordinator session; archive one or bring it back. list needs nothing. create needs name, and takes folders (existing folders its threads may work in, besides its own). archive and reactivate need project (its id, from list).",
         parameters: obj(
             {
                 action: union([
@@ -173,23 +476,19 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
                     literal("reactivate"),
                 ]),
                 name: opt(str({ description: "create: the project's name" })),
-                purpose: opt(
-                    str({ description: "create: what the project is for, in a few lines" }),
-                ),
                 folders: opt(
                     arr(str(), {
-                        description:
-                            "create: absolute or ~/ paths of folders its threads may work in",
+                        description: "create: absolute or ~/ paths of folders its threads may use",
                     }),
                 ),
                 project: opt(str({ description: "archive, reactivate: the project's id" })),
             },
             { open: true },
         ),
-        // Safe to run again: the coordinator a create made is kept with the call.
+        // Safe to run again: what a create made is kept with the call.
         replay: "safe",
         execute: async (args, api, context) => {
-            const all = async () => (await api.snapshot(ProjectsDoc, context))?.items ?? {};
+            const all = async () => (await api.snapshot(Projects, context))?.items ?? {};
 
             if (args.action === "list") {
                 const items = Object.values(await all());
@@ -199,61 +498,77 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
                 }
 
                 const seen = new Map(
-                    [
-                        ...host.pip.sessions(api.conversationId, { limit: 100 }).sessions,
-                        ...host.pip.sessions(api.conversationId, { limit: 100, archived: true })
-                            .sessions,
-                    ].map((session) => [session.id, session]),
+                    [false, true]
+                        .flatMap(
+                            (archived) =>
+                                host.pip.sessions(api.conversationId, { limit: 100, archived })
+                                    .sessions,
+                        )
+                        .map((session) => [session.id, session.updatedAt]),
                 );
-                const lines = items
-                    .map((project) => ({
-                        project,
-                        at: seen.get(project.coordinator)?.updatedAt ?? 0,
-                    }))
-                    .sort((a, b) => b.at - a.at)
-                    .map(
-                        ({ project, at }) =>
-                            `${project.id}: [${linkText(project.name)}](/s/${String(project.coordinator)}) · ${project.status} · ${project.folder}${at === 0 ? "" : ` · last active ${new Date(at).toISOString()}`}`,
-                    );
 
-                return reply(lines.join("\n"));
+                return reply(
+                    items
+                        .map((project) => ({ project, at: seen.get(project.coordinator) ?? 0 }))
+                        .sort((a, b) => b.at - a.at)
+                        .map(
+                            ({ project, at }) =>
+                                `${project.id}: [${linkText(projectAt(project.folder)?.file.name ?? project.name)}](/s/${String(project.coordinator)}) · ${project.status} · ${project.folder}${at === 0 ? "" : ` · last active ${new Date(at).toISOString()}`}`,
+                        )
+                        .join("\n"),
+                );
             }
 
             if (args.action === "create") {
-                const name = nameOf(args.name);
-                const id = slugOf(name);
-                const existing = (await all())[id];
+                const name = (args.name ?? "").trim().replace(/\s+/g, " ");
+                const folders = (args.folders ?? []).map((each) => each.trim()).filter(Boolean);
+                const refused = refusal(name, folders);
 
-                if (existing !== undefined) {
-                    return reply(
-                        `A project with that name exists: [${linkText(existing.name)}](/s/${String(existing.coordinator)}).`,
+                if (refused !== undefined) {
+                    throw new Error(refused);
+                }
+
+                // A replay finds the folder and the coordinator the first run made.
+                let made = await api.memo<{ id: string; folder: string }>(
+                    "talaria.project",
+                    context,
+                );
+
+                if (made === undefined) {
+                    made = await api.memo(
+                        "talaria.project",
+                        makeFolder(name, folders, new Set(Object.keys(await all()))),
+                        context,
                     );
                 }
 
-                const folder = scaffold(name, purposeOf(args.purpose), foldersOf(args.folders));
                 let coordinator = await api.memo<number>("talaria.coordinator", context);
 
                 if (coordinator === undefined) {
-                    const made = await host.pip.start(api.conversationId, { folder, title: name });
+                    const started = await host.pip.start(api.conversationId, {
+                        folder: made.folder,
+                        title: name,
+                    });
 
-                    coordinator = await api.memo("talaria.coordinator", Number(made), context);
+                    coordinator = await api.memo("talaria.coordinator", Number(started), context);
                 }
 
-                await api.commit(async (tx) => {
-                    const doc = await tx.doc(ProjectsDoc);
+                const record: ProjectRecord = {
+                    id: made.id,
+                    name,
+                    folder: made.folder,
+                    coordinator,
+                    status: "active",
+                    createdAt: Date.now(),
+                };
 
-                    doc.items[id] ??= {
-                        id,
-                        name,
-                        folder,
-                        coordinator,
-                        status: "active",
-                        createdAt: Date.now(),
-                    };
+                await api.commit(async (tx) => {
+                    (await tx.doc(Projects)).items[record.id] ??= record;
                 }, context);
+                web?.send("changed");
 
                 return reply(
-                    `Made project ${id}: [${linkText(name)}](/s/${String(coordinator)}), in ${folder}.`,
+                    `Made project ${record.id}: [${linkText(name)}](/s/${String(coordinator)}), in ${record.folder}.`,
                 );
             }
 
@@ -268,12 +583,13 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
 
             await host.pip.archive(api.conversationId, project.coordinator, archived);
             await api.commit(async (tx) => {
-                const item = (await tx.doc(ProjectsDoc)).items[id];
+                const item = (await tx.doc(Projects)).items[id];
 
                 if (item !== undefined) {
                     item.status = archived ? "archived" : "active";
                 }
             }, context);
+            web?.send("changed");
 
             return reply(
                 `${archived ? "Archived" : "Brought back"} [${linkText(project.name)}](/s/${String(project.coordinator)}).`,
@@ -281,84 +597,22 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
         },
     });
 
-    if (web !== undefined) {
-        web.client("talaria-projects.js");
-
-        // The projects, most recently active first, each with its coordinator's threads.
-        web.route("GET", "projects", async (request: WebRequest) => {
-            const doc = await request.snapshot(ProjectsDoc, request.context);
-            const sessions = request.sessions();
-            const byId = new Map(sessions.map((session) => [session.id, session]));
-
-            return Object.values(doc?.items ?? {})
-                .map((project) => {
-                    const threads = sessions
-                        .filter((session) => session.linkedFrom === project.coordinator)
-                        .sort((a, b) => b.updatedAt - a.updatedAt)
-                        .map((session) => ({
-                            id: session.id,
-                            title: session.title,
-                            cwd: session.cwd,
-                            archived: session.archived,
-                            updatedAt: session.updatedAt,
-                        }));
-                    const updatedAt = Math.max(
-                        byId.get(project.coordinator)?.updatedAt ?? project.createdAt,
-                        ...threads.map((thread) => thread.updatedAt),
-                    );
-
-                    return { ...project, updatedAt, threads };
-                })
-                .sort((a, b) => b.updatedAt - a.updatedAt);
-        });
-
-        // A new project from the page: its folder, then its coordinator.
-        web.route("POST", "projects", async (request: WebRequest) => {
-            let name: string;
-            let folder: string;
-
-            try {
-                name = nameOf(request.body.name);
-                folder = scaffold(
-                    name,
-                    purposeOf(request.body.purpose),
-                    foldersOf(request.body.folders),
-                );
-            } catch (error) {
-                throw web.error(400, (error as Error).message);
-            }
-
-            const id = slugOf(name);
-            const existing = (await request.snapshot(ProjectsDoc, request.context))?.items[id];
-
-            if (existing !== undefined) {
-                throw web.error(409, "A project with that name exists.");
-            }
-
-            const { id: session } = await request.createSession({ cwd: folder, title: name });
-            const project: Project = {
-                id,
-                name,
-                folder,
-                coordinator: Number(session),
-                status: "active",
-                createdAt: Date.now(),
-            };
-
-            await request.commit(async (tx) => {
-                (await tx.doc(ProjectsDoc)).items[id] ??= project;
-            });
-
-            return project;
-        });
-    }
-
     return [
-        defineExtension({ name: "talaria-projects" }),
         defineExtension({
             name: PROJECTS_PIP_EXTENSION,
             tools: [projects],
             sections: [section("talaria_projects", () => PIP_GUIDE)],
+        }),
+        defineExtension({
+            name: "talaria-projects",
+            tools: [thread],
+            sections: [
+                section("talaria-project", ({ agent }) => {
+                    const project = projectAt(agent.cwd);
+
+                    return project === undefined ? undefined : coordinatorRules(project);
+                }),
+            ],
         }),
     ];
 }

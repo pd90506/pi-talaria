@@ -136,7 +136,9 @@ export async function extensionRoute(
                     cwd: session.cwd,
                     archived: session.archived === true,
                     updatedAt: session.updatedAt,
-                    ...(session.linkedFrom === undefined ? {} : { linkedFrom: session.linkedFrom.id }),
+                    ...(session.linkedFrom === undefined
+                        ? {}
+                        : { linkedFrom: session.linkedFrom.id }),
                 })),
             ...bound,
         };
