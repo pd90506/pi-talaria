@@ -1102,18 +1102,32 @@ export class Pip {
         message: string,
         steer: boolean,
         key: string,
-        options: { started?: boolean } = {},
+        options: { started?: boolean; handoff?: boolean } = {},
     ): Promise<{ requestId: string }> {
         const user = this.#person(pipId);
         const id = this.#session(pipId, user, sessionId);
+        // Only a module's handoff carries the person's words as `<cited>` (`talaria-projects.ts`): PiP's own text
+        // cannot open one, or a handoff.
+        const text =
+            options.handoff === true
+                ? message
+                : message.replace(
+                      /<(?=\s*\/?\s*(?:cited|pip-handoff|pip-summary|project-message)\b)/giu,
+                      "‹",
+                  );
 
         return {
-            requestId: await this.#submit(id, user, message, key, steer, async () => {
+            requestId: await this.#submit(id, user, text, key, steer, async () => {
                 // The first message of a session the same call started (`started`) needs no look, there being nothing to
-                // see, and was checked for model names as the session started.
+                // see, and was checked for model names as the session started. A handoff a module builds (`handoff`)
+                // goes to a project's coordinator, which takes it as its next input whatever it is doing; PiP's summary
+                // in it is still checked for model names.
                 if (options.started !== true) {
-                    this.#requireLooked(pipId, sessionId, "message");
-                    await this.#requireNoModelChoice(pipId, user, message);
+                    if (options.handoff !== true) {
+                        this.#requireLooked(pipId, sessionId, "message");
+                    }
+
+                    await this.#requireNoModelChoice(pipId, user, text);
                 }
             }),
         };

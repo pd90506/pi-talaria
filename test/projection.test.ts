@@ -159,3 +159,22 @@ test("a prefix matches only a user message nobody wrote, and leaves the prefix i
     assert.equal(written.presentation, undefined);
     assert.equal(written.text, "NOTE hello");
 });
+
+test("a prefix matches after the app's own labels: who wrote it, and what sent it", () => {
+    for (const content of ["[via PiP] NOTE hello", "[from: Ada] [via PiP] NOTE hello"]) {
+        const row = projectEntry(entry("pi.user", { role: "user", content }), false, {
+            presentations,
+            authored: false,
+        });
+
+        assert.equal(row?.kind === "user" ? row.presentation?.label : undefined, "Note", content);
+    }
+
+    const other = projectEntry(
+        entry("pi.user", { role: "user", content: "[via PiP] hello NOTE " }),
+        false,
+        { presentations, authored: false },
+    );
+
+    assert.equal(other?.kind === "user" ? other.presentation : "none", undefined);
+});
