@@ -68,6 +68,7 @@ const ORDER = [
     "updates.ts",
     "design.ts",
     "tool-search.ts",
+    "talaria-projects.ts",
 ];
 
 /** The built-in modules' names (their files' without `.ts`): a drop-in with one of them is never loaded. */
@@ -79,7 +80,6 @@ const REQUIRED = new Set(["prompt.ts"]);
 /** Built-in modules that stay off until the owner turns them on. Drop-ins all do. */
 const OFF_BY_DEFAULT = new Set([
     "guard.ts",
-    "agent-teams.ts",
     "anthropic-subscription.ts",
     "session-tags.ts",
     "ask-someone.ts",
@@ -92,6 +92,7 @@ const TITLES: Record<string, string> = {
     "diagrams.ts": "Diagrams",
     "subagents.ts": "Subagents",
     "agent-teams.ts": "Agent Teams",
+    "talaria-projects.ts": "Projects",
     "schedules.ts": "Scheduled messages",
     "background.ts": "Background tasks",
     "goals.ts": "Done when",

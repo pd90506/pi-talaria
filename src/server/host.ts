@@ -773,6 +773,8 @@ export interface WebSession {
     readonly cwd: string;
     readonly archived: boolean;
     readonly updatedAt: number;
+    /** The session that started this one, when it is a linked session. */
+    readonly linkedFrom?: number;
 }
 
 /** Committed usage counters. Experimental, since 0.28.0. */
