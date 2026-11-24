@@ -1334,11 +1334,13 @@ test("a tab of protocol 6 that kept a session gets only what came after, and the
 
 test("hello names the server's build, the same for the same code, and whether browsers may keep sessions on the device", async () => {
     const { serverBuild } = await import("../src/server/build.ts");
+    const { presentedBuild } = await import("../src/server/entry-presentation.ts");
     const hello = await app.hello(owner());
 
     assert.match(app.build, /^[0-9a-f]{16}$/);
+    // With how the modules that are on present their inputs (a built-in one does: Projects' handoffs).
     assert.equal(
-        serverBuild(),
+        presentedBuild(serverBuild(), app.webs.presentations()),
         app.build,
         "the same code, the same build: a restart keeps what tabs kept",
     );
