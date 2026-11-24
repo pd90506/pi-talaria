@@ -6,6 +6,7 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { ConversationId, EntryId } from "@earendil-works/pi-durable";
 import type { PocketApp } from "./app.ts";
+import { AuthorsDoc } from "./docs.ts";
 import { projectEntry } from "./projection.ts";
 
 const context = BACKGROUND_CONTEXT;
@@ -16,7 +17,10 @@ const VIA_PREFIX = /^\[via ([^\]\n]*)\]\s?/;
 export type SessionMessage = {
     /** The entry's id: a page's `before` continues below the oldest one. */
     id: number;
-    /** `person`: typed by a person. `via`: sent for them from elsewhere. `answer`: Pi's text, a turn's last part. */
+    /**
+     * `person`: typed by a person, as the conversation's authors document says. `via`: sent for them from elsewhere,
+     * or put there by the app (a report, a schedule). `answer`: Pi's text, a turn's last part.
+     */
     kind: "person" | "via" | "answer";
     text: string;
     /** For `person`, who typed it, when the session is shared; for `via`, what sent it. */
@@ -43,6 +47,8 @@ export async function sessionMessages(
         undefined,
         context,
     );
+    // Only a message a person wrote is theirs: a report or a module's input has no `[via …]` label of its own.
+    const authors = (await app.harness.snapshot(AuthorsDoc, id, context))?.entries ?? {};
     const messages: SessionMessage[] = [];
     let oldest: number | undefined;
 
@@ -57,16 +63,17 @@ export async function sessionMessages(
 
         if (shown?.kind === "user") {
             const via = VIA_PREFIX.exec(shown.text);
+            const wrote = via === null && authors[String(shown.id)] !== undefined;
 
             messages.push({
                 id: shown.id,
-                kind: via === null ? "person" : "via",
+                kind: wrote ? "person" : "via",
                 text: via === null ? shown.text : shown.text.slice(via[0].length),
-                ...(via === null
+                ...(wrote
                     ? shown.from === undefined
                         ? {}
                         : { from: shown.from }
-                    : { from: via[1]! }),
+                    : { from: via === null ? "the app" : via[1]! }),
                 ...(shown.at === undefined ? {} : { at: shown.at }),
             });
         } else if (shown?.kind === "assistant" && shown.stopReason !== "toolUse") {

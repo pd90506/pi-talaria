@@ -23,6 +23,7 @@ import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi
 import type { ConversationId } from "@earendil-works/pi-durable";
 import { createHandler } from "../src/server/http.ts";
 import { threadState } from "../src/server/extensions/talaria-projects.ts";
+import { sessionMessages } from "../src/server/session-messages.ts";
 
 const pip = join(root, "pip");
 
@@ -454,6 +455,16 @@ test("PiP asks a project for the person: the coordinator's answer comes back to 
         async () =>
             (await modelTexts(app, pip)).some((text) => text.includes("Project answer: 42")),
         "the answer, as a report to PiP",
+    );
+
+    // The report is in PiP's conversation, but it is not the person's: a later handoff does not copy it as theirs.
+    const { messages } = await sessionMessages(app, pip, { limit: 50 });
+    const report = messages.find((each) => each.text.includes("Project answer: 42"))!;
+
+    assert.equal(report.kind, "via");
+    assert.equal(
+        messages.find((each) => each.text === "ASK_PROJECT how far is it")?.kind,
+        "person",
     );
 });
 

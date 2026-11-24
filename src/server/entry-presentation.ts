@@ -157,7 +157,7 @@ export function compilePresentations(
 }
 
 /** `[from: …] ` and `[via …] `, as `commands.ts` puts them before a message. */
-const LABELS = /^(?:\[from: [^\]\n]{1,60}\] )?(?:\[via [^\]\n]*\] )?/;
+const LABELS = /^(?:\[from: [^\]\n]+\] )?(?:\[via [^\]\n]*\] )?/;
 
 /** The first registered prefix that `text` starts with after its labels, longest first. */
 export function matchPrefix(

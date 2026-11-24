@@ -688,18 +688,27 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
     async function handoffWords(records: readonly HandoffRecord[]): Promise<SessionMessage[]> {
         const words: SessionMessage[] = [];
 
-        for (const each of records.slice(-5)) {
-            try {
-                const page = await host.messagesOf!(each.pip as unknown as ConversationId, {
-                    limit: 50,
-                    before: each.last + 1,
-                });
+        for (const each of records.slice(-MAX_HANDOFFS)) {
+            let before: number | undefined = each.last + 1;
 
-                words.push(
-                    ...page.messages.filter(
-                        (message) => message.kind === "person" && message.id >= each.first,
-                    ),
-                );
+            try {
+                // Back to the handoff's first message: PiP's answers and its tool calls sit between them.
+                for (let page = 0; page < MAX_QUOTE_PAGES && before !== undefined; page++) {
+                    const found = await host.messagesOf!(each.pip as unknown as ConversationId, {
+                        limit: 50,
+                        before,
+                    });
+
+                    words.push(
+                        ...found.messages.filter(
+                            (message) => message.kind === "person" && message.id >= each.first,
+                        ),
+                    );
+                    before =
+                        found.before === undefined || found.before <= each.first
+                            ? undefined
+                            : found.before;
+                }
             } catch {
                 // A PiP conversation that is gone has no words to check against.
             }
@@ -920,6 +929,15 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
 
                 if (newest === undefined || typeof host.messagesOf !== "function") {
                     throw new Error("No handoff from PiP has come to this coordinator.");
+                }
+
+                // PiP's conversation is its person's: only their own request here reads it.
+                const owner = host.pip.ownerOf(newest.pip as unknown as ConversationId);
+
+                if (owner === undefined || host.requesterOf(source) !== owner) {
+                    throw new Error(
+                        "Only the person whose PiP it is may have their conversation with PiP read.",
+                    );
                 }
 
                 // Only what led up to a handoff: what the person and PiP said after it is not this project's.
