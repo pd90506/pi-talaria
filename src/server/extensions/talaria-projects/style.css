@@ -72,3 +72,31 @@
     white-space: nowrap;
     max-width: 100%;
 }
+
+.talaria-memory-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0 0 8px 2rem;
+}
+
+.talaria-memory-file textarea {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: var(--mono, monospace);
+    font-size: 13px;
+}
+
+.talaria-memory-new {
+    display: flex;
+    gap: 6px;
+}
+
+.talaria-memory-new input {
+    flex: 1;
+    min-width: 0;
+}
+
+.talaria-thread.selected {
+    background: var(--hover, rgba(127, 127, 127, 0.12));
+}

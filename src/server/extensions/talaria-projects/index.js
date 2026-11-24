@@ -127,6 +127,182 @@ export default function setup(pocket) {
         </form>`;
     }
 
+    /**
+     * A level's memory files (`home`: the person's; else a project's id), folded until opened: tap one to read and change
+     * it. A save replaces the version shown, so an agent's newer write is never lost unseen.
+     */
+    function Memory({ level, title }) {
+        const [open, setOpen] = useState(false);
+        const [files, setFiles] = useState(null);
+        const [file, setFile] = useState(null);
+        const [draft, setDraft] = useState("");
+        const [newName, setNewName] = useState("");
+        const [error, setError] = useState(null);
+        const [busy, setBusy] = useState(false);
+        const base = `memory/${encodeURIComponent(level)}`;
+
+        const load = async () => {
+            try {
+                setFiles((await pocket.api(base)).files);
+                setError(null);
+            } catch (failure) {
+                setError(failure.message);
+            }
+        };
+
+        useEffect(() => {
+            if (!open) {
+                return undefined;
+            }
+
+            void load();
+
+            return pocket.on("changed", () => void load());
+        }, [open]);
+
+        const pick = async (name) => {
+            setError(null);
+
+            try {
+                const found = await pocket.api(`${base}/${encodeURIComponent(name)}`);
+
+                setFile({ name, version: found.version });
+                setDraft(found.text);
+            } catch (failure) {
+                setError(failure.message);
+            }
+        };
+
+        const save = async (remove = false) => {
+            setBusy(true);
+            setError(null);
+
+            try {
+                const done = await pocket.api(
+                    `${base}/${encodeURIComponent(file.name)}`,
+                    remove
+                        ? { delete: true, version: file.version }
+                        : { text: draft, version: file.version },
+                );
+
+                setFile(remove ? null : { name: file.name, version: done.version });
+                await load();
+            } catch (failure) {
+                setError(failure.message);
+            } finally {
+                setBusy(false);
+            }
+        };
+
+        const make = (event) => {
+            event.preventDefault();
+
+            const name = newName.trim().replace(/(\.md)?$/i, ".md");
+
+            if (name !== ".md") {
+                setFile({ name, version: "new" });
+                setDraft("");
+                setNewName("");
+            }
+        };
+
+        return html`<div class="talaria-memory">
+            <button
+                type="button"
+                class="talaria-group talaria-toggle"
+                aria-expanded=${open}
+                onClick=${() => setOpen(!open)}
+            >
+                ${open ? "Hide" : "Show"} ${title}
+            </button>
+            ${
+                open &&
+                html`<div class="talaria-memory-body">
+                    ${error && html`<div class="error-box">${error}</div>`}
+                    ${
+                        files === null
+                            ? html`<${Loader} label="Reading the memory" />`
+                            : files.length === 0
+                              ? html`<p class="muted small">No memory files yet.</p>`
+                              : files.map(
+                                    (each) =>
+                                        html`<button
+                                            type="button"
+                                            class=${`list-item talaria-thread${file?.name === each.name ? " selected" : ""}`}
+                                            onClick=${() => pick(each.name)}
+                                        >
+                                            <span class="grow">
+                                                <span class="mono">${each.name}</span>
+                                                <span class="muted small"
+                                                    >${each.bytes} bytes · ${ago(each.at)}</span
+                                                >
+                                            </span>
+                                        </button>`,
+                                )
+                    }
+                    ${
+                        file &&
+                        html`<div class="talaria-memory-file">
+                            <div class="mono small">${file.name}</div>
+                            <textarea
+                                rows="10"
+                                value=${draft}
+                                spellcheck=${false}
+                                autocomplete="off"
+                                data-1p-ignore
+                                data-lpignore="true"
+                                data-form-type="other"
+                                onInput=${(event) => setDraft(event.currentTarget.value)}
+                            ></textarea>
+                            <div class="sheet-actions">
+                                ${
+                                    file.version !== "new" &&
+                                    html`<button
+                                        type="button"
+                                        class="button"
+                                        disabled=${busy}
+                                        onClick=${() => save(true)}
+                                    >
+                                        Delete
+                                    </button>`
+                                }
+                                <button
+                                    type="button"
+                                    class="button primary"
+                                    disabled=${busy || draft.trim() === ""}
+                                    onClick=${() => save()}
+                                >
+                                    ${busy ? "Saving…" : "Save"}
+                                </button>
+                            </div>
+                        </div>`
+                    }
+                    <form
+                        class="talaria-memory-new"
+                        autocomplete="off"
+                        data-1p-ignore
+                        data-lpignore="true"
+                        data-form-type="other"
+                        onSubmit=${make}
+                    >
+                        <input
+                            value=${newName}
+                            placeholder="New file, e.g. decisions.md"
+                            autocomplete="off"
+                            data-1p-ignore
+                            data-lpignore="true"
+                            data-form-type="other"
+                            onInput=${(event) => setNewName(event.currentTarget.value)}
+                        />
+                        <button type="submit" class="button" disabled=${newName.trim() === ""}>
+                            New
+                        </button>
+                    </form>
+                </div>`
+            }
+        </div>`;
+    }
+
     /** The page: every project, then the form. A tap on a project opens its coordinator. */
     function Projects({ close }) {
         const [data, setData] = useState(null);
@@ -175,6 +351,7 @@ export default function setup(pocket) {
                       </div>`
             }
             <${NewProject} onMade=${(made) => open(made)} />
+            <${Memory} level="home" title="your memory (kept by PiP)" />
         </div>`;
     }
 
@@ -236,7 +413,8 @@ export default function setup(pocket) {
                               ${showResolved ? "Hide" : "Show"} ${resolved.length} resolved
                           </button>
                           ${showResolved ? resolved.map(row) : null}`
-            }`;
+            }
+            <${Memory} level=${project.id} title="project memory" />`;
     }
 
     pocket.style("style.css");
