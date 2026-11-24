@@ -156,7 +156,10 @@ export function compilePresentations(
     return { byKind, prefixes };
 }
 
-/** The first registered prefix that `text` starts with, longest first. */
+/** `[from: …] ` and `[via …] `, as `commands.ts` puts them before a message. */
+const LABELS = /^(?:\[from: [^\]\n]{1,60}\] )?(?:\[via [^\]\n]*\] )?/;
+
+/** The first registered prefix that `text` starts with after its labels, longest first. */
 export function matchPrefix(
     text: string,
     presentations: EntryPresentations | undefined,
@@ -165,8 +168,11 @@ export function matchPrefix(
         return undefined;
     }
 
+    // After the labels the app puts first: who wrote it, when the server has several people, and what sent it.
+    const body = text.replace(LABELS, "");
+
     for (const spec of presentations.prefixes) {
-        if (spec.userPrefix !== undefined && text.startsWith(spec.userPrefix)) {
+        if (spec.userPrefix !== undefined && body.startsWith(spec.userPrefix)) {
             return spec;
         }
     }

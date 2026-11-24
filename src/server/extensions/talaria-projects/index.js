@@ -1,5 +1,6 @@
 // Projects' browser module: a Projects button on the rail and in the launcher, and a page that lists the projects,
-// newest activity first, opens a project's coordinator, and makes a new project. It uses only `pocket`.
+// newest activity first, opens a project's coordinator, and makes a new project; and, after a handoff from PiP, the
+// project's coordinator in the tab that showed PiP. It uses only `pocket`.
 export const pocketApi = 2;
 
 /** Lucide's folder-kanban icon. */
@@ -34,6 +35,18 @@ function ago(at) {
 
 export default function setup(pocket) {
     const { html, useEffect, useState, Loader } = pocket;
+
+    // PiP handed a topic over to a project: the tab that shows that PiP opens the project's coordinator.
+    pocket.on("open", (data) => {
+        if (
+            Number.isSafeInteger(data?.id) &&
+            data.id > 0 &&
+            data.from !== undefined &&
+            Number(pocket.conversationId()) === data.from
+        ) {
+            pocket.openConversation(data.id);
+        }
+    });
 
     /** The form for a new project: a name, and the folders its threads may work in, one a line. */
     function NewProject({ onMade }) {

@@ -923,7 +923,10 @@ export interface PresentEntry {
     kind: string;
     /** The one line the transcript shows. */
     label: string;
-    /** Matches the start of a user message only when nobody wrote that message. */
+    /**
+     * Matches the start of a user message only when nobody wrote that message, after the app's `[from: …]` and
+     * `[via …]` labels: a message a module sends for PiP (`[via PiP] …`) matches too.
+     */
     userPrefix?: string;
 }
 
