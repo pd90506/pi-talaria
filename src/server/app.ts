@@ -114,7 +114,7 @@ import { createPublicFetch } from "./public-fetch.ts";
 import { PiSessions } from "./pi-sessions.ts";
 import { Hooks } from "./hooks.ts";
 import { Inbox, type InboxDelivery } from "./inbox.ts";
-import { Pip, PIP_EXTENSION } from "./pip.ts";
+import { Pip, PIP_ONLY_EXTENSIONS } from "./pip.ts";
 import { PIP_COMPACT_CHOICES, PipCompaction } from "./pip-compact.ts";
 import { RepoWatches } from "./repo-watches.ts";
 import { snippet } from "./projection.ts";
@@ -1547,7 +1547,7 @@ export class PocketApp {
                 return registry()
                     ?.snapshot()
                     .installed()
-                    .filter((extension) => extension.name !== PIP_EXTENSION);
+                    .filter((extension) => !PIP_ONLY_EXTENSIONS.has(extension.name));
             },
             get stream() {
                 return stream();

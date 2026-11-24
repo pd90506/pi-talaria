@@ -54,6 +54,13 @@ const context = BACKGROUND_CONTEXT;
 
 /** PiP's extension: its tools, its prompt, and the follow task. Selected in PiP's conversation only. */
 export const PIP_EXTENSION = "pocket-pip";
+/** PiP's part of the projects module (`talaria-projects.ts`): like PiP's own, only PiP's conversation selects it. */
+export const PROJECTS_PIP_EXTENSION = "talaria-projects-pip";
+/** The extensions only PiP's conversation runs: every other conversation goes without them. */
+export const PIP_ONLY_EXTENSIONS: ReadonlySet<string> = new Set([
+    PIP_EXTENSION,
+    PROJECTS_PIP_EXTENSION,
+]);
 /** What PiP is called, in the app and in what it sends. */
 export const PIP_NAME = "PiP";
 /**
@@ -70,6 +77,7 @@ export const PIP_EXTENSIONS = [
     "pocket-guard",
     "pocket-codemode",
     "pocket-memory",
+    PROJECTS_PIP_EXTENSION,
 ];
 /**
  * The tools PiP goes without: Pi Durable's coding tools (it reads files, and changes nothing itself). Its `artifact`
