@@ -170,7 +170,25 @@ test("the Projects page lists a project's threads by state", real, async () => {
         await inPage<string[]>(
             `return JSON.stringify([...document.querySelectorAll(".talaria-group, .talaria-thread-title")].map((each) => each.textContent.trim()))`,
         ),
-        ["Ready for review", "Write the notes", "Idle", "Count the files"],
+        [
+            "Ready for review",
+            "Write the notes",
+            "Idle",
+            "Count the files",
+            "Show project memory",
+            "Show your memory (kept by PiP)",
+        ],
+    );
+    // The project's memory opens in place, and says when it holds nothing yet.
+    await inPage(
+        `[...document.querySelectorAll(".talaria-toggle")].find((each) => each.textContent.includes("project memory")).click(); return "null"`,
+    );
+    await until(
+        async () =>
+            await inPage<boolean>(
+                `return JSON.stringify(document.querySelector(".talaria-memory-body")?.textContent.includes("No memory files yet.") === true)`,
+            ),
+        "the project's memory",
     );
     assert.equal(
         await inPage<boolean>(

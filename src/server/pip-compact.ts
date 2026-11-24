@@ -248,7 +248,10 @@ type Counts = {
     cost: { input: number; output: number; cacheRead: number; cacheWrite: number; total: number };
 };
 
-/** What came since the context's newest compaction, estimated; none: no compaction, so everything did. */
+/**
+ * What came since the context's newest compaction, estimated; none: no compaction, so everything did. The system prompt
+ * as it stands (`pi.system`) did not come: counted, a long prompt alone would have PiP compact after every answer.
+ */
 export function tokensSinceCompaction(view: ContextView): number {
     if (view.head?.kind !== "pi.compaction") {
         return Number.POSITIVE_INFINITY;
@@ -257,7 +260,7 @@ export function tokensSinceCompaction(view: ContextView): number {
     let tokens = 0;
 
     view.entries.forEach((entry, index) => {
-        if (entry.id > view.head!.id) {
+        if (entry.id > view.head!.id && entry.kind !== "pi.system") {
             for (const message of view.contributions[index] ?? []) {
                 tokens += estimateMessageTokens(message);
             }
