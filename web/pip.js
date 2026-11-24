@@ -818,6 +818,7 @@ function Item({ item, last, busy, conversationId }) {
             }
             ${
                 !growing &&
+                entry?.stopReason !== "toolUse" &&
                 text.trim() !== "" &&
                 html`<${SessionCards}
                     text=${text}

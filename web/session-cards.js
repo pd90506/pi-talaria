@@ -8,6 +8,14 @@ import { html, Icon } from "./ui.js";
 /** How many sessions one of PiP's answers shows as cards. */
 const MAX_CARDS = 3;
 
+const sameOrigin = (address) => {
+    try {
+        return new URL(address).origin === location.origin;
+    } catch {
+        return false;
+    }
+};
+
 /**
  * The sessions PiP's answer links (a project's coordinator, a session it started), as cards under it: each one's title,
  * where it stands, and what modules say of it (`sessionChips`: a project, its threads). A tap opens it.
@@ -16,9 +24,10 @@ export function SessionCards({ text, onOpen }) {
     const sessions = store.state.sessions;
     const ids = [
         ...new Set(
-            [...text.matchAll(/(?<![\w/.])\/s\/(\d+)\b(?![\w/])/g)].map((match) =>
-                Number(match[1]),
-            ),
+            // As a link opens a session (`sessionOf` in pip.js): `/s/12`, `/s/12/`, or this app's own full address.
+            [...text.matchAll(/(?:(https?:\/\/[^/\s()<>[\]]+)|(?<![\w/.]))\/s\/(\d+)\/?(?![\w/])/g)]
+                .filter((match) => match[1] === undefined || sameOrigin(match[1]))
+                .map((match) => Number(match[2])),
         ),
     ];
     const shown = ids

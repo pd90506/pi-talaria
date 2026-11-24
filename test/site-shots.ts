@@ -780,7 +780,9 @@ try {
         "sign-in",
     );
 
-    // PiP, over the session Riley is in. Closing it marks what it said as seen, so its corner mark stays away later.
+    // PiP, over the session Riley is in: floating, its phone's sheet (Board is the default). Closing it marks what it
+    // said as seen, so its corner mark stays away later.
+    await page(`(await import("/theme.js")).setPrefs({ pip: "floating" }); return null`);
     await frame(PIXEL, `/s/${ids.login}?pip=1`);
     await seen(`return document.querySelector(".pip-panel") !== null`, "PiP's panel");
     await seen(

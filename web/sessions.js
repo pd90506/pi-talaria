@@ -2457,7 +2457,7 @@ function AllSessions({ compact = false }) {
         class=${`sessions ${compact ? "compact" : ""} ${tapping ? "tap-selecting" : ""}`}
         data-part="session-list"
     >
-        ${!compact && html`<${SidebarSections} />`}
+        <${SidebarSections} />
         <div class="sessions-head">
             <span class="sessions-name" data-part="session-list-title">Sessions</span>
             <span class="sessions-count">${sessionsLoaded ? count : ""}</span>

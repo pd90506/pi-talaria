@@ -527,14 +527,48 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
         );
     };
 
+    /** While a project's session runs, its approvals: one that starts or ends to wait changes its state too. */
+    const watching = new Map<number, (() => void)[]>();
+
+    const unwatch = (id: number) => {
+        for (const stop of watching.get(id) ?? []) {
+            stop();
+        }
+
+        watching.delete(id);
+    };
+
     const stopStarts = host.on("run.started", (run) => {
-        if (run.conversationId === run.session) {
-            lastStart.set(run.conversationId, Date.now());
-            tellRuns();
+        if (run.conversationId !== run.session) {
+            return;
+        }
+
+        lastStart.set(run.conversationId, Date.now());
+        tellRuns();
+
+        const id = run.conversationId;
+
+        if (
+            watching.has(id) ||
+            projectAt(host.cwdOf(id as unknown as ConversationId)) === undefined
+        ) {
+            return;
+        }
+
+        try {
+            const source = id as unknown as ConversationId;
+
+            watching.set(id, [
+                host.pendingApprovals.on(source, "created", tellRuns),
+                host.pendingApprovals.on(source, "resolved", tellRuns),
+            ]);
+        } catch {
+            // A session with no requester yet, or gone: its state shows at its run's end.
         }
     });
     const stopEnds = host.on("run.ended", (run) => {
         if (run.conversationId === run.session) {
+            unwatch(run.conversationId);
             tellRuns();
         }
     });
@@ -542,6 +576,10 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
     web?.onDispose(() => {
         stopEnds();
         clearTimeout(telling);
+
+        for (const id of [...watching.keys()]) {
+            unwatch(id);
+        }
     });
     // Threads that end close together reach their coordinator at once, in one turn.
     const stopBatch = linked.batchReports?.((lead) =>

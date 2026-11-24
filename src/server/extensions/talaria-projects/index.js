@@ -51,32 +51,56 @@ export default function setup(pocket) {
     let hiding = true;
     const keeps = (session) => !projectSessions.has(session.id);
 
-    const refresh = () => {
-        asking ??= pocket
-            .api("projects")
-            .then((data) => {
-                latest = data;
-                failure = null;
-                projectSessions = new Set(
-                    data.projects.flatMap((project) => [
-                        project.coordinator,
-                        ...project.threads.map((each) => each.id),
-                    ]),
-                );
-                // A new function: the list asks again which sessions it keeps.
-                filter?.update({ match: hiding ? (session) => keeps(session) : null });
-                chips?.update({ chips: chipsOf });
-            })
-            .catch((error) => {
-                failure = error.message;
-            })
-            .finally(() => {
-                asking = null;
+    /** Whether the server said the projects changed while a read was on its way: then read once more after it. */
+    let again = false;
+    /** The projects the sidebar lists: not archived, and with their folder there. */
+    const active = (data) =>
+        (data?.projects ?? []).filter(
+            (project) => project.status !== "archived" && !project.missing,
+        );
 
-                for (const hear of hearers) {
-                    hear({ data: latest, failure });
-                }
-            });
+    /** Read the projects once, and tell every view. */
+    const read = async () => {
+        try {
+            const data = await pocket.api("projects");
+
+            latest = data;
+            failure = null;
+            // Only the sidebar's projects: the sessions of an archived project stay in the list.
+            projectSessions = new Set(
+                active(data).flatMap((project) => [
+                    project.coordinator,
+                    ...project.threads.map((each) => each.id),
+                ]),
+            );
+            // New functions: the list asks again which sessions it keeps, and their chips.
+            filter?.update({ match: hiding ? (session) => keeps(session) : null });
+            chips?.update({ chips: (session) => chipsOf(session) });
+        } catch (error) {
+            failure = error.message;
+        }
+
+        for (const hear of hearers) {
+            hear({ data: latest, failure });
+        }
+    };
+
+    /** Read the projects; a change said during a read reads again after it, and the promise waits for that too. */
+    const refresh = () => {
+        if (asking !== null) {
+            again = true;
+
+            return asking;
+        }
+
+        asking = (async () => {
+            do {
+                again = false;
+                await read();
+            } while (again);
+
+            asking = null;
+        })();
 
         return asking;
     };
@@ -540,9 +564,7 @@ export default function setup(pocket) {
         const { data, failure: failed } = useProjects();
         const shown = useShown();
         const current = projectOf(data, shown);
-        const projects = (data?.projects ?? []).filter(
-            (project) => project.status !== "archived" && !project.missing,
-        );
+        const projects = active(data);
 
         return html`<nav class="talaria-nav" aria-label="PiP and projects">
             <button
@@ -603,12 +625,15 @@ export default function setup(pocket) {
 
     /** Beside a project's coordinator or thread: the project, its threads by state, and its memory. */
     function ProjectPanel() {
-        const { data } = useProjects();
+        const { data, failure: failed } = useProjects();
         const shown = useShown();
         const project = projectOf(data, shown);
 
         if (data === null) {
-            return html`<${Loader} label="Reading the project" />`;
+            return failed
+                ? html`<div class="error-box">${failed}</div>
+                      <button class="button" onClick=${() => void refresh()}>Try again</button>`
+                : html`<${Loader} label="Reading the project" />`;
         }
 
         if (project === undefined) {

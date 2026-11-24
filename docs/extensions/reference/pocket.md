@@ -561,7 +561,7 @@ sidebar(spec: SidebarSpec): Added<SidebarSpec>;
 
 Since 0.31.0 · Experimental
 
-Adds a section at the top of the session list, above its head and its search: what the module draws, such as a list of the module's own places. The sections come in the server's order of modules. The list's scroll still holds the sessions; a section that is long scrolls on its own, past half the list's height. A section that fails shows a notice in its place, and the list stays. The compact list of a phone's top bar does not show sections. See [`SidebarSpec`](#sidebarspec).
+Adds a section at the top of the session list, above its head and its search: what the module draws, such as a list of the module's own places. The sections come in the server's order of modules. The list's scroll still holds the sessions; a section that is long scrolls on its own, past half the list's height. A section that fails shows a notice in its place, and the list stays. A phone shows the sections in its drawer, over the list there. See [`SidebarSpec`](#sidebarspec).
 
 ### `composerKey`
 
