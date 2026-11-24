@@ -68,6 +68,7 @@ const ORDER = [
     "updates.ts",
     "design.ts",
     "tool-search.ts",
+    "talaria-projects.ts",
 ];
 
 /** The built-in modules' names (their files' without `.ts`): a drop-in with one of them is never loaded. */
@@ -111,6 +112,7 @@ const TITLES: Record<string, string> = {
     "updates.ts": "Pi Pocket updates",
     "design.ts": "Design",
     "tool-search.ts": "Tool search",
+    "talaria-projects.ts": "Projects",
 };
 
 /**

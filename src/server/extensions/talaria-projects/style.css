@@ -1,0 +1,41 @@
+/* Projects' page: the list of projects, and the form for a new one. */
+.talaria-projects {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 16px;
+}
+
+.talaria-projects .list-item .grow {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 0;
+}
+
+.talaria-name {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+.talaria-new {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.talaria-new h3 {
+    margin: 0;
+    font-size: 14px;
+}
+
+.talaria-new :is(input, textarea) {
+    width: 100%;
+    box-sizing: border-box;
+}
