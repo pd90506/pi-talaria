@@ -591,7 +591,14 @@ Each call acts as the person that Pi works for in `source`, and that person's ch
 ```ts
 start(
     source: ConversationId,
-    request: { title?: string; message: string; model?: string; thinking?: string; cwd?: string },
+    request: {
+        title?: string;
+        message: string;
+        model?: string;
+        thinking?: string;
+        cwd?: string;
+        thread?: boolean;
+    },
     key: string,
 ): Promise<{ session: ConversationId; address: string; answers?: boolean }>;
 ```
@@ -605,6 +612,7 @@ Makes a session linked to `source` and sends it `message` as its first message. 
 - `model` is `provider/modelId`. While the owner's list of models for subagents is empty, it must be the model of `source`. Once the list has models, it must be one of them. Without it, the session uses the model of `source` when the list is empty or has it. Otherwise `start` is refused with an error that names the allowed models.
 - `thinking` can be any level, also one above the level of `source`. Without it, the session uses the level of `source`. Pi Pocket lowers it to the highest level that the model has, or uses the lowest level of the model when it has none that low.
 - When Pi cannot use the model now, `start` makes nothing and throws an error.
+- `thread: true` starts a project thread. Unlike other linked sessions, a thread may start linked sessions of its own, its helpers, and a helper may not. Its helpers' spend counts against its spend limit. Only a `source` that is not linked can start a thread; from a linked `source`, `thread` is ignored. The human-bound `linkedSessions.start` of a route has no `thread`.
 
 #### `linkedSessions.send`
 

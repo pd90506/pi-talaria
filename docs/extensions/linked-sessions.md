@@ -89,10 +89,10 @@ Pi Pocket refuses them while the source is in plan mode, past a spend limit, or 
 
 Pi Pocket keeps a team small. Past these limits ([Limits](reference/limits.md#linked-sessions)), it refuses the call with a plain error:
 
-- A linked session can send messages to the other sessions of its team. It cannot start sessions.
+- A linked session can send messages to the other sessions of its team. It cannot start sessions, except a project thread (started with `thread: true`), which can start helpers that cannot.
 - Since 0.19.0, no count limits the sessions that a session starts. Before 0.19.0, a session started a limited number.
 - Since 0.19.0, no count of messages between the sessions of a team stops them, and since 0.28.0 none counts them. Before 0.19.0, they stopped after a limited number until a person wrote in one of them.
-- The budget of the session that started a team covers all of the team. What its linked sessions spend counts against it.
+- The budget of the session that started a team covers all of the team. What its linked sessions spend counts against it. A project thread's budget covers its helpers too.
 - A message and a title have a length limit. A title is one line, without invisible or direction characters.
 
 **Note:** since 0.19.0, no count limit applies to a team. The spend limit of the top session is the brake. The owner can set a session budget for a team in Menu → Spend.

@@ -50,6 +50,11 @@ export type SessionMeta = {
     /** The session that started this one (`linked-sessions.ts`): a link only, which gives no access and owns nothing. */
     linkedFrom?: { id: number };
     /**
+     * A project thread (`talaria-projects.ts`): a linked session that may start linked sessions of its own, its
+     * helpers, which may not. Set only by an extension's `linkedSessions.start` with `thread: true`.
+     */
+    thread?: true;
+    /**
      * False: this session, as a lead, takes no run-end answers from the sessions it started (`linked-sessions.ts`,
      * `reports`), and a message from it asks the target to send its answer. Absent: it takes them.
      */

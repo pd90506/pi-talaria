@@ -243,32 +243,28 @@ export class Spend {
         return spent;
     }
 
-    /**
-     * The session at the top of a linked family (`linked-sessions.ts`): the one that started this one, and so on up. A
-     * session no link started is its own.
-     */
-    teamRoot(root: ConversationId): ConversationId {
-        const seen = new Set<ConversationId>([root]);
-        let at = root;
+    /** `root`, the session that started it, and so on up to the top of its linked family. */
+    chainOf(root: ConversationId): ConversationId[] {
+        const chain = [root];
 
         for (;;) {
-            const from = this.#app.sessionMeta(at)?.linkedFrom?.id as ConversationId | undefined;
+            const from = this.#app.sessionMeta(chain.at(-1)!)?.linkedFrom?.id as
+                ConversationId | undefined;
 
-            if (from === undefined || seen.has(from)) {
-                return at;
+            if (from === undefined || chain.includes(from)) {
+                return chain;
             }
 
-            seen.add(from);
-            at = from;
+            chain.push(from);
         }
     }
 
-    /** What a linked family spent: its top session and every session linked under it, subagents included. */
-    #teamSpent(top: ConversationId): number {
+    /** What `lead` and every session linked under it spent, at any depth, subagents included. */
+    #teamSpent(lead: ConversationId): number {
         let spent = 0;
 
         for (const [id, cost] of this.#costs) {
-            if (this.teamRoot(this.#app.rootOf(id)) === top) {
+            if (this.chainOf(this.#app.rootOf(id)).includes(lead)) {
                 spent += cost;
             }
         }
@@ -281,7 +277,7 @@ export class Spend {
      * started linked sessions, theirs too, as `#reached` counts it.
      */
     budgetSpent(root: ConversationId): number {
-        return this.teamRoot(root) === root ? this.#teamSpent(root) : this.sessionSpent(root);
+        return this.#teamSpent(root);
     }
 
     personSpent(userId: string): number {
@@ -295,18 +291,15 @@ export class Spend {
     ): { budget: number; person?: User; team?: true } | undefined {
         const app = this.#app;
         const root = app.rootOf(id);
-        const budget = app.sessionMeta(root)?.budget;
 
-        if (budget !== undefined && this.sessionSpent(root) >= budget) {
-            return { budget };
-        }
+        // A session's limit covers the sessions linked under it too: a project thread's covers its helpers, and the
+        // top session's the whole family.
+        for (const at of this.chainOf(root)) {
+            const budget = app.sessionMeta(at)?.budget;
 
-        // The budget of the session that started a team covers it all: what its linked sessions spend counts too.
-        const top = this.teamRoot(root);
-        const team = app.sessionMeta(top)?.budget;
-
-        if (team !== undefined && this.#teamSpent(top) >= team) {
-            return top === root ? { budget: team } : { budget: team, team: true };
+            if (budget !== undefined && this.#teamSpent(at) >= budget) {
+                return at === root ? { budget } : { budget, team: true };
+            }
         }
 
         const person = app.config.userById(userId);

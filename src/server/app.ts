@@ -1241,15 +1241,16 @@ export class PocketApp {
                     alreadyPaid,
                 );
 
-                // A team's top session with a limit shows the team's spend: it follows a linked session's too.
-                const root = this.rootOf(change.conversationId);
-                const top = this.spend.teamRoot(root);
+                // A lead with a limit shows its team's spend: it follows the sessions linked under it too.
+                const [, ...leads] = this.spend.chainOf(this.rootOf(change.conversationId));
 
-                if (top !== root && this.#sessions[String(top)]?.budget !== undefined) {
-                    void this.#rooms.get(top)?.then(
-                        (room) => room.schedule(),
-                        () => {},
-                    );
+                for (const lead of leads) {
+                    if (this.#sessions[String(lead)]?.budget !== undefined) {
+                        void this.#rooms.get(lead)?.then(
+                            (room) => room.schedule(),
+                            () => {},
+                        );
+                    }
                 }
             }
         }
