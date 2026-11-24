@@ -27,7 +27,7 @@ import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import type { ConversationId } from "@earendil-works/pi-durable";
-import { TurnsDoc, WatchDoc } from "../src/server/docs.ts";
+import { WatchDoc } from "../src/server/docs.ts";
 import { trimPayload } from "../src/server/hooks.ts";
 import { createHandler } from "../src/server/http.ts";
 
@@ -587,23 +587,18 @@ test("what GitHub names reaches Pi on one line, and is named as data", async () 
     await app.commands.unwatchPr(id, owner(app));
 });
 
-test("a watch waits while someone else drives, or Pi is busy, without counting it a failure", async () => {
+test("a watch waits while Pi is busy, without counting it a failure", async () => {
     github = freshGithub();
     github.checks = [failedCheck("test", "7", "boom")];
     const id = await newSession(app);
-    const guest = app.config.addUser("Dee", "guest").user;
     const real = app.isBusy;
-    // Pi is busy from the moment the watch has looked at the PR (the send that follows must wait), busy throughout, or
-    // as it is.
-    let busy: "after a look" | "yes" | "no" = "after a look";
+    // Pi is busy from the moment the watch has looked at the PR: the send that follows must wait.
     let answered = 0;
 
     app.isBusy = (asked) => {
         if (
             asked === id &&
-            (busy === "yes" ||
-                (busy === "after a look" &&
-                    github.calls.some((call) => call[1] === "view" && call.includes("--repo"))))
+            github.calls.some((call) => call[1] === "view" && call.includes("--repo"))
         ) {
             answered += 1;
 
@@ -618,32 +613,6 @@ test("a watch waits while someone else drives, or Pi is busy, without counting i
         await until(() => answered >= 3, "the watch to find Pi busy");
         assert.deepEqual(await messages(id), [], "nothing goes while Pi is busy");
         assert.equal((await watchOf(id))?.errors, 0);
-
-        // Take turns, and someone else drives: the watch waits its turn, however long, as no failure, even after
-        // looks that failed before it.
-        await app.harness.commit(async (tx) => {
-            (await tx.doc(WatchDoc, id)).watch!.errors = 3;
-            const turns = await tx.doc(TurnsDoc, id);
-
-            turns.on = true;
-            turns.driver = guest.id;
-        }, context);
-        busy = "no";
-        await until(async () => (await watchOf(id))?.note === "Waits while Dee drives.", "it");
-        await looks(3);
-        const waiting = await watchOf(id);
-
-        assert.equal(waiting?.status, "watching");
-        assert.equal(waiting?.errors, 0);
-        assert.equal(waiting?.sent, 0);
-        assert.deepEqual(await messages(id), []);
-        // The wheel comes back while Pi is busy: the note says no more that Dee drives.
-        busy = "yes";
-        await app.harness.commit(async (tx) => {
-            (await tx.doc(TurnsDoc, id)).driver = owner(app).id;
-        }, context);
-        await until(async () => (await watchOf(id))?.note === undefined, "the note to go");
-        assert.equal((await watchOf(id))?.sent, 0);
     } finally {
         app.isBusy = real;
     }
@@ -653,9 +622,6 @@ test("a watch waits while someone else drives, or Pi is busy, without counting i
     await until(async () => !app.isBusy(id), "Pi to answer");
     assert.equal((await messages(id)).length, 1);
     assert.match((await messages(id))[0]!, /Checks failed on abcdef1: “test”/);
-    await app.harness.commit(async (tx) => {
-        (await tx.doc(TurnsDoc, id)).on = false;
-    }, context);
     await app.commands.unwatchPr(id, owner(app));
 });
 

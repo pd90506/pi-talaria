@@ -26,6 +26,6 @@ test("the launcher has every row of the menu, by name", () => {
     ];
     const missing = names.filter((name) => !launcher.includes(`"${name}`));
 
-    assert.ok(names.includes("Webhooks and watches") && names.includes("Take turns"));
+    assert.ok(names.includes("Webhooks and watches") && names.includes("Running now"));
     assert.deepEqual(missing, [], `the launcher has no action named: ${missing.join(", ")}`);
 });

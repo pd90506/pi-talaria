@@ -9,7 +9,7 @@ const LAYOUT_MAX = 200;
 /** A session that shows no panel: what one never seen before shows. */
 export const NO_LAYOUT = Object.freeze({ panel: null, filesTab: "files" });
 
-const PANELS = new Set(["ext", "browser", "files", "people"]);
+const PANELS = new Set(["ext", "browser", "files"]);
 
 /**
  * A session's layout, as kept: `{ panel, filesTab }`, and `ext` (`{ module, id }`) for an extension's panel. Anything
@@ -60,7 +60,7 @@ export function layoutOf(state) {
         return { panel: "ext", ext: { ...state.extPanel }, filesTab };
     }
 
-    return { panel: state.peopleOpen ? "people" : null, filesTab };
+    return { panel: null, filesTab };
 }
 
 /** What the store's state takes to show `layout`. */
@@ -69,7 +69,6 @@ export function layoutPatch({ panel, ext, filesTab }) {
         extPanel: panel === "ext" ? { ...ext } : null,
         browserOpen: panel === "browser",
         filesOpen: panel === "files",
-        peopleOpen: panel === "people",
         filesTab,
     };
 }
@@ -127,7 +126,7 @@ export function legacyLayout(get) {
         return { panel: "ext", ext: { module: ext.module, id: ext.id }, filesTab };
     }
 
-    return get("pocket.people") === "1" ? { panel: "people", filesTab } : null;
+    return null;
 }
 
 /** The keys `legacyLayout` reads, which nothing writes now. */

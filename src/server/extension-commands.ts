@@ -275,7 +275,7 @@ export class ExtensionCommands {
                 throw new HttpError(403, "Only the owner can run global extension commands.");
             }
         } else {
-            await this.#app.requireDriver(id, user);
+            this.#app.requireSteer(user);
         }
     }
 

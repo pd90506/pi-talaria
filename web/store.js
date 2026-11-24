@@ -7,7 +7,6 @@ import { fitClock, moment } from "./clock.js";
 import { fingerprint } from "./text-hash.js";
 import * as disk from "./session-cache.js";
 import { personStorage } from "./person-storage.js";
-import { notesDrafts } from "./notes-drafts.js";
 import {
     keptLayout,
     layoutOf,
@@ -52,30 +51,6 @@ function unreadOf() {
     }
 }
 
-/** How far this browser has read a session's chat: the time of the newest message seen, in `pocket.chatRead.<id>`. */
-const CHAT_READ_PREFIX = "pocket.chatRead.";
-
-/**
- * Every session's read time, by id, from local storage. Read once at load and kept in the store (`chatReads`): the list
- * asks for each row as it draws, and storage is slow to ask.
- */
-function readChatReads() {
-    const reads = {};
-
-    for (let index = 0; index < localStorage.length; index++) {
-        const key = localStorage.key(index);
-        const at = key?.startsWith(CHAT_READ_PREFIX) ? Number(localStorage.getItem(key)) : 0;
-
-        if (at > 0) {
-            reads[key.slice(CHAT_READ_PREFIX.length)] = at;
-        }
-    }
-
-    return reads;
-}
-
-const firstReads = readChatReads();
-
 const TAB = sessionStorage.getItem(TAB_KEY) ?? uid();
 
 sessionStorage.setItem(TAB_KEY, TAB);
@@ -96,9 +71,6 @@ const emptyView = () => ({
     subagents: [],
     authors: {},
     linkedPeers: {},
-    reactions: {},
-    pins: [],
-    turns: { on: false, asks: [] },
     decisions: {},
     plan: { on: false },
     schedules: [],
@@ -232,7 +204,7 @@ function pipLayout(pip) {
 let layoutShown = { id: null, layout: NO_LAYOUT };
 
 // A panel opened or closed is kept for the session at once, so a reload or a visit later shows it again. Going to another
-// session shows the layout kept for it; one opened on the way there (a chat docked as People) is kept too. PiP's
+// session shows the layout kept for it; one opened on the way there is kept too. PiP's
 // conversation keeps none: opened again (as a board), it shows PiP, not a panel left over it.
 function followLayout(state) {
     const id = state.conversationId;
@@ -290,9 +262,7 @@ export const store = {
         /** Sessions whose linked sessions are folded away in the list: this browser's choice (`toggleFoldedLinked`). */
         foldedLinked: readFoldedLinked(),
         view: emptyView(),
-        /** How far this browser has read each session's chat, by id: what `pocket.chatRead.<id>` keeps. */
-        chatReads: firstReads,
-        ...peopleFor(routeConversation(), firstReads),
+        replyQuotes: [],
         history: null,
         /** The id of the oldest transcript entry shown, or null for the newest `TRANSCRIPT_ROWS` rows. */
         transcriptFrom: null,
@@ -312,8 +282,6 @@ export const store = {
         sheet: null,
         drawer: false,
         auth: null,
-        /** A transcript message the next chat message discusses: `{ entryId, text }`. */
-        chatQuote: null,
         /**
          * The passages Reply quoted that wait for the session's message box, in order: `[{ text }]`. The box takes each
          * as it can (not while a send is on its way). Leaving the session drops them.
@@ -364,10 +332,6 @@ export const store = {
         filesTarget: null,
         /** When someone last asked for the Files tile, and for which tab: `{ tab, at }`. */
         filesAsk: null,
-        /** The People panel shows beside the conversation on wide screens; kept for each session, like the browser's. */
-        peopleOpen: false,
-        /** The last request to show the People panel: which tab and chat message, and a count that tells requests apart. */
-        peopleAsk: { tab: null, highlight: null, n: 0 },
         /** This person's PiP, as the server last told (`{ id, busy, endedAt }`); null when they have none yet. */
         pip: null,
         /** The PiP panel shows; kept per tab, like the browser's, so the reload after a live edit keeps it. */
@@ -463,38 +427,9 @@ export const openId = (state = store.state) =>
 const keptReply = (state, id, over) =>
     (over === null ? id : over.id) === openId(state) ? { replyQuotes: state.replyQuotes } : {};
 
-// ─── People: presence, typing, and the side chat ───────────────────────────────────
-
-const CHAT_LIMIT = 500;
-
-/**
- * Fresh people state for a conversation: no one known yet, and how far this browser has read its chat. A function
- * declaration, not a const: the store's initial state calls it before this line runs, with `reads` given.
- */
-function peopleFor(id, reads = store.state.chatReads) {
-    return {
-        chat: [],
-        presence: [],
-        notes: null,
-        chatQuote: null,
-        replyQuotes: [],
-        chatRead: id === null ? 0 : (reads[id] ?? 0),
-    };
-}
-
-// Another tab of this browser read a chat (or the storage was cleared): the list's marks follow.
-addEventListener("storage", (event) => {
-    if (event.key === null || event.key.startsWith(CHAT_READ_PREFIX)) {
-        setChanged({ chatReads: kept(store.state.chatReads, readChatReads()) });
-    }
-});
-
-/** Someone else chatted in a session after this browser last read its chat. */
-export function sessionUnread(session, state = store.state) {
-    const read =
-        session.id === state.conversationId ? state.chatRead : (state.chatReads[session.id] ?? 0);
-
-    return session.chatAt !== undefined && session.chatBy !== state.me?.id && session.chatAt > read;
+/** Fresh per-conversation state: the passages Reply quoted for the box go when the conversation changes. */
+function freshConversation() {
+    return { replyQuotes: [] };
 }
 
 /**
@@ -617,146 +552,11 @@ addEventListener("storage", (event) => {
     }
 });
 
-/** Server features the web app may use. `collab` 2 adds roles, take turns, reactions, pins, notes, mentions, push. */
-export const collab = () => (store.state.server?.collab ?? 0) >= 2;
-/** Viewers read and chat; they never steer Pi. */
+/** Viewers never steer Pi. */
 export const canSteer = () => store.state.me?.role !== "viewer";
-
-/**
- * Whether this person may turn take turns on or off here, as the server decides: anyone who steers while it is off; the
- * driver, the owner, or anyone when nobody drives or the driver has left, while it is on.
- */
-export function canToggleTurns() {
-    const { me, presence, view } = store.state;
-    const turns = view.turns;
-
-    return (
-        canSteer() &&
-        (!turns?.on ||
-            turns.driver === me?.id ||
-            me?.role === "owner" ||
-            !turns.driver ||
-            !presence.some((person) => person.id === turns.driver))
-    );
-}
 
 /** People invited to one session cannot start sessions or invite others. */
 export const scoped = () => Array.isArray(store.state.me?.sessions);
-
-/** The notices that announce chat messages, here or a mention elsewhere, by id: their session's. Reading its chat takes them down. */
-const chatNotices = new Map();
-
-// Read from storage: another tab's read counts before its event arrives.
-export function chatReadStored(id) {
-    return Number(localStorage.getItem(CHAT_READ_PREFIX + id)) || 0;
-}
-
-export function setChatReadAt(id, at) {
-    if (at > 0) {
-        localStorage.setItem(CHAT_READ_PREFIX + id, String(at));
-    } else {
-        localStorage.removeItem(CHAT_READ_PREFIX + id);
-    }
-
-    store.set((state) => {
-        const chatReads = { ...state.chatReads };
-
-        if (at > 0) {
-            chatReads[id] = at;
-        } else {
-            delete chatReads[id];
-        }
-
-        return { chatReads, ...(id === state.conversationId ? { chatRead: at } : {}) };
-    });
-}
-
-/** Everything in the chat counts as read: called while the chat is open. */
-export function markChatRead() {
-    const { chat, chatRead, conversationId } = store.state;
-
-    for (const [id, conversation] of chatNotices) {
-        if (conversation === conversationId) {
-            dismiss(id);
-            chatNotices.delete(id);
-        }
-    }
-
-    const last = chat.at(-1)?.at ?? 0;
-
-    if (last <= chatRead || conversationId === null) {
-        return;
-    }
-
-    setChatReadAt(conversationId, last);
-}
-
-function applyChat(data) {
-    const state = store.state;
-
-    if (data.conversationId !== state.conversationId) {
-        return;
-    }
-
-    const known = new Set(data.full ? [] : state.chat.map((message) => message.id));
-    const added = data.messages.filter((message) => !known.has(message.id));
-
-    store.set({ chat: (data.full ? data.messages : [...state.chat, ...added]).slice(-CHAT_LIMIT) });
-
-    // The People panel stays open for long: on its Pinned or Notes tab, new messages still count and show a notice.
-    if (chatLogs > 0) {
-        markChatRead();
-
-        return;
-    }
-
-    // A full list comes on connect: only live messages from others pop up.
-    const fresh = data.full
-        ? []
-        : added.filter((message) => message.userId !== state.me?.id && message.kind !== "event");
-
-    if (fresh.length === 0) {
-        return;
-    }
-
-    const open = () => openSheet({ type: "chat" });
-    const announce = (message) =>
-        chatNotices.set(notify("info", message, open), store.state.conversationId);
-
-    if (fresh.length > 1) {
-        return announce(`${fresh.length} new chat messages`);
-    }
-
-    const [message] = fresh;
-    const name = state.users.find((user) => user.id === message.userId)?.name ?? message.name;
-    const text = message.text.replace(/\s+/g, " ");
-    const mentioned = message.mentions?.includes(state.me?.id);
-
-    announce(
-        `${name}${mentioned ? " mentioned you" : ""}: ${text.length > 120 ? `${text.slice(0, 119)}…` : text}`,
-    );
-}
-
-let typingSent = { where: null, at: 0, conversationId: null };
-
-/** Tell others this person is typing ("chat" or "pi") or stopped (null). Renewed at most every few seconds. */
-export function typing(where) {
-    const id = store.state.conversationId;
-
-    if (!store.state.server?.chat || id === null) {
-        return;
-    }
-
-    const now = Date.now();
-    const same = typingSent.conversationId === id && typingSent.where === where;
-
-    if (same && (where === null || now - typingSent.at < 3000)) {
-        return;
-    }
-
-    typingSent = { where, at: now, conversationId: id };
-    api(`c/${id}/typing`, { where }).catch(() => {});
-}
 
 class ApiError extends Error {
     constructor(status, message) {
@@ -849,7 +649,6 @@ export function holdNotice(id, held) {
 export function dismiss(id) {
     clearTimeout(countdowns.get(id)?.timer);
     countdowns.delete(id);
-    chatNotices.delete(id);
     store.set((state) => ({ notices: state.notices.filter((notice) => notice.id !== id) }));
 }
 
@@ -886,7 +685,6 @@ function reloadAccount(to) {
 
     changingAccount = true;
     personStorage.identify(null);
-    notesDrafts.clear();
     waitingInserts = [];
     source?.close();
     store.set({ me: null, composerInsert: null, auth: null, pip: null, pipOpen: false });
@@ -1723,9 +1521,6 @@ function mergeView(current, data) {
         subagents: data.subagents ?? base.subagents,
         authors: data.authors ?? base.authors,
         linkedPeers: data.linkedPeers ?? base.linkedPeers,
-        reactions: data.reactions ?? base.reactions,
-        pins: data.pins ?? base.pins,
-        turns: data.turns ?? base.turns,
         decisions: data.decisions ?? base.decisions,
         plan: data.plan ?? base.plan,
         schedules: data.schedules ?? base.schedules,
@@ -1962,12 +1757,6 @@ const handlers = {
     pip: (pip) => setChanged({ ...pipLayout(pip), pip: kept(store.state.pip, pip) }),
     // PiP's conversation, while this tab's PiP panel is open.
     pipview: applyPipView,
-    chat: applyChat,
-    presence: (data) =>
-        data.conversationId === store.state.conversationId && store.set({ presence: data.people }),
-    notes: (data) =>
-        data.conversationId === store.state.conversationId &&
-        store.set({ notes: { text: data.text, rev: data.rev, by: data.by, at: data.at } }),
     browser: (data) =>
         data.conversationId === store.state.conversationId && store.set({ browser: data }),
     // Another session as its peek tile shows it (`peeks.js`): kept after it scrolls away, as the tile's last look.
@@ -2006,11 +1795,6 @@ const handlers = {
                       })
                 : undefined,
         );
-
-        // A mention's: reading that chat takes it down.
-        if (data.link?.sheet === "chat") {
-            chatNotices.set(id, data.link.conversationId);
-        }
     },
     auth: (data) => handleAuth(data),
     // A notification for the embedder this page runs in, which shows it itself (`web/embedder.js`).
@@ -2366,7 +2150,7 @@ function streamEvents(query) {
 // ─── Switching sessions on the connection the tab has ─────────────────────────────────────────────────────────────
 
 /** Events about the session a tab shows: while a switch is on its way, those that come are the old session's. */
-const SESSION_EVENTS = new Set(["view", "chat", "notes", "presence", "browser", "missing"]);
+const SESSION_EVENTS = new Set(["view", "browser", "missing"]);
 /** The number of the last switch asked, so the server drops one that arrives after a newer one. */
 let switchSeq = 0;
 /** The switch on its way: its number, until the server's `switched` says it went through. */
@@ -2688,14 +2472,14 @@ export function navigate(
         ...(route ? { over } : {}),
         conversationId,
         ...keptView(conversationId),
-        ...peopleFor(conversationId),
+        ...freshConversation(),
         ...keptReply(state, conversationId, route ? over : state.over),
         ...layoutPatch(layoutFor(conversationId)),
         browser: null,
         history: null,
         missing: null,
         drawer: false,
-        ...sheetChange(sheet, state),
+        ...sheetChange(sheet),
     }));
     showKept(conversationId);
 }
@@ -2758,7 +2542,7 @@ onRoute(() => {
             ...over,
             conversationId: id,
             ...keptView(id),
-            ...peopleFor(id),
+            ...freshConversation(),
             ...keptReply(store.state, id, routeOver()),
             ...layoutPatch(layoutFor(id)),
             browser: null,
@@ -2915,17 +2699,6 @@ export const actions = {
     abort: () => api(`c/${current()}/abort`, {}),
     /** Send the request of a run that waits for its provider's limit now, not at its time. */
     retryLimit: (id = current()) => api(`c/${id}/limit/retry`, {}),
-    chat: (text, quote) =>
-        api(`c/${current()}/chat`, {
-            text,
-            requestId: uid(),
-            ...(quote ? { quote: { entryId: quote.entryId } } : {}),
-        }),
-    react: (entryId, emoji) => api(`c/${current()}/react`, { entryId, emoji }),
-    pin: (target) => api(`c/${current()}/pin`, target),
-    saveNotes: (text, rev) => api(`c/${current()}/notes`, { text, rev }),
-    turns: (action, to) => api(`c/${current()}/turns`, { action, ...(to ? { to } : {}) }),
-    setAccess: (userId, patch) => api(`users/${encodeURIComponent(userId)}`, patch),
     withdraw: (submissionId) => api(`c/${current()}/withdraw`, { submissionId }),
     /** Move one's own queued message to "steer" or "followUp", or send it now with "interrupt". */
     move: (submissionId, mode) => api(`c/${current()}/move`, { submissionId, mode }),
@@ -3129,54 +2902,25 @@ export function revealEntry(entryId) {
     }
 }
 
-// ─── The People panel ──────────────────────────────────────────────────────────────
+// ─── Panels beside the conversation ────────────────────────────────────────────────
 
-/** Wide enough for the session list, the conversation, and a panel beside it: where the Browser panel docks too. */
-const PEOPLE_DOCK = matchMedia("(min-width: 1100px)");
+/** Wide enough for the session list, the conversation, and a panel beside it. */
+const PANEL_DOCK = matchMedia("(min-width: 1100px)");
 
 /**
- * Panels (People, Browser, Files) dock beside the conversation now; narrower, the Browser panel and the Files tile cover
+ * Panels (Browser, Files) dock beside the conversation now; narrower, the Browser panel and the Files tile cover
  * the screen, and back closes them. A change re-renders (below).
  */
-export const panelsBeside = () => PEOPLE_DOCK.matches;
+export const panelsBeside = () => PANEL_DOCK.matches;
 
-/** The People panel shows beside the conversation now. */
-export function peopleDocked(state = store.state) {
-    return (
-        state.peopleOpen &&
-        PEOPLE_DOCK.matches &&
-        Boolean(state.server?.chat) &&
-        state.conversationId !== null &&
-        !state.missing
-    );
-}
-
-/**
- * What showing a sheet changes. On wide screens the chat docks beside the conversation instead, as the People panel, and
- * takes the Browser panel's place: both beside the conversation leave it too narrow.
- */
-function sheetChange(sheet, state) {
+/** What showing a sheet changes. */
+function sheetChange(sheet) {
     // Running now was a sheet; it is a board in the conversation's place now, wherever an old caller asks for it.
     if (sheet?.type === "running") {
         return { sheet: null, board: "running", boardAgents: null, page: null };
     }
 
-    if (sheet?.type !== "chat" || !PEOPLE_DOCK.matches) {
-        return { sheet };
-    }
-
-    return {
-        sheet: null,
-        peopleOpen: true,
-        browserOpen: false,
-        filesOpen: false,
-        extPanel: null,
-        peopleAsk: {
-            tab: sheet.tab ?? null,
-            highlight: sheet.highlight ?? null,
-            n: state.peopleAsk.n + 1,
-        },
-    };
+    return { sheet };
 }
 
 /**
@@ -3197,40 +2941,11 @@ export function filesShown(state = store.state) {
     );
 }
 
-/** Hide the People panel. Showing it is `openSheet({ type: "chat" })`, which docks it on wide screens. */
-export function closePeople() {
-    // Its active border goes to the conversation, not nowhere.
-    if (document.documentElement.dataset.focus === "people-panel") {
-        document.documentElement.dataset.focus = "pane";
-    }
-
-    store.set({ peopleOpen: false });
-}
-
-let chatLogs = 0;
-
-/** A chat log is on screen, as the People sheet's or panel's Chat tab: call when it shows, and what it returns when it goes. */
-export function chatLogShown() {
-    chatLogs++;
-
-    return () => {
-        chatLogs--;
-    };
-}
-
-// A window widened with the chat open as a sheet docks it. One narrowed hides the panel until it is wide again.
-PEOPLE_DOCK.addEventListener("change", () => {
-    const { sheet } = store.state;
-
-    if (PEOPLE_DOCK.matches && sheet?.type === "chat") {
-        openSheet(sheet);
-    } else {
-        store.set({});
-    }
-});
+// A window widened or narrowed: panels dock or cover the screen.
+PANEL_DOCK.addEventListener("change", () => store.set({}));
 
 export function openSheet(sheet) {
-    store.set((state) => ({ ...sheetChange(sheet, state), drawer: false }));
+    store.set({ ...sheetChange(sheet), drawer: false });
 }
 
 /**
@@ -3333,23 +3048,14 @@ export function giveBackQuote(quote) {
  */
 export const onItsWay = (going, part) => Boolean(part) && going?.includes(part) === true;
 
-/** Open the chat to discuss a transcript message: the next chat message quotes it. */
-export function discuss(entryId, text) {
-    store.set((state) => ({
-        chatQuote: { entryId, text },
-        ...sheetChange({ type: "chat" }, state),
-        drawer: false,
-    }));
-}
-
-// Tell the server when this tab is hidden or shown: others see "away", and push notifications only reach hidden tabs. A
+// Tell the server when this tab is hidden or shown: push notifications only reach hidden tabs. A
 // embedder's window hidden in its tray, or minimized, counts as hidden (`pageVisible`).
 let lastVisible = null;
 
 function reportVisibility() {
     const visible = pageVisible();
 
-    if (visible === lastVisible || !collab()) {
+    if (visible === lastVisible) {
         return;
     }
 

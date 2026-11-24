@@ -268,7 +268,6 @@ export const PARTS = [
     "notices",
     "notice",
     // Panels
-    "people-panel",
     "peeks",
     "peek-tile",
     "files-panel",

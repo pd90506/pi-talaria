@@ -17,14 +17,13 @@ import {
 import { useBack } from "./back.js";
 import { parseKeys, setBoxKeys } from "./box-keys.js";
 import { describersChanged, setCallDescriber } from "./calls.js";
-import { jumpToEntry } from "./chat.js";
+import { jumpToEntry } from "./jump.js";
 import { modulePresentationMode, setPresentationMode } from "./entry-presentation.js";
 import { markdownChanged, setFences, setMath } from "./markdown-ext.js";
 import { leaveSafeMode, onSafeModeEnd, safeMode } from "./safe-mode.js";
 import {
     api,
     canSteer,
-    closePeople,
     closeSheet,
     insertIntoComposer,
     navigate,
@@ -1720,7 +1719,6 @@ export function openExtPanel(module, id) {
         return;
     }
 
-    closePeople();
     store.set({
         extPanel: { module, id },
         browserOpen: false,

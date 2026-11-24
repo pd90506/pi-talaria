@@ -19,7 +19,7 @@ import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import type { ConversationId } from "@earendil-works/pi-durable";
-import { AuthorsDoc, ChatDoc, ScheduleDoc } from "../src/server/docs.ts";
+import { AuthorsDoc, ScheduleDoc } from "../src/server/docs.ts";
 import { DEFAULT_SCHEDULE_LIMITS } from "../src/server/schedules.ts";
 import {
     checkRepeat,
@@ -639,26 +639,11 @@ test("a person pauses a schedule and resumes it: paused, nothing goes out; resum
             (await app.harness.getTask(repeat.taskId, context))?.state.status === "terminal",
         "the old task to end",
     );
-    // Pause and Resume at once: one wins, and only a call that changed it says so in the chat.
-    const chatLines = async () =>
-        JSON.stringify((await app.harness.snapshot(ChatDoc, id, context)) ?? {}).match(
-            /(paused|resumed) the scheduled “once while paused”/g,
-        ) ?? [];
-    const linesBefore = (await chatLines()).length;
-
+    // Pause and Resume at once: one wins.
     await Promise.all([
         app.commands.pauseSchedule(id, owner(app), once.id, false),
         app.commands.pauseSchedule(id, owner(app), once.id, true),
     ]);
-    const nowPaused = (await items(id)).find((each) => each.id === once.id)?.paused !== undefined;
-    const lines = await chatLines();
-
-    assert.ok(lines.length - linesBefore <= 2, "no line for a call that changed nothing");
-    assert.equal(
-        lines.at(-1)?.startsWith("paused") ?? !nowPaused,
-        nowPaused,
-        "the last line says how it is",
-    );
     await app.commands.pauseSchedule(id, owner(app), once.id, true);
 
     // Past both times: nothing goes out, and both are kept.

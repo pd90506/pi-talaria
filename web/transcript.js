@@ -12,7 +12,7 @@ import {
     presentationMode,
     wasRevealed,
 } from "./entry-presentation.js";
-import { avatarSrc, initials, personColor } from "./avatar.js";
+import { initials, personColor } from "./colors.js";
 import { routeSliding } from "./back.js";
 import { browserAvailable, setBrowserOpen } from "./browser.js";
 import { describeCall, describersRevision } from "./calls.js";
@@ -28,8 +28,6 @@ import {
     actions,
     attempt,
     canSteer,
-    collab,
-    discuss,
     isRow,
     loadEarlier,
     loadedFrom,
@@ -69,7 +67,6 @@ import {
     Icon,
     Markdown,
     openFile,
-    plainText,
     readable,
     replyText,
     Spinner,
@@ -779,8 +776,6 @@ function UserMessage({ entry, view, users }) {
               ? "var(--muted)"
               : personColor(authorId);
 
-    const picture = avatarSrc({ id: authorId });
-
     // Who it is from, for themes: you, someone else, or no one the app knows (Pi's schedule, the main agent, a watch or a
     // webhook). A linked session's message is `linked` (`LinkedMessage`).
     const from =
@@ -816,7 +811,7 @@ function UserMessage({ entry, view, users }) {
                     style=${`--who:${mark}`}
                     aria-hidden="true"
                 >
-                    ${picture ? html`<img src=${picture} alt="" />` : name ? initials(name) : "›"}
+                    ${name ? initials(name) : "›"}
                 </span>
                 ${name && html`<b class="prompt-author" data-part="prompt-author">${name}</b>`}
                 ${
@@ -1562,7 +1557,7 @@ const openedGroups = new Map();
 const GROUP_STEPS = 24;
 const wholeGroups = new Map();
 /**
- * The answer a jump asked to see last (`jumpToEntry` in chat.js says so with a `pocket:reveal` event), and when: a group
+ * The answer a jump asked to see last (`jumpToEntry` in jump.js says so with a `pocket:reveal` event), and when: a group
  * that shows only after the jump moved the rows shown opens when it first draws. Groups already shown hear the event.
  */
 let revealing = { entryId: null, at: 0 };
@@ -2317,9 +2312,8 @@ function ApprovalCard({ approval }) {
 
 // ─── Pi's words ───────────────────────────────────────────────────────────────────────
 
-// The actions under Pi's answers, after its reactions: the app's own items of the `reply` slot (slots.js), which a
-// person can hide and reorder in Appearance, with extensions' before More, which stays last. Each gets the answer
-// (`entry`, its `text`), whether it is pinned, and the reaction picker's state.
+// The actions under Pi's answers: the app's own items of the `reply` slot (slots.js), which a person can hide and
+// reorder in Appearance, with extensions' before More, which stays last. Each gets the answer (`entry`, its `text`).
 defineItem("reply", {
     id: "core:time",
     label: "Message time",
@@ -2335,54 +2329,6 @@ defineItem("reply", {
             ${clock(entry.at)}
         </time>`;
     },
-});
-defineItem("reply", {
-    id: "core:react",
-    label: "React",
-    order: 100,
-    render: ({ picking, setPicking, react }) =>
-        html`<span class="reaction-host answer-tool">
-            <button
-                class="reaction add"
-                aria-label="React"
-                title="React"
-                onClick=${() => setPicking(!picking)}
-            >
-                ☺+
-            </button>
-            ${
-                picking &&
-                html`<span class="reaction-picker">
-                    ${(store.state.server?.reactions ?? []).map(
-                        (emoji) => html`<button onClick=${() => react(emoji)}>${emoji}</button>`,
-                    )}
-                </span>`
-            }
-        </span>`,
-});
-defineItem("reply", {
-    id: "core:discuss",
-    label: "Discuss",
-    order: 200,
-    render: ({ entry, text }) =>
-        html`<button
-            class="answer-tool"
-            onClick=${() => discuss(entry.id, plainText(text).replace(/\s+/g, " ").slice(0, 280))}
-        >
-            Discuss
-        </button>`,
-});
-defineItem("reply", {
-    id: "core:pin",
-    label: "Pin",
-    order: 300,
-    render: ({ entry, pinned }) =>
-        html`<button
-            class="answer-tool"
-            onClick=${() => attempt(() => actions.pin({ entryId: entry.id }))}
-        >
-            ${pinned ? html`<${Icon} name="pin" size=${12} /> Pinned` : "Pin"}
-        </button>`,
 });
 defineItem("reply", {
     id: "core:copy",
@@ -2415,44 +2361,19 @@ defineItem("reply", {
         </button>`,
 });
 
-/** Under Pi's answers: the message time, reactions, and ways to talk about it with the people here. */
+/** Under Pi's answers: the message time, Copy, More, and extensions' actions. */
 function AnswerActions({ entry }) {
-    const { view, me, users, server } = store.state;
-    const [picking, setPicking] = useState(false);
-    const reactions = view.reactions?.[entry.id] ?? {};
-    const pinned = (view.pins ?? []).some((pin) => pin.entryId === entry.id);
     const text = replyText(entry);
-    const names = (ids) =>
-        ids
-            .map((id) =>
-                id === me?.id ? "you" : (users.find((user) => user.id === id)?.name ?? "someone"),
-            )
-            .join(", ");
 
-    const react = (emoji) => {
-        setPicking(false);
-        attempt(() => actions.react(entry.id, emoji));
-    };
-
-    return html`<div class=${`answer-actions ${picking ? "picking" : ""}`} data-part="reply-actions">
-        ${Object.entries(reactions).map(
-            ([emoji, ids]) =>
-                html`<button
-                    class=${`reaction ${ids.includes(me?.id) ? "mine" : ""}`}
-                    title=${`${emoji} ${names(ids)}`}
-                    onClick=${() => react(emoji)}
-                >
-                    ${emoji} <span>${ids.length}</span>
-                </button>`,
-        )}
-        ${slotItems("reply", { entry, text, pinned, picking, setPicking, react }).map(({ node }) => node)}
+    return html`<div class="answer-actions" data-part="reply-actions">
+        ${slotItems("reply", { entry, text }).map(({ node }) => node)}
     </div>`;
 }
 
 /** How one of Pi's answers ended, under its last words: a failed request, a stop, or the answer's actions. */
 function AnswerEnd({ entry }) {
-    // A final answer (not a step between tool calls) with something to say gets reactions and the discuss row.
-    const answer = collab() && entry.stopReason !== "toolUse" && entry.blocks.some(says);
+    // A final answer (not a step between tool calls) with something to say gets the actions row.
+    const answer = entry.stopReason !== "toolUse" && entry.blocks.some(says);
 
     return html`${
         entry.stopReason === "error" &&
@@ -2521,7 +2442,6 @@ function Divider({ entry }) {
 function History({ firstId, results, keepPlace, conversationId }) {
     const history = store.state.history;
     const { entries } = store.state.view;
-    const talk = collab();
     // Built again only when the history or the entries change, not on each draw of the transcript.
     const items = useMemo(
         () =>
@@ -2530,9 +2450,9 @@ function History({ firstId, results, keepPlace, conversationId }) {
                 : itemsOf(
                       history.filter((entry) => isRow(entry) && !entries.has(entry.id)),
                       null,
-                      { prefix: "h", talk },
+                      { prefix: "h" },
                   ),
-        [history, entries, talk],
+        [history, entries],
     );
 
     if (history === null) {
@@ -2893,13 +2813,11 @@ function callDeps(block, results, slots, approvals) {
 }
 
 /**
- * What a run of Pi's words shows besides its text: the answer's reactions and pin, who is looking, and the actions under
- * it (`actions`, the reply slot's `slotKey`, the same for every answer of a draw).
+ * What a run of Pi's words shows besides its text: who is looking, and the actions under it (`actions`, the reply slot's `slotKey`, the same for every answer of a draw).
  */
 function replyDeps(item, actions) {
     const { view, users, me, server } = store.state;
     const { entry } = item;
-    const reactions = view.reactions?.[entry.id];
 
     return [
         entry,
@@ -2910,8 +2828,6 @@ function replyDeps(item, actions) {
         me,
         server,
         view.conversation?.id,
-        reactions === undefined ? "" : JSON.stringify(reactions),
-        (view.pins ?? []).some((pin) => pin.entryId === entry.id),
         markdownRevision(),
         // The actions under it: the app's and extensions', as arranged (`slots.js`).
         actions,
@@ -3652,12 +3568,11 @@ export function Transcript() {
     // updates bring no new entries (`mergeView`).
     const rows = useMemo(() => entries.filter(isRow), [entries]);
     const start = useMemo(() => windowStart(rows, transcriptFrom), [rows, transcriptFrom]);
-    const talk = collab();
-    const from = useMemo(() => rowsBefore(rows, start, talk), [rows, start, talk]);
+    const from = useMemo(() => rowsBefore(rows, start), [rows, start]);
     const partial = partialEntry(view.live.generation?.message?.blocks ?? []);
     const items = useMemo(
-        () => itemsOf(rows.slice(start), partial, { from, talk }),
-        [rows, start, partial, from, talk],
+        () => itemsOf(rows.slice(start), partial, { from }),
+        [rows, start, partial, from],
     );
     const results = useMemo(() => {
         const map = new Map();

@@ -2,7 +2,7 @@
 // sidebar, the drawer, and a phone's home screen; and the order and archiving of sessions.
 import { Component } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
-import { Avatar, folderColor, initials } from "./avatar.js";
+import { folderColor, initials } from "./colors.js";
 import { goHome, useBack } from "./back.js";
 import {
     ExtensionRailButtons,
@@ -21,15 +21,11 @@ import {
     actions,
     attempt,
     canSteer,
-    chatReadStored,
-    collab,
     navigate,
     notify,
     isUnread,
     openSheet,
     scoped,
-    sessionUnread,
-    setChatReadAt,
     setUnread,
     stillMoving,
     store,
@@ -467,7 +463,7 @@ function linkedAtWork(sessions) {
     return team;
 }
 
-function slotOf(session, { state, collabs, answered, team }) {
+function slotOf(session, { state, answered, team }) {
     const need = needOf(session, state);
     const ask = session.approval;
     // A call answered from here is no longer yours while the list has not heard yet, unless more wait behind it.
@@ -478,11 +474,7 @@ function slotOf(session, { state, collabs, answered, team }) {
         return "needs";
     }
 
-    if (
-        isUnread(session.id) ||
-        finishedUnseen(session, state) ||
-        (collabs && session.id !== markedOpen(state) && sessionUnread(session, state))
-    ) {
+    if (isUnread(session.id) || finishedUnseen(session, state)) {
         return "ready";
     }
 
@@ -621,9 +613,6 @@ function markRead(list, { say = true } = {}) {
     const ids = list.map((session) => session.id);
     const seen = seenSnapshot(ids);
     const marked = ids.filter((id) => isUnread(id));
-    const chats = list
-        .filter((session) => session.chatAt !== undefined && sessionUnread(session))
-        .map((session) => [session.id, store.state.chatReads[session.id] ?? 0, session.chatAt]);
 
     markSeen(...ids);
 
@@ -631,10 +620,6 @@ function markRead(list, { say = true } = {}) {
 
     for (const id of marked) {
         setUnread(id, false);
-    }
-
-    for (const [id, , read] of chats) {
-        setChatReadAt(id, read);
     }
 
     if (!say) {
@@ -647,12 +632,6 @@ function markRead(list, { say = true } = {}) {
 
         for (const id of marked.filter((each) => back.has(each) && !isUnread(each))) {
             setUnread(id, true);
-        }
-
-        for (const [id, before, read] of chats) {
-            if (chatReadStored(id) === read) {
-                setChatReadAt(id, before);
-            }
         }
     });
 }
@@ -800,12 +779,9 @@ function SessionRow({
     open,
     pinned,
     marked,
-    unread,
     unseen,
     moving,
     home,
-    meId,
-    collabs,
     steers,
     hovers,
     slot,
@@ -844,7 +820,6 @@ function SessionRow({
     const failed = failing(counts);
     // Subagents at work, or failed ones nobody dealt with, but not over a call waiting for you: that says more.
     const fork = !session.waiting && (live > 0 || failed > 0);
-    const person = collabs ? (session.people ?? []).find((each) => each.id !== meId) : undefined;
     const mark = stateMark(session, live > 0, marked, unseen, team);
     const ask = need === "ask" ? session.approval : undefined;
     const names = (session.failedAgents ?? []).map((agent) => agent.name);
@@ -894,7 +869,7 @@ function SessionRow({
             </span>`
         }
         <button
-            class=${`session ${unread ? "unread" : ""}`}
+            class="session"
             data-part="session-button"
             aria-current=${open ? "page" : undefined}
             onPointerDown=${(event) => onSelect(event, session.id, setPressing)}
@@ -947,12 +922,6 @@ function SessionRow({
                 }
                 ${
                     slot !== "needs" &&
-                    !fork &&
-                    person &&
-                    html`<${Avatar} person=${person} size=${18} />`
-                }
-                ${
-                    slot !== "needs" &&
                     session.busy &&
                     !session.waiting &&
                     session.limited === undefined &&
@@ -968,10 +937,10 @@ function SessionRow({
                 }
                 ${
                     slot !== "needs" &&
-                    (unread || marked) &&
+                    marked &&
                     html`<span
                         class="unread-dot"
-                        title=${marked ? "Marked unread" : "New chat messages"}
+                        title="Marked unread"
                     ></span>`
                 }
                 ${
@@ -1358,8 +1327,6 @@ const ROW_KEYS = [
     "moving",
     "conversationId",
     "over",
-    "chatRead",
-    "chatReads",
     "peekSeen",
     "extensionsRev",
 ];
@@ -1507,7 +1474,7 @@ function AllSessions({ compact = false }) {
     // What changes the list's rows: the sessions and pins, the tab and the search, extensions' filters and words
     // (`extensionsRev`), and the day, which moves sessions between the day groups. Worked out again only when one of
     // them changes, not on every draw.
-    const { extensionsRev, unread, peekSeen, chatReads, chatRead } = store.state;
+    const { extensionsRev, unread, peekSeen } = store.state;
     const minute = useMinute();
     const today = useMemo(todayStart, [minute]);
     const home = server?.home;
@@ -1539,7 +1506,7 @@ function AllSessions({ compact = false }) {
 
             const { groups, slots } = priorityGroups(
                 shown,
-                { state: store.state, collabs: collab(), answered, team },
+                { state: store.state, answered, team },
                 opened.current,
             );
 
@@ -1579,8 +1546,6 @@ function AllSessions({ compact = false }) {
         folded,
         unread,
         peekSeen,
-        chatReads,
-        chatRead,
         markedOpen(),
         store.state.server,
         answered,
@@ -2199,10 +2164,9 @@ function AllSessions({ compact = false }) {
     const [onDismiss] = useState(() => (id) => handlers.current.dismissOne(id));
     const [onRead] = useState(() => (id) => handlers.current.readOne(id));
     // What every row reads of the store, read once here: rows read none of it themselves (`SessionRow`). Marks, seen
-    // marks, and read times come through `isUnread`, `finishedUnseen`, and `sessionUnread`.
+    // marks, and read times come through `isUnread` and `finishedUnseen`.
     const { me, moving } = store.state;
     const conversationId = markedOpen();
-    const collabs = collab();
     // Row buttons that only a hovering pointer shows (`NO_HOVER`): touch screens draw none.
     const hovers = !NO_HOVER.matches;
 
@@ -2293,12 +2257,9 @@ function AllSessions({ compact = false }) {
             open=${open}
             pinned=${isPinned(session.id)}
             marked=${isUnread(session.id)}
-            unread=${collabs && !open && sessionUnread(session)}
             unseen=${finishedUnseen(session)}
             moving=${moving[session.id] !== undefined}
             home=${home}
-            meId=${me?.id}
-            collabs=${collabs}
             steers=${steers}
             hovers=${hovers}
             minute=${expanded || session.limited !== undefined ? minute : undefined}
@@ -2650,8 +2611,8 @@ function AllSessions({ compact = false }) {
 
 /**
  * The store's keys the session list reads as it draws, itself and through what it calls: `prefs()` (`appearance`),
- * `canSteer()`, `scoped()`, and `collab()` (`me`, `server`), `isPinned` and `workspaceOrder` (`pinned`), `isUnread`
- * (`unread`), `sessionUnread` (`conversationId`, `chatRead`, `chatReads`, `me`), the session marked open (`over`, by
+ * `canSteer()` and `scoped()` (`me`, `server`), `isPinned` and `workspaceOrder` (`pinned`), `isUnread`
+ * (`unread`), the session marked open (`over`, by
  * `openId`), `finishedUnseen` and `sessionMark`
  * (`peekSeen`, and `server` for when this browser started), and extensions' chips, words, filters, and actions
  * (`extensionsRev`). The sheet and the launcher it reads only as keys are pressed.
@@ -2666,8 +2627,6 @@ const LIST_KEYS = [
     "moving",
     "conversationId",
     "over",
-    "chatRead",
-    "chatReads",
     "peekSeen",
     "appearance",
     "extensionsRev",
@@ -2742,7 +2701,7 @@ function RailTiles() {
             >
                 ${index < 9 ? index + 1 : initials(session.title ?? "New session")}
                 ${
-                    ((collab() && sessionUnread(session)) || isUnread(session.id)) &&
+                    isUnread(session.id) &&
                     session.id !== conversationId &&
                     html`<span class="unread-dot"></span>`
                 }
@@ -2778,7 +2737,6 @@ function Rail({ foldable = false, folded = false }) {
         needs > 0 && html`<span class="rail-count attn" data-part="rail-needs">${needs}</span>`;
     const keys = APPLE ? "⌘B" : "Ctrl+B";
     const fold = () => setPrefs({ sidebar: folded ? "open" : "rail" });
-    const role = me?.role === "owner" ? "owner" : me?.role === "viewer" ? "view only" : "guest";
     // A rail with more buttons than room scrolls as a whole, and fades the edge where more is.
     const more = useScrollMore();
 
@@ -2886,27 +2844,15 @@ function Rail({ foldable = false, folded = false }) {
             <${Icon} name="artifact" size=${19} />
         </button>
         <${ExtensionRailButtons} />
-        ${
-            collab()
-                ? html`<button
-                    class="rail-button"
-                    data-part="rail-button"
-                    title=${canStart ? "People and invites" : "People"}
-                    aria-label="People"
-                    onClick=${() => openSheet({ type: "people" })}
-                >
-                    <${Icon} name="users" size=${19} />
-                </button>`
-                : html`<button
-                    class="rail-button"
-                    data-part="rail-button"
-                    title="Sign in another device"
-                    aria-label="Devices"
-                    onClick=${() => openSheet({ type: "invite" })}
-                >
-                    <${Icon} name="users" size=${19} />
-                </button>`
-        }
+        <button
+            class="rail-button"
+            data-part="rail-button"
+            title="Sign in another device"
+            aria-label="Devices"
+            onClick=${() => openSheet({ type: "device" })}
+        >
+            <${Icon} name="users" size=${19} />
+        </button>
         ${
             me?.role === "owner" &&
             html`<button
@@ -2928,15 +2874,6 @@ function Rail({ foldable = false, folded = false }) {
         >
             <${Icon} name="palette" size=${19} />
         </button>
-        <button
-            class="rail-button rail-me"
-            data-part="rail-button"
-            title=${`${me?.name ?? ""} · ${role}`}
-            aria-label="Your name"
-            onClick=${() => openSheet({ type: "name" })}
-        >
-            ${me && html`<${Avatar} person=${store.state.users.find((each) => each.id === me.id) ?? me} size=${30} />`}
-        </button>
     </nav>`;
 }
 
@@ -2947,7 +2884,6 @@ function Rail({ foldable = false, folded = false }) {
  */
 const RAIL_KEYS = [
     "sessions",
-    "users",
     "server",
     "me",
     "pinned",
@@ -2955,8 +2891,6 @@ const RAIL_KEYS = [
     "peekSeen",
     "conversationId",
     "over",
-    "chatRead",
-    "chatReads",
     "appearance",
     "board",
     "pip",

@@ -30,16 +30,11 @@ const files: Layout = { panel: "files", filesTab: "changes" };
 after(cleanUp);
 
 test("a layout shows again as it was, and of panels asked for together, the one the app draws", () => {
-    for (const layout of [
-        design,
-        files,
-        { panel: "people", filesTab: "files" },
-        layouts.NO_LAYOUT,
-    ]) {
+    for (const layout of [design, files, layouts.NO_LAYOUT]) {
         assert.deepEqual(layouts.layoutOf(layouts.layoutPatch(layout)), layout);
     }
 
-    const state = { ...layouts.layoutPatch(files), extPanel: design.ext, peopleOpen: true };
+    const state = { ...layouts.layoutPatch(files), extPanel: design.ext };
 
     assert.equal(layouts.layoutOf(state).panel, "files");
     assert.equal(layouts.layoutOf({ ...state, browserOpen: true }).panel, "browser");

@@ -375,7 +375,7 @@ test("message jumps use the app's motion choice instead of the OS query", real, 
     await open();
     const modes = await inPage<string[]>(`
         const { setPrefs } = await import('/theme.js');
-        const { jumpToEntry } = await import('/chat.js');
+        const { jumpToEntry } = await import('/jump.js');
         const id = Number(document.querySelector('[id^="entry-"]').id.slice(6));
         const scroll = Element.prototype.scrollIntoView;
         const query = window.matchMedia;

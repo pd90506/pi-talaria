@@ -316,10 +316,9 @@ export const says = (block) => block.type === "text" && block.text.trim() !== ""
  *
  * Groups and runs of words are named by the row before them and how many came since: the names stay the same as the
  * answer being written is stored, and `from` (`itemsOf(earlier).state`) carries them on from rows before these, so they
- * do not change when the rows shown start elsewhere. The returned list's `state` is where it left off. `talk`: people
- * react to and discuss Pi's answers here (`hasEnd`).
+ * do not change when the rows shown start elsewhere. The returned list's `state` is where it left off.
  */
-export function itemsOf(rows, partial, { prefix = "", from = null, talk = false } = {}) {
+export function itemsOf(rows, partial, { prefix = "", from = null } = {}) {
     const items = [];
     let anchor = from?.anchor ?? "top";
     let groups = from?.groups ?? 0;
@@ -424,7 +423,7 @@ export function itemsOf(rows, partial, { prefix = "", from = null, talk = false 
             return;
         }
 
-        if (!hasEnd(entry, talk)) {
+        if (!hasEnd(entry)) {
             // Nothing of it shows (only blank words): a jump to it still finds it, where Pi was.
             if (!anchored) {
                 if (group !== null) {
@@ -487,7 +486,7 @@ export function itemsOf(rows, partial, { prefix = "", from = null, talk = false 
  * Where the rows shown from `start` take their names from (`itemsOf`): the rows before them, back to the last one that
  * is not Pi's. Null when they start at the top.
  */
-export function rowsBefore(rows, start, talk = false) {
+export function rowsBefore(rows, start) {
     if (start === 0) {
         return null;
     }
@@ -498,14 +497,13 @@ export function rowsBefore(rows, start, talk = false) {
         begin--;
     }
 
-    return itemsOf(rows.slice(Math.max(0, begin - 1), start), null, { talk }).state;
+    return itemsOf(rows.slice(Math.max(0, begin - 1), start), null).state;
 }
 
 /**
- * Whether an answer has anything to show after its last words: a failure, a stop, or (`talk`, where people react to
- * and discuss Pi's answers) a final answer's actions.
+ * Whether an answer has anything to show after its last words: a failure, a stop, or a final answer's actions.
  */
-const hasEnd = (entry, talk) =>
+const hasEnd = (entry) =>
     entry.stopReason === "error" ||
     entry.stopReason === "aborted" ||
-    (talk && entry.stopReason !== "toolUse" && entry.blocks.some(says));
+    (entry.stopReason !== "toolUse" && entry.blocks.some(says));

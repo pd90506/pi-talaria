@@ -51,7 +51,6 @@ const DEFERRED: Record<string, { use: string; section?: string; note?: string; g
         section: "design_mode",
         note: DESIGN_NOTE,
     },
-    ask_someone: { use: "draft a question for someone outside this chat" },
     subagent: {
         use: "hand work to background helpers",
         section: "subagents",

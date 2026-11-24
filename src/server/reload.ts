@@ -64,7 +64,6 @@ const ORDER = [
     "session-cleanup.ts",
     "session-tags.ts",
     "ask.ts",
-    "ask-someone.ts",
     "updates.ts",
     "design.ts",
     "tool-search.ts",
@@ -82,7 +81,6 @@ const OFF_BY_DEFAULT = new Set([
     "guard.ts",
     "anthropic-subscription.ts",
     "session-tags.ts",
-    "ask-someone.ts",
     "pocket-relay.ts",
 ]);
 const TITLES: Record<string, string> = {
@@ -108,7 +106,6 @@ const TITLES: Record<string, string> = {
     "session-tags.ts": "Session tags",
     "session-cleanup.ts": "Session cleanup",
     "ask.ts": "Ask",
-    "ask-someone.ts": "Ask someone",
     "updates.ts": "Pi Pocket updates",
     "design.ts": "Design",
     "tool-search.ts": "Tool search",
@@ -151,7 +148,6 @@ export const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
     "repo_watch",
     "session_watch_pr",
     "ask",
-    "ask_someone",
     "design_preview",
     "design_export",
     "design_system",

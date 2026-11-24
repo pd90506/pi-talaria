@@ -9,7 +9,7 @@
 import { Component } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { AgentTile } from "./agent-tile.js";
-import { folderColor } from "./avatar.js";
+import { folderColor } from "./colors.js";
 import { describeCall } from "./calls.js";
 import { onPageVisibility, pageVisible } from "./host.js";
 import { finishedUnseen, markSeen, seenSince } from "./seen.js";

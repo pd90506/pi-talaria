@@ -6,7 +6,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { nowDoing } from "./agent-now.js";
 import { AgentTile } from "./agent-tile.js";
-import { folderColor } from "./avatar.js";
+import { folderColor } from "./colors.js";
 import { useBack } from "./back.js";
 import { useOnScreen } from "./peeks.js";
 import { fromServer } from "./seen.js";

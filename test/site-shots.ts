@@ -614,22 +614,12 @@ async function stage() {
         .id as unknown as ConversationId;
     await recordCost(app, ids.tests, 0.14);
 
-    // Alex and Sam are in the session with Riley, and talk in its side chat.
+    // Alex and Sam have the session open with Riley.
     const tabs = [alex, sam].map((user) => fakeTab(ids.login, user));
 
     for (const tab of tabs) {
         await app.attach(tab.client);
     }
-
-    const say = (user: User, words: string) =>
-        app.collab.postChat(ids.login, user, { text: words, requestId: crypto.randomUUID() });
-
-    await say(
-        alex,
-        "@Riley it was the cookie: sameSite strict. Safari drops it on the redirect, so I set lax and secure.",
-    );
-    await say(sam, "Does iOS have the same problem?");
-    await say(alex, "Yes. Chrome on iOS uses WebKit too, so the fix covers it.");
 
     return { app, riley, alex, sam, ids, pip, tabs };
 }
@@ -799,12 +789,6 @@ try {
     await seen(`return /Lancet Guard asks/.test(document.body.textContent)`, "the approval card");
     await toEnd();
     await shoot("session-phone");
-
-    // The People sheet, with the side chat.
-    await tap("^Chat with");
-    await seen(`return /covers it/.test(document.body.textContent)`, "the side chat");
-    await toEnd();
-    await shoot("chat-phone");
 
     // The session list. A run that ends after the browser first looked is new in it: the dark mode session answers now.
     await send(

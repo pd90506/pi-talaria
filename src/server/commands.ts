@@ -42,13 +42,10 @@ import type { PocketApp } from "./app.ts";
 import type { User } from "./config.ts";
 import {
     AuthorsDoc,
-    ChatDoc,
     DeletedDoc,
     HeldDoc,
     type HeldMessage,
     InterruptsDoc,
-    NotesDoc,
-    PinsDoc,
     PlanDoc,
     type Schedule,
     SessionsDoc,
@@ -92,7 +89,7 @@ import {
 } from "./resend.ts";
 import { whyUnanswered } from "./subagent-runs.ts";
 import { wantsTitle, writeTitle } from "./titles.ts";
-import { checkRepeat, describeMoment, describeRepeat, knownZone, type Repeat } from "./when.ts";
+import { checkRepeat, knownZone, type Repeat } from "./when.ts";
 import {
     createWorktree,
     discardWorktree,
@@ -370,14 +367,13 @@ export class Commands {
             initial: () => ({ phase: "wait" }),
             phases: {
                 wait: async (task, runtime, context) => {
-                    const { subagent, requestId, failure, by } = task.input;
+                    const { subagent, requestId, failure } = task.input;
                     const id = subagent as unknown as ConversationId;
                     const settled = await followed(runtime, id, requestId, context);
-                    let cleared: string | undefined;
 
                     await runtime.commit(async (tx) => {
                         if (settled !== undefined) {
-                            cleared = settle(
+                            settle(
                                 await tx.doc(SubagentsDoc, runtime.conversationId),
                                 id,
                                 failure,
@@ -390,12 +386,6 @@ export class Commands {
                             outcome: { status: "completed", result: null },
                         };
                     }, context);
-
-                    const user = app.config.userById(by);
-
-                    if (cleared !== undefined && user !== undefined) {
-                        await app.collab.activity(runtime.conversationId, user, dealtWith(cleared));
-                    }
                 },
             },
             abort: (_task, runtime, context) =>
@@ -579,7 +569,7 @@ export class Commands {
         const app = this.#app;
 
         app.requireSee(user, id);
-        await app.requireDriver(id, user);
+        app.requireSteer(user);
         const worktree = app.sessionMeta(id)?.worktree;
 
         if (app.workspaceScheme(app.cwdOf(id)) !== undefined) {
@@ -638,11 +628,6 @@ export class Commands {
             delete meta.worktree;
             meta.cwd = cwd;
         }, context);
-        await app.collab.activity(
-            id,
-            user,
-            `removed the worktree; the branch ${worktree.branch} stays, and Pi works in ${homePath(cwd)} again`,
-        );
     }
 
     /** The model and thinking level a new session starts with now. */
@@ -742,8 +727,6 @@ export class Commands {
             throw new HttpError(400, "archived must be true or false");
         }
 
-        const before = app.sessionMeta(id);
-
         await app.harness.commit(async (tx) => {
             const sessions = await tx.doc(SessionsDoc);
             const meta = sessions.items[String(id)];
@@ -762,21 +745,6 @@ export class Commands {
                 meta.archived = patch.archived;
             }
         }, context);
-        const title = patch.title === undefined ? undefined : oneLine(patch.title);
-
-        if (title !== undefined && title !== "" && title !== before?.title) {
-            await app.collab.activity(id, user, `renamed the session to “${title}”`);
-        }
-
-        if (patch.archived !== undefined && patch.archived !== (before?.archived === true)) {
-            await app.collab.activity(
-                id,
-                user,
-                patch.archived
-                    ? "archived the session"
-                    : "brought the session back from the archive",
-            );
-        }
 
         // Archiving leaves its repeating schedules running: the person is told how many.
         const repeating =
@@ -806,7 +774,7 @@ export class Commands {
         const app = this.#app;
 
         app.requireSee(user, id);
-        await app.requireDriver(id, user);
+        app.requireSteer(user);
 
         // PiP turned off takes nothing, from its person either: it would run without its rules, and be compacted without
         // its own summary (`pip-compact.ts`). What else goes to it (reports, schedules, watches) waits meanwhile.
@@ -943,10 +911,6 @@ export class Commands {
         let submissionId: SubmissionId;
 
         if ("task" in admitted) {
-            if (admitted.started) {
-                await app.collab.activity(id, user, "interrupted the run");
-            }
-
             await app.harness.waitForTask(admitted.task, context);
             const sent = await app.harness.commit(
                 (tx) => tx.submissionByRequest(id, requestId),
@@ -964,7 +928,6 @@ export class Commands {
 
         const submission = (await app.harness.submission(submissionId, context))!;
 
-        app.collab.setTyping(id, user, null);
         // The title comes from the message as it was stored: without hidden values.
         const titled = app.hidden.replace(typed, id);
 
@@ -1149,10 +1112,6 @@ export class Commands {
 
             return { dismissed: true };
         }, context);
-
-        if (answer.dismissed && name !== undefined) {
-            await this.#app.collab.activity(parent, user, dealtWith(name));
-        }
 
         return answer;
     }
@@ -1388,10 +1347,6 @@ export class Commands {
             }
         }
 
-        if (sent) {
-            await app.collab.activity(id, user, "tried again without waiting for the limit");
-        }
-
         return sent;
     }
 
@@ -1402,10 +1357,12 @@ export class Commands {
         app.requireSee(user, id);
         app.requireSteer(user);
         const conversation = await app.conversation(id);
-        const busy = app.isBusy(id);
+
         // People's waiting messages are held, before the stop can withdraw them: they wait until someone sends them. PiP's
         // panel has no place to show them, so a Stop there withdraws them, as before.
-        const held = app.pip.ownerOf(id) === undefined ? await this.#hold(id) : 0;
+        if (app.pip.ownerOf(id) === undefined) {
+            await this.#hold(id);
+        }
 
         // Subagents' reports go: a person meant the work stopped.
         await this.#discardReports(id);
@@ -1413,16 +1370,6 @@ export class Commands {
         void conversation
             .abort(context)
             .catch((error: unknown) => app.notice("error", `Abort failed: ${describe(error)}`, id));
-
-        if (busy || held > 0) {
-            await app.collab.activity(
-                id,
-                user,
-                held === 0
-                    ? "stopped the run"
-                    : `stopped the run; ${held} queued ${held === 1 ? "message waits" : "messages wait"} to be sent`,
-            );
-        }
     }
 
     /** A subagent a person stops: its report to its parent says a person did, not that it failed. */
@@ -1547,7 +1494,6 @@ export class Commands {
 
         app.requireSee(user, id);
         app.requireSteer(user);
-        await app.requireDriver(id, user);
 
         if (app.pip.ownerOf(id) !== undefined && !app.pip.available(user)) {
             throw new HttpError(409, "PiP is turned off in Extensions.");
@@ -1585,14 +1531,6 @@ export class Commands {
             sent += went ? 1 : 0;
         }
 
-        if (sent > 0) {
-            await app.collab.activity(
-                id,
-                user,
-                `sent the ${sent === 1 ? "held message" : `${sent} held messages`}`,
-            );
-        }
-
         return sent;
     }
 
@@ -1605,16 +1543,10 @@ export class Commands {
         const item = await this.#heldItem(id, key);
 
         if (item.by !== user.id) {
-            await app.requireDriver(id, user);
+            app.requireSteer(user);
         }
 
         await this.#unhold(id, key);
-
-        if (item.by !== undefined && item.by !== user.id) {
-            const author = app.config.userById(item.by)?.name ?? "someone";
-
-            await app.collab.activity(id, user, `withdrew ${author}’s held message`);
-        }
     }
 
     /** Take one's own held message back into the message box, as Edit does for a queued one. */
@@ -1710,7 +1642,7 @@ export class Commands {
         const by = await app.attribution.submitter(submissionId);
 
         if (by !== user.id) {
-            await app.requireDriver(id, user);
+            app.requireSteer(user);
         }
 
         await this.#discardReports(id, submissionId);
@@ -1719,12 +1651,6 @@ export class Commands {
             context,
             id,
         );
-
-        if (by !== undefined && by !== user.id) {
-            const author = app.config.userById(by)?.name ?? "someone";
-
-            await app.collab.activity(id, user, `withdrew ${author}’s queued message`);
-        }
 
         return result;
     }
@@ -1810,7 +1736,7 @@ export class Commands {
         // To the queue, it only waits longer. To Steer or Interrupt, it acts on the run now: that is the driver's turn,
         // as sending is.
         if (mode !== "followUp") {
-            await app.requireDriver(id, user);
+            app.requireSteer(user);
         }
 
         if (mode !== "interrupt") {
@@ -1839,7 +1765,6 @@ export class Commands {
             submissionId,
             requestId: ownRequest(user.id, `interrupt-${submissionId}`),
         });
-        await app.collab.activity(id, user, "interrupted the run");
     }
 
     /** Store an Interrupt and every waiting input together, before stopping only the run seen in this commit. */
@@ -2008,7 +1933,7 @@ export class Commands {
         const app = this.#app;
 
         app.requireSee(user, id);
-        await app.requireDriver(id, user);
+        app.requireSteer(user);
 
         if (request.pipPanel === true && app.pip.ownerOf(id) !== user.id) {
             throw new HttpError(403, "Only your own PiP can use this control.");
@@ -2127,10 +2052,6 @@ export class Commands {
         if (cwd !== undefined && cwd !== current?.cwd) {
             changes.push(`moved the session to ${homePath(cwd)}`);
         }
-
-        if (changes.length > 0) {
-            await app.collab.activity(id, user, changes.join(" and "));
-        }
     }
 
     /** Start a new context: Pi no longer sees what came before, though everyone still can. An optional note carries over. */
@@ -2138,7 +2059,7 @@ export class Commands {
         const app = this.#app;
 
         app.requireSee(user, id);
-        await app.requireDriver(id, user);
+        app.requireSteer(user);
         const handoff = optionalText(note, "note")?.trim() || undefined;
 
         if (handoff !== undefined && handoff.length > MAX_HANDOFF) {
@@ -2146,13 +2067,6 @@ export class Commands {
         }
 
         await (await app.conversation(id)).reset(handoff, context);
-        await app.collab.activity(
-            id,
-            user,
-            handoff === undefined
-                ? "started a new context"
-                : "started a new context with a handoff note",
-        );
     }
 
     /**
@@ -2163,7 +2077,7 @@ export class Commands {
         const app = this.#app;
 
         app.requireSee(user, id);
-        await app.requireDriver(id, user);
+        app.requireSteer(user);
 
         if (app.sessionMeta(id) === undefined) {
             throw new HttpError(400, "Only sessions have instructions for Pi");
@@ -2184,13 +2098,6 @@ export class Commands {
         await (
             await app.conversation(id)
         ).configure({ instructions: instructions === "" ? null : instructions }, context);
-        await app.collab.activity(
-            id,
-            user,
-            instructions === ""
-                ? "cleared the instructions for Pi"
-                : "changed the instructions for Pi",
-        );
     }
 
     /** Turn plan mode on or off: while it is on, Pi reads and proposes a plan, and anything that changes something is blocked. */
@@ -2198,7 +2105,7 @@ export class Commands {
         const app = this.#app;
 
         app.requireSee(user, id);
-        await app.requireDriver(id, user);
+        app.requireSteer(user);
 
         if (typeof on !== "boolean") {
             throw new HttpError(400, "on must be true or false");
@@ -2210,13 +2117,7 @@ export class Commands {
             throw new HttpError(409, "Plan mode is turned off in Extensions.");
         }
 
-        if (await this.#switchPlan(id, user, on)) {
-            await app.collab.activity(
-                id,
-                user,
-                on ? "turned on plan mode" : "turned off plan mode",
-            );
-        }
+        await this.#switchPlan(id, user, on);
     }
 
     /** Approve Pi's plan: plan mode goes off, and Pi is told to carry the plan out. */
@@ -2224,14 +2125,12 @@ export class Commands {
         const app = this.#app;
 
         app.requireSee(user, id);
-        await app.requireDriver(id, user);
+        app.requireSteer(user);
         this.#requireSession(id);
 
         if (!(await this.#switchPlan(id, user, false))) {
             throw new HttpError(409, "Plan mode is not on.");
         }
-
-        await app.collab.activity(id, user, "approved the plan");
 
         return this.submit(id, user, { text: PLAN_APPROVED, requestId: randomUUID() });
     }
@@ -2290,7 +2189,7 @@ export class Commands {
         const app = this.#app;
 
         app.requireSee(user, id);
-        await app.requireDriver(id, user);
+        app.requireSteer(user);
         const zone = optionalText(request.zone, "zone");
         const compactBefore = optionalFlag(request.compactBefore, "compactBefore");
 
@@ -2310,12 +2209,6 @@ export class Commands {
             ...(zone === undefined ? {} : { zone }),
             ...(compactBefore === undefined ? {} : { compactBefore }),
         });
-        const when =
-            schedule.every === undefined
-                ? `for ${describeMoment(schedule.next, schedule.zone)}`
-                : describeRepeat(schedule.every);
-
-        await app.collab.activity(id, user, `scheduled “${snippet(schedule.text, 60)}” ${when}`);
 
         return schedule;
     }
@@ -2340,7 +2233,7 @@ export class Commands {
         const app = this.#app;
 
         app.requireSee(user, id);
-        await app.requireDriver(id, user);
+        app.requireSteer(user);
         const zone = optionalText(request.zone, "zone");
         const version = optionalText(request.version, "version");
         const compactBefore = optionalFlag(request.compactBefore, "compactBefore");
@@ -2360,16 +2253,6 @@ export class Commands {
             ...(compactBefore === undefined ? {} : { compactBefore }),
             by: user,
         });
-        const when =
-            schedule.every === undefined
-                ? `for ${describeMoment(schedule.next, schedule.zone)}`
-                : describeRepeat(schedule.every);
-
-        await app.collab.activity(
-            id,
-            user,
-            `changed the scheduled “${snippet(schedule.text, 60)}” to ${when}`,
-        );
 
         return schedule;
     }
@@ -2409,7 +2292,7 @@ export class Commands {
         const app = this.#app;
 
         app.requireSee(user, id);
-        await app.requireDriver(id, user);
+        app.requireSteer(user);
 
         if (typeof paused !== "boolean") {
             throw new HttpError(400, "paused must be true or false");
@@ -2419,15 +2302,7 @@ export class Commands {
             app.spend.check(user, id);
         }
 
-        const { schedule, changed } = await app.schedules.pause(id, scheduleId, paused, user);
-
-        if (changed) {
-            await app.collab.activity(
-                id,
-                user,
-                `${paused ? "paused" : "resumed"} the scheduled “${snippet(schedule.text, 60)}”`,
-            );
-        }
+        const { schedule } = await app.schedules.pause(id, scheduleId, paused, user);
 
         return schedule;
     }
@@ -2436,18 +2311,12 @@ export class Commands {
         const app = this.#app;
 
         app.requireSee(user, id);
-        await app.requireDriver(id, user);
+        app.requireSteer(user);
         const schedule = await app.schedules.cancel(id, scheduleId);
 
         if (schedule === undefined) {
             throw new HttpError(404, "No such scheduled message");
         }
-
-        await app.collab.activity(
-            id,
-            user,
-            `cancelled the scheduled “${snippet(schedule.text, 60)}”`,
-        );
     }
 
     /** Watch the session's pull request (its branch's, or `pr`): Pi hears of failed checks, conflicts, and reviews. */
@@ -2455,19 +2324,13 @@ export class Commands {
         const app = this.#app;
 
         app.requireSee(user, id);
-        await app.requireDriver(id, user);
+        app.requireSteer(user);
         app.spend.check(user, id);
         const asked = optionalText(pr, "pr");
         const watch = await app.watches.start(
             id,
             user.id,
             asked === undefined ? {} : { pr: asked },
-        );
-
-        await app.collab.activity(
-            id,
-            user,
-            `started watching PR #${watch.number} “${snippet(watch.title, 60)}”`,
         );
 
         return { number: watch.number };
@@ -2478,12 +2341,8 @@ export class Commands {
         const app = this.#app;
 
         app.requireSee(user, id);
-        await app.requireDriver(id, user);
-        const watch = await app.watches.stop(id);
-
-        if (watch?.status === "watching") {
-            await app.collab.activity(id, user, `stopped watching PR #${watch.number}`);
-        }
+        app.requireSteer(user);
+        await app.watches.stop(id);
     }
 
     /**
@@ -2554,30 +2413,13 @@ export class Commands {
         const id = target as unknown as ConversationId;
         const hook = await app.hooks.add(user, id, body);
 
-        if (app.sessionMeta(id)?.pip === undefined) {
-            await app.collab.activity(id, user, `made the webhook “${snippet(hook.name, 60)}”`);
-        }
-
         return hook;
     }
 
     async removeHook(user: User, hookId: string): Promise<void> {
         const app = this.#app;
-        const hook = await app.hooks.remove(user, hookId);
-        const target = hook.target as unknown as ConversationId;
 
-        // No line where the remover can no longer go.
-        if (
-            app.sessionMeta(target) !== undefined &&
-            app.sessionMeta(target)?.pip === undefined &&
-            app.canSee(user, target)
-        ) {
-            await app.collab.activity(
-                target,
-                user,
-                `removed the webhook “${snippet(hook.name, 60)}”`,
-            );
-        }
+        await app.hooks.remove(user, hookId);
     }
 
     /** Pi keeps working until `command` passes, checked after each of its answers. */
@@ -2585,19 +2427,13 @@ export class Commands {
         const app = this.#app;
 
         app.requireSee(user, id);
-        await app.requireDriver(id, user);
+        app.requireSteer(user);
 
         if (app.sessionMeta(id) === undefined) {
             throw new HttpError(400, "Only sessions can have a goal");
         }
 
-        const goal = await app.goals.set(id, user.id, optionalText(command, "command") ?? "");
-
-        await app.collab.activity(
-            id,
-            user,
-            `set a goal: keep going until \`${snippet(goal.command, 80)}\` passes`,
-        );
+        await app.goals.set(id, user.id, optionalText(command, "command") ?? "");
     }
 
     /** Drop the goal: Pi stops checking. Anyone who can steer may, as with stopping a run. */
@@ -2610,14 +2446,6 @@ export class Commands {
 
         if (!(await app.goals.clear(id)) || goal === undefined) {
             return;
-        }
-
-        if (goal.status === "working") {
-            await app.collab.activity(
-                id,
-                user,
-                `dropped the goal \`${snippet(goal.command, 80)}\``,
-            );
         }
     }
 
@@ -2726,9 +2554,6 @@ export class Commands {
             user,
             files === undefined ? body : `${body}${ATTACHMENTS_HEADING}${files}`,
         );
-        const author =
-            (await app.harness.snapshot(AuthorsDoc, id, context))?.entries[String(entryId)] ??
-            user.id;
         const images = model.input.includes("image") ? original.images : [];
         const resend: Resend = {
             text,
@@ -2766,18 +2591,7 @@ export class Commands {
             },
             context,
         );
-        const whose =
-            author === user.id
-                ? "a message"
-                : `${app.config.userById(author)?.name ?? "someone"}’s message`;
-        const line =
-            edit !== undefined
-                ? "edited a message and sent it again"
-                : asked !== undefined
-                  ? `sent ${whose} again to ${model.name}`
-                  : `sent ${whose} again`;
 
-        await app.collab.activity(forked, user, line, false);
         this.#reportUnanswered(forked, submission.wait(context));
 
         return { id: forked };
@@ -2882,11 +2696,9 @@ export class Commands {
             ...(place.worktree === undefined ? {} : { cwd: place.cwd }),
         };
         const now = Date.now();
-        // A new session rather than a fork gets plan mode and the notes by hand.
+        // A new session rather than a fork gets plan mode by hand.
         const plan =
             at === undefined ? await app.harness.snapshot(PlanDoc, id, context) : undefined;
-        const notes =
-            at === undefined ? await app.harness.snapshot(NotesDoc, id, context) : undefined;
 
         const init: ConversationCreateOptions["init"] = async (tx, forked) => {
             // Removed while the fork was made: its uploads may be on their way out (`session-cleanup.ts`).
@@ -2920,28 +2732,10 @@ export class Commands {
                     Object.assign(await tx.doc(PlanDoc, forked), structuredClone(plan));
                 }
 
-                if (notes !== undefined) {
-                    Object.assign(await tx.doc(NotesDoc, forked), structuredClone(notes));
-                }
-
                 return;
             }
 
-            // A fork copies its parent's documents. The chat is the parent's conversation, not this one's.
-            const chat = await tx.doc(ChatDoc, forked);
-
-            chat.messages.splice(0);
-            const pins = await tx.doc(PinsDoc, forked);
-
-            for (let index = pins.items.length - 1; index >= 0; index--) {
-                const pin = pins.items[index]!;
-
-                if (pin.entryId === undefined || pin.entryId > at) {
-                    pins.items.splice(index, 1);
-                }
-            }
-
-            // Authors of the parent's later messages did not take part here.
+            // A fork copies its parent's documents. Authors of the parent's later messages did not take part here.
             const authors = await tx.doc(AuthorsDoc, forked);
 
             for (const entryId of Object.keys(authors.entries)) {
@@ -2976,18 +2770,6 @@ export class Commands {
                 : await (
                       await app.conversation(id)
                   ).fork(at as unknown as EntryId, { ownership, agent, init }, context);
-        const where =
-            place.worktree === undefined
-                ? ""
-                : ` into a worktree on ${place.worktree.branch}${place.skipped.length === 0 ? "" : ` (${place.skipped.length} big new files were not copied)`}`;
-
-        await app.collab.activity(
-            forked.id,
-            user,
-            `forked this from “${fork.sourceTitle}”${where}`,
-            false,
-        );
-        await app.collab.activity(id, user, `forked “${title}” from this session${where}`, false);
 
         return forked.id;
     }
@@ -2996,7 +2778,7 @@ export class Commands {
         const app = this.#app;
 
         app.requireSee(user, id);
-        await app.requireDriver(id, user);
+        app.requireSteer(user);
         // PiP's summaries are its own, written by its extension's hook with outside text left out: while PiP is off,
         // there is no hook, and Pi Durable's summary would read what came from outside as it is.
         const pip = app.pip.ownerOf(id) !== undefined;
@@ -3012,7 +2794,6 @@ export class Commands {
         const done = pip ? "PiP's context compacted." : "Compacted.";
 
         app.notice("info", pip ? "Compacting PiP's context…" : "Compacting…", id);
-        await app.collab.activity(id, user, "started compacting the context", false);
         void app.harness.waitForTask(taskId, context).then(
             (receipt) => {
                 const outcome = receipt.state.outcome;

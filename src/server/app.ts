@@ -1,10 +1,9 @@
 /**
  * The Pi Pocket server core: one durable Harness over one SQLite file, shared by every session, every subagent, and
  * every connected browser. Browsers attach to a conversation's committed view; nothing a browser sees exists only in
- * memory, except who is connected, who is typing, and which tool calls wait for approval.
+ * memory, except who is connected and which tool calls wait for approval.
  *
- * What people ask of Pi lives in `commands.ts`, the people's side of a session in `collab.ts`, push notifications in
- * `alerts.ts`, provider sign-ins in `providers.ts`, and each conversation's shared live view in `room.ts`.
+ * What people ask of Pi lives in `commands.ts`, push notifications in `alerts.ts`, provider sign-ins in `providers.ts`, and each conversation's shared live view in `room.ts`.
  */
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
@@ -52,11 +51,9 @@ import { sweepAssets } from "./artifacts.ts";
 import { Attribution, type Missing } from "./attribution.ts";
 import { Browsers } from "./browser.ts";
 import type { BrowserState } from "./browser/page.ts";
-import { Collab, REACTIONS } from "./collab.ts";
 import { Commands } from "./commands.ts";
 import { ExtensionSessions } from "./extension-sessions.ts";
 import { LinkedSessions } from "./linked-sessions.ts";
-import { removeAvatar, saveAvatar } from "./avatars.ts";
 import { APP_ROOT, ConfigStore, helloUser, modulesWith, type User } from "./config.ts";
 import {
     ArtifactAssetDoc,
@@ -68,8 +65,6 @@ import {
     BackgroundDoc,
     type BackgroundTask,
     BrowserDoc,
-    ChatDoc,
-    type ChatMessage,
     DecisionsDoc,
     DeletedDoc,
     FolderFavoritesDoc,
@@ -81,7 +76,6 @@ import {
     SpendDoc,
     type SubagentRecord,
     SubagentsDoc,
-    TurnsDoc,
 } from "./docs.ts";
 import { describe, HttpError } from "./errors.ts";
 import { ExtensionCommands } from "./extension-commands.ts";
@@ -117,7 +111,6 @@ import { Inbox, type InboxDelivery } from "./inbox.ts";
 import { Pip, PIP_ONLY_EXTENSIONS } from "./pip.ts";
 import { PIP_COMPACT_CHOICES, PipCompaction } from "./pip-compact.ts";
 import { RepoWatches } from "./repo-watches.ts";
-import { snippet } from "./projection.ts";
 import { sessionMessages } from "./session-messages.ts";
 import { loadPromptTemplates, type PromptTemplate, type SkillCommand } from "./prompts.ts";
 import { BASE_THEME, Themes } from "./themes.ts";
@@ -406,7 +399,6 @@ export class PocketApp {
     readonly extensionCommands = new ExtensionCommands(this);
     readonly linkedSessions = new LinkedSessions(this);
     readonly extensionSessions = new ExtensionSessions(this);
-    readonly collab = new Collab(this);
     readonly alerts = new Alerts(this);
     readonly providers = new Providers(this);
     /** OpenAI-compatible endpoints the owner adds in the Providers sheet, kept in Pi's `models.json`. */
@@ -496,7 +488,6 @@ export class PocketApp {
     readonly #agents = new Map<ConversationId, AgentState>();
 
     /** The newest chat message (not activity) of each conversation, for unread dots in the session list. */
-    readonly #lastChat = new Map<string, { at: number; userId: string }>();
     /** Subagent conversation → the conversation that spawned it. */
     readonly #parents = new Map<ConversationId, ConversationId>();
     /** Each conversation's subagents, and those with a report on its way to it: for the board and the session list. */
@@ -1179,7 +1170,6 @@ export class PocketApp {
                     this.#agents.set(id, agent as AgentState);
                 }
 
-                this.#noteChat(id, (await this.harness.snapshot(ChatDoc, id, context))?.messages);
                 const missing = await this.attribution.recover(
                     storage,
                     id,
@@ -1471,11 +1461,7 @@ export class PocketApp {
         } else if (kind === MemoryDoc.definition.kind) {
             this.memory.committed();
         } else if (ROOM_DOCS.has(kind) && id !== undefined) {
-            if (kind === ChatDoc.definition.kind) {
-                if (this.#noteChat(id, (value as { messages?: ChatMessage[] } | null)?.messages)) {
-                    sessionsChanged = true;
-                }
-            } else if (kind === SubagentsDoc.definition.kind) {
+            if (kind === SubagentsDoc.definition.kind) {
                 this.#noteSubagents(id, value as SubagentsValue | null);
                 // The list counts each session's subagents, and the board lists them.
                 sessionsChanged = true;
@@ -1485,19 +1471,6 @@ export class PocketApp {
                 (room) => room.setDoc(kind, value as Record<string, unknown> | null),
                 () => {},
             );
-
-            if (kind === TurnsDoc.definition.kind) {
-                for (const pending of this.#rooms.values()) {
-                    void pending.then(
-                        (room) => {
-                            if (room.id !== id && this.rootOf(room.id) === id) {
-                                room.setDoc(kind, value as Record<string, unknown> | null);
-                            }
-                        },
-                        () => {},
-                    );
-                }
-            }
         }
 
         return sessionsChanged;
@@ -1982,8 +1955,6 @@ export class PocketApp {
             room.keepOpen();
             room.clients.add(client);
             room.push(client, true);
-            client.send("chat", { conversationId: room.id, full: true, messages: room.chat });
-            client.send("notes", { conversationId: room.id, ...room.notes });
             // Also while the browser is off: turned on later, the panel has its state at once.
             client.send(
                 "browser",
@@ -1996,7 +1967,6 @@ export class PocketApp {
                 }
             }
 
-            room.pushPresence();
             this.#scheduleSessions();
         } catch (error) {
             if (client.visit === visit) {
@@ -2036,11 +2006,6 @@ export class PocketApp {
                     return;
                 }
 
-                if (!room.has(client.user.id)) {
-                    room.setTyping(client.user.id, null);
-                }
-
-                room.pushPresence();
                 room.schedule();
                 this.#scheduleSessions();
                 this.releaseRoom(room);
@@ -2239,7 +2204,7 @@ export class PocketApp {
         }
     }
 
-    /** A tab was hidden or shown: hidden tabs show their person as away, and let push notifications through. */
+    /** A tab was hidden or shown: hidden tabs let push notifications through. */
     setVisible(user: User, tab: string, visible: boolean): void {
         for (const client of this.#clients) {
             if (client.user.id !== user.id || client.id !== tab || client.visible === visible) {
@@ -2247,14 +2212,6 @@ export class PocketApp {
             }
 
             client.visible = visible;
-            const id = client.conversationId;
-
-            if (id !== undefined) {
-                void this.#rooms.get(id)?.then(
-                    (room) => room.pushPresence(),
-                    () => {},
-                );
-            }
         }
     }
 
@@ -2318,39 +2275,6 @@ export class PocketApp {
         return false;
     }
 
-    /** Change someone's name: shown at once on their messages, in the people lists, and on their avatar. */
-    rename(user: User, name: string): void {
-        this.config.updateUser(user.id, { name });
-        this.#peopleChanged();
-
-        for (const pending of this.#rooms.values()) {
-            void pending.then(
-                (room) => room.has(user.id) && room.pushPresence(),
-                () => {},
-            );
-        }
-    }
-
-    /** Set (bytes) or clear (undefined) someone's picture; everyone's lists show it at once. */
-    setAvatar(user: User, bytes: Buffer | undefined): void {
-        if (bytes === undefined) {
-            removeAvatar(this.dataDir, user.id);
-            this.config.updateUser(user.id, { avatar: undefined });
-        } else {
-            saveAvatar(this.dataDir, user.id, bytes);
-            this.config.updateUser(user.id, { avatar: Date.now() });
-        }
-
-        this.#peopleChanged();
-
-        for (const pending of this.#rooms.values()) {
-            void pending.then(
-                (room) => room.has(user.id) && room.pushPresence(),
-                () => {},
-            );
-        }
-    }
-
     /** Someone came, went, or changed: remember when they were last here and tell everyone. */
     #peopleChanged(userId?: string): void {
         if (userId !== undefined && this.config.userById(userId) !== undefined) {
@@ -2385,7 +2309,6 @@ export class PocketApp {
                 id: each.id,
                 name: each.name,
                 role: each.role,
-                ...(each.avatar === undefined ? {} : { avatar: each.avatar }),
                 online: this.#online(each.id),
                 ...(each.lastSeen === undefined ? {} : { lastSeen: each.lastSeen }),
                 ...(each.sessions === undefined || scope !== undefined
@@ -2462,43 +2385,6 @@ export class PocketApp {
                 "You can view this session but not steer Pi. Ask the owner for steering rights.",
             );
         }
-    }
-
-    /** While take turns is on, only the driver sends to Pi or changes its settings. */
-    async requireDriver(id: ConversationId, user: User): Promise<void> {
-        this.requireSteer(user);
-        const turns = await this.harness.snapshot(TurnsDoc, this.rootOf(id), context);
-
-        if (turns?.on !== true || turns.driver === user.id) {
-            return;
-        }
-
-        const driver = turns.driver === undefined ? undefined : this.config.userById(turns.driver);
-
-        throw new HttpError(
-            409,
-            driver === undefined
-                ? "Take turns is on: take the wheel first."
-                : `${driver.name} is driving. Ask to drive first.`,
-        );
-    }
-
-    #noteChat(id: ConversationId, messages: readonly ChatMessage[] | undefined): boolean {
-        const last = messages?.findLast((message) => message.kind !== "event");
-        const key = String(id);
-        const before = this.#lastChat.get(key);
-
-        if (last === undefined) {
-            return this.#lastChat.delete(key);
-        }
-
-        if (before?.at === last.at && before.userId === last.userId) {
-            return false;
-        }
-
-        this.#lastChat.set(key, { at: last.at, userId: last.userId });
-
-        return true;
     }
 
     /**
@@ -2739,8 +2625,6 @@ export class PocketApp {
                             user.role === "owner" ||
                             (user.role === "guest" && command.scope === "conversation"),
                     ),
-                // Tells the web app this server has people chat and typing indicators.
-                chat: true,
                 // Manual refresh reloads shared model configuration and catalogs; only the owner may start it.
                 refreshModels: user.role === "owner",
                 // Tells the web app this server sends peek tiles (`POST /api/peeks`, `peek` events).
@@ -2755,9 +2639,6 @@ export class PocketApp {
                 deviceCache: process.env.PI_POCKET_SESSION_CACHE !== "off",
                 // This server's clock: peek tiles compare the browser's looks with when runs ended here.
                 now: Date.now(),
-                // Collaboration features: 2 adds roles, take turns, reactions, pins, notes, mentions, and push.
-                collab: 2,
-                reactions: REACTIONS,
                 approvalRule: this.config.approvalRule,
                 // The model and thinking level new sessions start with, or null for the last one picked.
                 defaultModel: this.config.defaultModel ?? null,
@@ -2920,7 +2801,6 @@ export class PocketApp {
                 const here = [...(people.get(id) ?? new Map<string, string>())].map(
                     ([userId, name]) => ({ id: userId, name }),
                 );
-                const chat = this.#lastChat.get(id);
                 const endedAt = this.#endedAt.get(Number(id) as unknown as ConversationId);
                 const counts = countSubagents(subagents.get(id) ?? []);
                 const background = this.#background.get(Number(id) as unknown as ConversationId);
@@ -2958,7 +2838,6 @@ export class PocketApp {
                     ...(ask === undefined ? {} : { approval: ask }),
                     ...(model === undefined ? {} : { model: model.modelId }),
                     ...(here.length === 0 ? {} : { people: here }),
-                    ...(chat === undefined ? {} : { chatAt: chat.at, chatBy: chat.userId }),
                     ...(counts === undefined ? {} : { subagents: counts }),
                     ...(background === undefined ? {} : { background }),
                 };
@@ -3290,93 +3169,7 @@ export class PocketApp {
                 .catch((error: unknown) => this.#log(`decision not recorded: ${describe(error)}`));
         }
 
-        const form = request.form;
-        const what =
-            form === undefined
-                ? `${allow ? "allowed" : "denied"} the ${request.tool} call: ${request.subject}`
-                : `${allow ? "answered" : "declined"}: ${form.fields.some((field) => field.choices) ? request.reason : request.subject}`;
-
-        await this.collab.activity(conversationId, user, snippet(what, 160));
-
         return true;
-    }
-
-    /** The owner changes what someone may do: their role, or which session they may open. */
-    setAccess(owner: User, userId: string, patch: { role?: unknown; sessions?: unknown }): void {
-        if (owner.role !== "owner") {
-            throw new HttpError(403, "Only the owner can do that");
-        }
-
-        const target = this.config.userById(userId);
-
-        if (target === undefined) {
-            throw new HttpError(404, "No such person");
-        }
-
-        if (target.role === "owner") {
-            throw new HttpError(400, "The owner can do everything");
-        }
-
-        const change: { role?: "guest" | "viewer"; sessions?: string[] | undefined } = {};
-
-        if (patch.role !== undefined) {
-            if (patch.role !== "guest" && patch.role !== "viewer") {
-                throw new HttpError(400, "role must be guest or viewer");
-            }
-
-            change.role = patch.role;
-        }
-
-        if (patch.sessions !== undefined) {
-            if (patch.sessions === null) {
-                change.sessions = undefined;
-            } else if (
-                Array.isArray(patch.sessions) &&
-                patch.sessions.every((each) => this.#sessions[String(each)] !== undefined)
-            ) {
-                change.sessions = patch.sessions.map(String);
-            } else {
-                throw new HttpError(400, "sessions must be null or a list of session ids");
-            }
-        }
-
-        this.config.updateUser(userId, change);
-        const updated = this.config.userById(userId);
-
-        for (const client of [...this.#clients]) {
-            if (client.user.id !== userId || updated === undefined) {
-                continue;
-            }
-
-            if (
-                client.conversationId !== undefined &&
-                !this.canSee(updated, client.conversationId)
-            ) {
-                this.#evict(client, "This session is no longer shared with you.");
-            }
-
-            for (const id of client.peeks ?? []) {
-                if (!this.canSee(updated, id)) {
-                    client.peeks?.delete(id);
-                    this.#unpeek(client, id);
-                }
-            }
-        }
-
-        void this.#refreshUser(userId);
-        this.#peopleChanged();
-    }
-
-    removeUser(owner: User, userId: string): void {
-        if (owner.role !== "owner") {
-            throw new HttpError(403, "Only the owner can do that");
-        }
-
-        if (this.config.userById(userId)?.role === "owner") {
-            throw new HttpError(400, "The owner cannot be removed");
-        }
-
-        this.#forget(userId);
     }
 
     /**
@@ -3400,7 +3193,6 @@ export class PocketApp {
 
     #forget(userId: string): void {
         this.config.removeUser(userId);
-        removeAvatar(this.dataDir, userId);
         this.pushStore?.removeUser(userId);
 
         // Their open tabs end now; reconnecting fails, so they land on the sign-in screen.
@@ -3428,30 +3220,6 @@ export class PocketApp {
         client.conversationId = undefined;
         client.send("missing", { conversationId: id, message });
         this.#leaveRoom(client, id);
-    }
-
-    /** Someone's rights changed: their tabs get a fresh hello and session list. */
-    async #refreshUser(userId: string): Promise<void> {
-        const user = this.config.userById(userId);
-
-        if (user === undefined) {
-            return;
-        }
-
-        for (const client of this.#clients) {
-            if (client.user.id !== userId) {
-                continue;
-            }
-
-            client.send("hello", this.#helloFor(client, await this.hello(user)));
-            this.#sendSessions(client, this.sessions(user));
-
-            // An open board too: it must not keep subagents of sessions no longer shared.
-            if (client.board === true) {
-                client.boardSent = undefined;
-                this.#sendBoard(client, this.subagents(user));
-            }
-        }
     }
 
     /**

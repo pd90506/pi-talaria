@@ -127,7 +127,7 @@ export default function (pocket) {
 
 	pocket.page({ id: "meter", title: "Meter", component: Meter });
 	pocket.panel({ id: "dial", title: "Dial", icon: "pulse", component: () => html\`<p class="dial">Dial</p>\` });
-	pocket.status({ id: "watts", text: "46W · 74° · 95%", short: "46W", title: "Node 1", panel: "dial", before: "core:here" });
+	pocket.status({ id: "watts", text: "46W · 74° · 95%", short: "46W", title: "Node 1", panel: "dial", before: "core:context" });
 	pocket.arrange("status", { hide: ["core:spend"] });
 	pocket.replyAction({ id: "quote", label: "Quote", run: (reply) => pocket.insertText("> " + reply.text) });
 	const rail = pocket.rail({ id: "meter", title: "Meter", icon: "pulse", page: "meter" });
@@ -369,7 +369,7 @@ test(
                 `return JSON.stringify(document.querySelector(".status-line").innerText.replace(/\\s+/g, " ").trim())`,
             );
 
-        assert.match(await line(), /^46W · 74° · 95% 1 here/);
+        assert.match(await line(), /^46W · 74° · 95%/);
         assert.doesNotMatch(await line(), /\$0\.00/);
         await inPage(
             `(await import("/slots.js")).setShown("status", "core:spend", true); return "null";`,

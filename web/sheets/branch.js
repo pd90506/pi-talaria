@@ -30,7 +30,7 @@ const asBranchName = (text) => text.trim().replace(/\s+/g, "-");
 
 /** Why this person cannot switch branches here now, or null when they can: the server's rules, said before a tap. */
 function whyNot() {
-    const { view, me } = store.state;
+    const { view } = store.state;
 
     if (!canSteer()) {
         return "Viewers can see the branch, not switch it.";
@@ -38,10 +38,6 @@ function whyNot() {
 
     if (scoped()) {
         return "You were invited to one session: switching the branch changes the whole folder.";
-    }
-
-    if (view.turns?.on && view.turns.driver !== me?.id) {
-        return "Take turns is on: the driver switches branches.";
     }
 
     if (view.live?.busy) {

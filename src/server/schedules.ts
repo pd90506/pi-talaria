@@ -28,11 +28,9 @@ import {
     type Tx,
 } from "@earendil-works/pi-durable";
 import type { PocketApp } from "./app.ts";
-import { addActivity } from "./collab.ts";
-import { ChatDoc, type ChatMessage, type Schedule, ScheduleDoc } from "./docs.ts";
+import { type Schedule, ScheduleDoc } from "./docs.ts";
 import { describe, HttpError } from "./errors.ts";
 import { FROM_PREFIX } from "./entry-format.ts";
-import { snippet } from "./projection.ts";
 import { ownRequest, requestFor } from "./requests.ts";
 import { checkMoment, nextRepeat, outsideWindow, parseWhen, type Repeat } from "./when.ts";
 
@@ -104,37 +102,6 @@ const own = (items: Record<string, Schedule>, id: string): Schedule | undefined 
 const PAUSED_RECHECK_MS = 30 * 24 * 60 * 60_000;
 
 const finished = { status: "terminal", outcome: { status: "completed", result: null } } as const;
-
-/** Who the chat names for a skipped time: no person did it. */
-const SCHEDULER = { id: "pi", name: "Schedules" };
-
-/**
- * Say in the chat that a schedule skipped a time. Times are 10 minutes apart at least, so a session that cannot take
- * its messages for hours would get a line for each: while nothing else is said, the last line counts them instead.
- */
-function sayWhatWasSkipped(chat: { messages: ChatMessage[] }, text: string, now: number): void {
-    const what = `skipped “${snippet(text, 60)}”`;
-    const why = "its last message still waits in the queue.";
-    const last = chat.messages.at(-1);
-    const times = /^skipped “.*” (\d+) times:/s.exec(last?.text ?? "");
-
-    if (
-        last?.kind === "event" &&
-        last.userId === SCHEDULER.id &&
-        last.name === SCHEDULER.name &&
-        last.text.startsWith(`${what}`) &&
-        last.text.endsWith(why)
-    ) {
-        const count = (times === null ? 1 : Number(times[1])) + 1;
-
-        last.text = `${what} ${count} times: ${why}`;
-        last.at = now;
-
-        return;
-    }
-
-    addActivity(chat, SCHEDULER, `${what}: ${why}`, now);
-}
 
 /**
  * The request id of a schedule's sending number `run`. Sent as the person who set it up, so it shows as theirs. Pi's own
@@ -359,12 +326,6 @@ export class Schedules {
                 });
             } else {
                 delete doc.items[id];
-                addActivity(
-                    await tx.doc(ChatDoc, conversationId),
-                    stopped.who,
-                    `scheduled “${snippet(item.text, 60)}”, which was cancelled: ${stopped.why}.`,
-                    runtime.now(),
-                );
 
                 return finished;
             }
@@ -580,7 +541,6 @@ export class Schedules {
             item.skippedAt = now;
             // A one-time message has no next time; it never has a message of its own waiting either.
             item.next = item.every === undefined ? now : nextRepeat(item.every, now, item.zone);
-            sayWhatWasSkipped(await tx.doc(ChatDoc, conversationId), item.text, now);
 
             return { status: "running", checkpoint: { phase: "wait" } };
         }, context);

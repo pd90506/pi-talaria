@@ -24,13 +24,7 @@ import type {
     LinkedSessionsApi,
 } from "./host.ts";
 import type { RequestActor } from "./extension-request.ts";
-import {
-    LinkedSessionCallsDoc,
-    LinkedSessionPeersDoc,
-    PlanDoc,
-    SessionsDoc,
-    TurnsDoc,
-} from "./docs.ts";
+import { LinkedSessionCallsDoc, LinkedSessionPeersDoc, PlanDoc, SessionsDoc } from "./docs.ts";
 import { ChooseModelError, describe, HttpError } from "./errors.ts";
 import { defang, INVISIBLE_CLASS } from "./fence.ts";
 import { isThinkingLevel, levelFor, resolveModel, THINKING_LEVELS } from "./models.ts";
@@ -47,8 +41,6 @@ const settingsOf = (agent: AgentState) =>
         model: agent.model,
         thinkingLevel: agent.thinkingLevel ?? "off",
     });
-const turnsOf = (value: { on?: boolean; driver?: string }) =>
-    JSON.stringify({ on: value.on === true, driver: value.driver });
 
 /**
  * How long a call's record is kept, and how many: a call that runs again after a restart (the server down for a while)
@@ -144,7 +136,7 @@ export class LinkedSessions implements LinkedSessionsApi {
             return;
         }
 
-        await app.requireDriver(source, user);
+        app.requireSteer(user);
 
         if ((await app.harness.snapshot(PlanDoc, source, context))?.on) {
             throw new HttpError(409, "This session is in plan mode.");
@@ -183,7 +175,6 @@ export class LinkedSessions implements LinkedSessionsApi {
     ): Promise<User> {
         await this.#authorize(tx, source, actor);
 
-        const turns = await tx.doc(TurnsDoc, this.#app.rootOf(target));
         const targetPlan = await tx.doc(PlanDoc, target);
         const agent = await tx.doc(AgentDoc, source);
         const child = await tx.doc(AgentDoc, target);
@@ -193,10 +184,6 @@ export class LinkedSessions implements LinkedSessionsApi {
         this.#app.requireSteer(user);
         this.#app.spend.check(user, source);
         this.#app.spend.check(user, target);
-
-        if (turns.on && turns.driver !== user.id) {
-            throw new HttpError(409, "Take turns is on: take the wheel first.");
-        }
 
         if (targetPlan.on || settingsOf(child) !== settingsOf(approved)) {
             throw new HttpError(
@@ -228,8 +215,6 @@ export class LinkedSessions implements LinkedSessionsApi {
         const app = this.#app;
         const agent = await tx.doc(AgentDoc, source);
         const plan = await tx.doc(PlanDoc, source);
-        const sourceTurns = await tx.doc(TurnsDoc, app.rootOf(source));
-        const targetTurns = await tx.doc(TurnsDoc, app.rootOf(target));
         const targetPlan = await tx.doc(PlanDoc, target);
         const user = await this.#authorizeTarget(tx, source, target, actor, approved);
         const stopped = new AbortController();
@@ -249,8 +234,6 @@ export class LinkedSessions implements LinkedSessionsApi {
             [`${target}:${AgentDoc.definition.kind}`, "unchanged"],
             [`${source}:${PlanDoc.definition.kind}`, JSON.stringify(plan.on === true)],
             [`${target}:${PlanDoc.definition.kind}`, JSON.stringify(targetPlan.on === true)],
-            [`${app.rootOf(source)}:${TurnsDoc.definition.kind}`, turnsOf(sourceTurns)],
-            [`${app.rootOf(target)}:${TurnsDoc.definition.kind}`, turnsOf(targetTurns)],
         ]);
         const stop = () =>
             stopped.abort(
@@ -278,9 +261,7 @@ export class LinkedSessions implements LinkedSessionsApi {
                             ? "retired"
                             : kind === AgentDoc.definition.kind
                               ? "changed"
-                              : kind === PlanDoc.definition.kind
-                                ? JSON.stringify(change.value.on === true)
-                                : turnsOf(change.value);
+                              : JSON.stringify(change.value.on === true);
 
                     if (before !== after) {
                         stop();
@@ -1332,8 +1313,8 @@ export class LinkedSessions implements LinkedSessionsApi {
             : 0;
 
         // The archive and its receipt are one commit: a crash leaves neither, and a key for another session is refused
-        // before this one changes. The activity line follows, as it does for a person's own archive.
-        const { result, changed } = await app.harness.commit(async (tx) => {
+        // before this one changes.
+        const { result } = await app.harness.commit(async (tx) => {
             const record = recordOf(await tx.doc(LinkedSessionCallsDoc, source), token, app.now());
 
             if (record.conversationId !== undefined && record.conversationId !== Number(id)) {
@@ -1371,14 +1352,6 @@ export class LinkedSessions implements LinkedSessionsApi {
             return { result: { archived, repeating }, changed: archived !== before };
         }, context);
 
-        if (changed) {
-            await app.collab.activity(
-                id,
-                user,
-                archived ? "archived the session" : "brought the session back from the archive",
-            );
-        }
-
         return result;
     }
 
@@ -1387,7 +1360,7 @@ export class LinkedSessions implements LinkedSessionsApi {
         const app = this.#app;
 
         await this.#maySend(source, user);
-        await app.requireDriver(target, user);
+        app.requireSteer(user);
         app.spend.check(user, target);
     }
 
@@ -1503,7 +1476,7 @@ export class LinkedSessions implements LinkedSessionsApi {
         }
 
         await this.#maySend(source, user, actor);
-        await app.requireDriver(target, user);
+        app.requireSteer(user);
         app.spend.check(user, target);
 
         if (actor !== undefined) {

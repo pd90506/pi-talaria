@@ -19,7 +19,6 @@ import {
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { after, before, beforeEach, test } from "node:test";
-import { isDeepStrictEqual } from "node:util";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { type ConversationId, InboxDoc } from "@earendil-works/pi-durable";
@@ -370,52 +369,6 @@ test("a subagent whose run fails while a follow-up waits reports it, instead of 
     } finally {
         slow = {};
         lateFail = new Set();
-    }
-});
-
-test("an open board loses the subagents of a session no longer shared, at once", async () => {
-    const shared = await orchestrate({ spawn: ["kept"], rounds: 0, sleep: 0 });
-
-    // The plan is read when the model answers: the first one's, before the next session's.
-    await until(() => app.subagents().some((each) => each.name === "kept"), "the first subagent");
-    const unshared = await orchestrate({ spawn: ["hidden"], rounds: 0, sleep: 0 });
-    const guest = app.config.addUser("Narrowed", "guest");
-    const tab = fakeTab(undefined, guest.user);
-    const names = () =>
-        ((tab.last("subagents") ?? []) as unknown as { name: string }[])
-            .map((entry) => entry.name)
-            .filter((name) => name === "kept" || name === "hidden")
-            .sort();
-
-    // Both answered, their reports delivered, and the parents idle: nothing more would send the board on its own.
-    try {
-        await until(
-            async () =>
-                app
-                    .subagents()
-                    .filter((each) => ["kept", "hidden"].includes(each.name) && !each.busy)
-                    .length === 2 &&
-                !app.isBusy(shared) &&
-                !app.isBusy(unshared) &&
-                (await delivered(unshared)).hidden === 1,
-            "both subagents done",
-            15_000,
-        );
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        await app.attach(tab.client);
-        app.setBoard(guest.user, tab.client.connection, true);
-        assert.deepEqual(names(), ["hidden", "kept"]);
-        app.setAccess(owner(app), guest.user.id, { sessions: [String(shared)] });
-        // Nothing else changes on the server: the change of access alone sends the board again.
-        await until(
-            () => isDeepStrictEqual(names(), ["kept"]),
-            "the board without the other session",
-            2000,
-        );
-        assert.ok(unshared !== shared);
-    } finally {
-        // One person again, as the tests after expect: with more, messages say who sent them.
-        app.config.removeUser(guest.user.id);
     }
 });
 

@@ -2,7 +2,7 @@
 // as the folded sidebar numbers them (`workspaceOrder`: Alt+1…9). One segment each, in the session's folder color; the
 // open one fills, one that works pulses, one that waits for you shows in the warning color.
 import { useEffect, useRef } from "preact/hooks";
-import { folderColor } from "./avatar.js";
+import { folderColor } from "./colors.js";
 import { isUnread, navigate, openId, store, workspaceOrder } from "./store.js";
 import { TAB_MAX, tabSessions, tabState } from "./tab-order.js";
 import { drawnFor, html } from "./ui.js";

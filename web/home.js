@@ -1,6 +1,6 @@
 // The wide home screen, shown beside the session list when no session is open.
 
-import { folderColor } from "./avatar.js";
+import { folderColor } from "./colors.js";
 import { useEffect, useRef } from "preact/hooks";
 import { sessionMark } from "./sessions.js";
 import { canSteer, navigate, openSheet, scoped, store, workspaceOrder } from "./store.js";

@@ -99,69 +99,6 @@ export async function conversationRoutes(
         return json(response, 200, { ok: true });
     }
 
-    if (third === "chat" && method === "POST") {
-        const body = await readJson<{
-            text?: unknown;
-            requestId?: unknown;
-            quote?: { entryId?: unknown };
-        }>(request);
-
-        if (typeof body.text !== "string" || typeof body.requestId !== "string") {
-            throw new HttpError(400, "text and requestId are required");
-        }
-
-        const quote =
-            typeof body.quote === "object" && body.quote !== null
-                ? { entryId: body.quote.entryId }
-                : undefined;
-
-        return json(
-            response,
-            200,
-            await app.collab.postChat(id, user, {
-                text: body.text,
-                requestId: body.requestId,
-                ...(quote === undefined ? {} : { quote }),
-            }),
-        );
-    }
-
-    if (third === "react" && method === "POST") {
-        const body = await readJson<{ entryId?: unknown; emoji?: unknown }>(request);
-
-        await app.collab.react(id, user, Number(body.entryId), String(body.emoji ?? ""));
-
-        return json(response, 200, { ok: true });
-    }
-
-    if (third === "pin" && method === "POST") {
-        return json(response, 200, await app.collab.pin(id, user, await readJson(request)));
-    }
-
-    if (third === "notes" && method === "POST") {
-        const body = await readJson<{ text?: unknown; rev?: unknown }>(request);
-
-        if (typeof body.text !== "string" || typeof body.rev !== "number") {
-            throw new HttpError(400, "text and rev are required");
-        }
-
-        return json(response, 200, await app.collab.saveNotes(id, user, body.text, body.rev));
-    }
-
-    if (third === "turns" && method === "POST") {
-        await app.collab.turns(id, user, await readJson(request));
-
-        return json(response, 200, { ok: true });
-    }
-
-    if (third === "typing" && method === "POST") {
-        const body = await readJson<{ where?: unknown }>(request);
-
-        app.collab.setTyping(id, user, body.where);
-
-        return json(response, 200, { ok: true });
-    }
-
     if (third === "abort" && method === "POST") {
         await app.commands.abort(id, user);
 

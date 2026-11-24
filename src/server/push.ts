@@ -23,8 +23,6 @@ export type VapidKeys = { publicKey: string; privateKey: string };
 export type PushPrefs = {
     done: boolean;
     approval: boolean;
-    chat: boolean;
-    mention: boolean;
     /** A run began to wait a long while for a provider's limit to clear (`limit-gate.ts`). */
     limit: boolean;
     /** Work passed a hard limit with no progress (a stalled subagent): for the owner. */
@@ -33,8 +31,6 @@ export type PushPrefs = {
 export const DEFAULT_PREFS: PushPrefs = Object.freeze({
     done: true,
     approval: true,
-    chat: true,
-    mention: true,
     limit: true,
     stalled: true,
 });

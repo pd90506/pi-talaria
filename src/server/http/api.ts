@@ -12,16 +12,12 @@ import {
     type Auth,
     COOKIE,
     clearAuthCookie,
-    INVITE_MINUTES,
-    type InviteGrant,
-    type InviteMinutes,
     origin,
     parseCookies,
     quickTunnelHost,
     SIGN_IN_LINK_MS,
 } from "../auth.ts";
 import type { User } from "../config.ts";
-import { MAX_AVATAR, readAvatar } from "../avatars.ts";
 import { HttpError } from "../errors.ts";
 import { desktopTheme, wallpaperFile } from "../omarchy.ts";
 import { runningBoard, runningNow } from "../running.ts";
@@ -31,14 +27,7 @@ import { conversationRoutes } from "./conversation-routes.ts";
 import { createEventStreams, keptPart } from "./events.ts";
 import { extensionRoute } from "./extension-routes.ts";
 import { isIconColors, storeIconColors } from "../icon-store.ts";
-import {
-    type ApiRequest,
-    conversationId,
-    type HttpOptions,
-    json,
-    readBody,
-    readJson,
-} from "./io.ts";
+import { type ApiRequest, conversationId, type HttpOptions, json, readJson } from "./io.ts";
 import { pushRoutes } from "./push-routes.ts";
 
 /** This machine's non-internal IPv4 addresses, for invite links other devices on its networks can open. */
@@ -68,51 +57,6 @@ export function createApi(options: HttpOptions, auth: Auth) {
         if (user.role !== "owner") {
             throw new HttpError(403, "Only the owner can do that");
         }
-    };
-
-    /**
-     * What an invite may grant: viewers and people invited to one session cannot invite anyone, and only the owner can
-     * sign a device in as the owner (never for one session).
-     */
-    const inviteGrant = (user: User, body: { role?: unknown; session?: unknown }): InviteGrant => {
-        if (body.role === "owner") {
-            requireOwner(user);
-
-            return { role: "owner" };
-        }
-
-        if (user.role === "viewer" || user.sessions !== undefined) {
-            throw new HttpError(403, "Only people with access to every session can invite others.");
-        }
-
-        const role = body.role === "viewer" ? "viewer" : "guest";
-
-        if (body.session === undefined || body.session === null) {
-            return { role };
-        }
-
-        const session = conversationId(String(body.session));
-
-        if (!app.sessions(user).some((each) => each.id === Number(session))) {
-            throw new HttpError(400, "No such session");
-        }
-
-        return { role, session: String(session) };
-    };
-
-    /** How long an invite lasts, in minutes: one of `INVITE_MINUTES`, 15 when not said. */
-    const inviteMinutes = (body: { minutes?: unknown }): InviteMinutes => {
-        if (body.minutes === undefined) {
-            return 15;
-        }
-
-        const minutes = INVITE_MINUTES.find((each) => each === body.minutes);
-
-        if (minutes === undefined) {
-            throw new HttpError(400, "An invite lasts 15 minutes, an hour, a day, or a week.");
-        }
-
-        return minutes;
     };
 
     /** A guest signed in by a cookie set on a Cloudflare quick tunnel can only come back through it: remember which one. */
@@ -162,56 +106,6 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return json(response, 200, await app.hello(user));
         }
 
-        if (first === "me" && second === undefined && method === "POST") {
-            const body = await readJson<{ name?: string }>(request);
-            const name = String(body.name ?? "")
-                .replace(/\s+/g, " ")
-                .trim()
-                .slice(0, 40);
-
-            if (name === "") {
-                throw new HttpError(400, "Name is empty");
-            }
-
-            app.rename(user, name);
-
-            return json(response, 200, { ok: true });
-        }
-
-        if (first === "me" && second === "avatar" && method === "POST") {
-            app.setAvatar(user, await readBody(request, MAX_AVATAR));
-
-            return json(response, 200, { ok: true });
-        }
-
-        if (first === "me" && second === "avatar" && method === "DELETE") {
-            app.setAvatar(user, undefined);
-
-            return json(response, 200, { ok: true });
-        }
-
-        // A picture of anyone this person may see in the people list.
-        if (first === "avatar" && second !== undefined && method === "GET") {
-            const picture = app.people(user).some((each) => each.id === second)
-                ? readAvatar(app.dataDir, second)
-                : undefined;
-
-            if (picture === undefined) {
-                throw new HttpError(404, "No picture");
-            }
-
-            // The address carries the picture's version, so a copy never goes stale.
-            response.writeHead(200, {
-                "content-type": picture.type,
-                "content-length": picture.bytes.length,
-                "cache-control": "private, max-age=31536000, immutable",
-                "x-content-type-options": "nosniff",
-            });
-            response.end(picture.bytes);
-
-            return;
-        }
-
         if (first === "folder-favorites" && second === undefined && method === "GET") {
             return json(response, 200, await app.folderFavorites.list(user));
         }
@@ -229,18 +123,6 @@ export function createApi(options: HttpOptions, auth: Auth) {
         }
 
         if (first === "users" && second === undefined && method === "GET") {
-            return json(response, 200, app.people(user));
-        }
-
-        if (first === "users" && second !== undefined && third === "remove" && method === "POST") {
-            app.removeUser(user, second);
-
-            return json(response, 200, { ok: true });
-        }
-
-        if (first === "users" && second !== undefined && third === undefined && method === "POST") {
-            app.setAccess(user, second, await readJson(request));
-
             return json(response, 200, app.people(user));
         }
 
@@ -949,13 +831,9 @@ export function createApi(options: HttpOptions, auth: Auth) {
         }
 
         if (first === "invite" && second === undefined && method === "POST") {
-            const body = (await readJson(request)) as {
-                role?: unknown;
-                session?: unknown;
-                minutes?: unknown;
-            };
-            const grant = inviteGrant(user, body);
-            const invite = auth.createInvite(user, grant, inviteMinutes(body));
+            // Only the owner signs in another device of theirs: nobody else is invited.
+            requireOwner(user);
+            const invite = auth.createInvite(user, { role: "owner" });
             const here = origin(request);
             const loopback = /^https?:\/\/(localhost|127\.\d+\.\d+\.\d+|\[::1\])(:\d+)?$/.test(
                 here,
@@ -983,7 +861,7 @@ export function createApi(options: HttpOptions, auth: Auth) {
 
             return json(response, 200, {
                 ...invite,
-                grant,
+                grant: { role: "owner" },
                 url: link,
                 svg,
                 alternatives: (tunnel === undefined ? lan.slice(1) : lan).map(

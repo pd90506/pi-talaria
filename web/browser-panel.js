@@ -711,10 +711,8 @@ if (savedWidth > 0) {
 const REOPEN_MS = 2 * 60_000;
 
 export function BrowserPanel({ leaving = false }) {
-    const { conversationId, browser: state, me, view } = store.state;
-    // Using the page takes what steering Pi takes: while take turns is on, the wheel.
-    const turns = view.turns;
-    const steer = canSteer() && (!turns?.on || turns.driver === me?.id);
+    const { conversationId, browser: state } = store.state;
+    const steer = canSteer();
     const visible = useVisible();
     const open = state?.open === true;
     const frame = useFrames(conversationId, open && visible);

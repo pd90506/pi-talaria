@@ -1,5 +1,5 @@
 // Every artifact in every session, one row each, with the number of its current (latest) version.
-import { folderColor } from "../avatar.js";
+import { folderColor } from "../colors.js";
 import { useEffect, useState } from "preact/hooks";
 import { api, closeSheet, navigate, notify, store } from "../store.js";
 import { formatBytes, html, Icon, Loader, Sheet, timeAgo } from "../ui.js";

@@ -1,11 +1,10 @@
 // Pi Pocket web app. No build step: edit a file under web/ and every open browser reloads.
 import { render } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
-import { folderColor } from "./avatar.js";
+import { folderColor } from "./colors.js";
 import { canGoBack, goBack, replaceAddress, startHistory, useBack } from "./back.js";
 import { BrowserButton, BrowserPanel } from "./browser-panel.js";
 import { browserAvailable, setBrowserOpen, toggleBrowser } from "./browser.js";
-import { PeopleButton, PeoplePanel } from "./chat.js";
 import { Composer, openingByAlt, shortModel, StatusLine } from "./composer.js";
 import { useChanges } from "./diff.js";
 import {
@@ -65,7 +64,6 @@ import {
     openId,
     openSheet,
     panelsBeside,
-    peopleDocked,
     scoped,
     start,
     store,
@@ -181,12 +179,6 @@ defineItem("topbar", {
             ${artifacts > 0 && html`<span class="badge">${artifacts}</span>`}
         </button>`;
     },
-});
-defineItem("topbar", {
-    id: "core:people",
-    label: "People",
-    order: 700,
-    render: () => html`<${PeopleButton} />`,
 });
 defineItem("topbar", {
     id: "core:menu",
@@ -465,20 +457,6 @@ function LauncherHost() {
 }
 
 /**
- * The People panel, kept on screen a moment after it closes so it can slide out. Not when the Browser panel or the Files
- * tile takes its place.
- */
-function PeopleHost({ shown, replaced }) {
-    const [kept, leaving] = usePresence(shown || null, 180);
-
-    if (kept === null || (leaving && replaced)) {
-        return null;
-    }
-
-    return html`<${PeoplePanel} leaving=${leaving} />`;
-}
-
-/**
  * The Browser panel or the Files tile. Where it covers the conversation it is a screen pushed over it, kept a moment
  * after it closes so it can slide away; beside the conversation it goes at once.
  */
@@ -563,12 +541,11 @@ function App() {
     const filing = !placed && filesShown(state);
     // An extension's panel, in the same place: one panel at a time, so opening one closes the others.
     const paneling = !placed && !browsing && !filing && extPanelShown(state);
-    const people = !placed && !browsing && !filing && !paneling && peopleDocked(state);
     const peeking = !placed && peeksWanted(state);
     const tiles = peeking ? peekTiles(state) : [];
-    // The column takes the place beside the conversation when Browser and People leave it free; otherwise a strip,
+    // The column takes the place beside the conversation when the panels leave it free; otherwise a strip,
     // which only shows when there are tiles.
-    const peekColumn = peeking && PEEK_WIDE.matches && !browsing && !filing && !paneling && !people;
+    const peekColumn = peeking && PEEK_WIDE.matches && !browsing && !filing && !paneling;
 
     return html`<div
         class=${`layout ${inConversation || placed ? "" : "home"} ${browsing ? "browsing" : ""} ${filing ? "filing" : ""} ${paneling ? "paneling" : ""}`}
@@ -621,7 +598,7 @@ function App() {
             html`<${PeekHost}
                 shown=${peekColumn}
                 tiles=${tiles}
-                replaced=${browsing || filing || paneling || people}
+                replaced=${browsing || filing || paneling}
             />`
         }
         <${PanelHost}
@@ -635,10 +612,6 @@ function App() {
             shown=${paneling}
             panel=${ExtensionPanel}
         />
-        ${
-            inConversation &&
-            html`<${PeopleHost} shown=${people} replaced=${browsing || filing || paneling} />`
-        }
         <${Drawer} />
         <${PipHost} />
         <${Sheets} />
@@ -662,17 +635,12 @@ function focusWindow(event) {
         return;
     }
 
-    // By the window's part name, as themes know it: `sidebar`, `peeks`, `people-panel`, `browser-panel`, `files-panel`,
+    // By the window's part name, as themes know it: `sidebar`, `peeks`, `browser-panel`, `files-panel`,
     // `extension-panel`.
     const name =
-        [
-            "sidebar",
-            "peeks",
-            "people-panel",
-            "browser-panel",
-            "files-panel",
-            "extension-panel",
-        ].find((each) => win.matches(`[data-part~="${each}"]`)) ?? "pane";
+        ["sidebar", "peeks", "browser-panel", "files-panel", "extension-panel"].find((each) =>
+            win.matches(`[data-part~="${each}"]`),
+        ) ?? "pane";
 
     if (document.documentElement.dataset.focus !== name) {
         document.documentElement.dataset.focus = name;
@@ -995,12 +963,6 @@ store.subscribe(() => {
     });
 });
 render(html`<${App} />`, root);
-
-// A notification's link can ask for the chat: `/s/12?chat=1`.
-if (new URLSearchParams(location.search).has("chat")) {
-    replaceAddress(location.pathname);
-    openSheet({ type: "chat" });
-}
 
 // PiP's notifications open its panel, over whatever was open: `/?pip=1`. Opened once the server says PiP is here.
 if (new URLSearchParams(location.search).has("pip")) {

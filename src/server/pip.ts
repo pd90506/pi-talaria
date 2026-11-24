@@ -1417,7 +1417,7 @@ export class Pip {
         const user = this.#person(pipId);
         const id = this.#session(pipId, user, sessionId);
 
-        await app.requireDriver(id, user);
+        app.requireSteer(user);
 
         // A replayed call finds the schedule it made; a new one is for a session PiP looked at, naming no model nobody
         // chose.
@@ -1446,7 +1446,7 @@ export class Pip {
         const user = this.#person(pipId);
         const id = this.#session(pipId, user, sessionId);
 
-        await app.requireDriver(id, user);
+        app.requireSteer(user);
         this.#requireLooked(pipId, sessionId, "cancel schedules in");
 
         return app.schedules.cancel(id, scheduleId);

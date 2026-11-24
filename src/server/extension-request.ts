@@ -4,7 +4,6 @@ import { BACKGROUND_CONTEXT, withAbortSignal } from "@earendil-works/chord/conte
 import type { AgentState, ConversationId, DocumentReader, Tx } from "@earendil-works/pi-durable";
 import type { PocketApp } from "./app.ts";
 import type { User } from "./config.ts";
-import { TurnsDoc } from "./docs.ts";
 import { HttpError } from "./errors.ts";
 import { mayUse } from "./extension-web.ts";
 import type { WebAccess, WebRequest } from "./host.ts";
@@ -102,18 +101,10 @@ export class ExtensionRequest implements RequestActor {
     async authorize(tx: Tx, mutation: boolean): Promise<User> {
         this.current();
 
-        const turns =
-            mutation && this.#source !== undefined
-                ? await tx.doc(TurnsDoc, this.#app.rootOf(this.#source))
-                : undefined;
         const user = this.current();
 
         if (mutation) {
             this.#app.requireSteer(user);
-
-            if (turns?.on === true && turns.driver !== user.id) {
-                throw new HttpError(409, "Take turns is on: take the wheel first.");
-            }
         }
 
         return user;

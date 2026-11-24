@@ -5,7 +5,7 @@
 //
 // Everything the index says is untrusted: it shows as text only, and links go only to addresses the server built.
 import { useContext, useEffect, useRef, useState } from "preact/hooks";
-import { personColor } from "../avatar.js";
+import { personColor } from "../colors.js";
 import { planAvailable } from "../commands.js";
 import { browserModuleState } from "../extension-ui.js";
 import { DiffBlock } from "../diff.js";
