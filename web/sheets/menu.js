@@ -1,7 +1,6 @@
 // The menu: what can be done in this session and in the app.
 import { useLayoutEffect, useRef } from "preact/hooks";
 import { browserAvailable, displayUrl, setBrowserOpen } from "../browser.js";
-import { chatUnread } from "../chat.js";
 import { schedulesAvailable, triggersOn, watchAvailable, watchPr } from "../commands.js";
 import { extensionMenuItems, safeMode } from "../extension-ui.js";
 import { hostMenu } from "../embedder.js";
@@ -13,13 +12,10 @@ import { openPip, pipAvailable, pipUnread } from "../pip.js";
 import { setArchived } from "../sessions.js";
 import { openSubagent } from "../subagents.js";
 import {
-    actions,
     api,
     attempt,
     canSteer,
-    canToggleTurns,
     closeSheet,
-    collab,
     navigate,
     notify,
     openRunning,
@@ -35,7 +31,7 @@ import { currentTrust, trustAvailable } from "../trust.js";
 import { branchAvailable } from "./branch.js";
 import { memoryAvailable, memoryHint, useMemory } from "./memory.js";
 import { defaultLabel, defaultsKept } from "./model.js";
-import { copyText, html, Icon, item, PlaceTile, Sheet, shortPath } from "../ui.js";
+import { copyText, html, item, PlaceTile, Sheet, shortPath } from "../ui.js";
 
 // Key hints are for people with a keyboard: a touch screen has none.
 const touch = matchMedia("(pointer: coarse)").matches;
@@ -150,17 +146,6 @@ const PLACES = [
             count: store.state.view.artifacts.length,
             run: () => openSheet({ type: "artifacts" }),
         }),
-    },
-    {
-        id: "core:chat",
-        label: "Chat",
-        place: () =>
-            collab() && {
-                icon: "chat",
-                count: chatUnread(),
-                counted: "unread",
-                run: () => openSheet({ type: "chat" }),
-            },
     },
     {
         id: "core:find",
@@ -415,9 +400,6 @@ export function MenuSheet({ places = true }) {
     const conversation = view.conversation;
     const steer = canSteer();
     const session = conversation?.kind === "session";
-    const turns = view.turns;
-    // While take turns is on, settings belong to the driver.
-    const driving = !turns?.on || turns.driver === me?.id;
     const instructions = view.agent?.instructions;
     const memory = useMemory();
 
@@ -427,22 +409,6 @@ export function MenuSheet({ places = true }) {
     return html`<${MenuFrame} title=${conversation?.title ?? "Menu"}>
         ${places && html`<${Places} />`}
         <div class="menu-session">
-            ${
-                conversation &&
-                collab() &&
-                canToggleTurns() &&
-                item(
-                    turns?.on ? "Turn off take turns" : "Take turns",
-                    () =>
-                        attempt(async () => {
-                            await actions.turns(turns?.on ? "off" : "on");
-                            closeSheet();
-                        }),
-                    turns?.on
-                        ? "anyone here can send to Pi again"
-                        : "one person drives Pi at a time",
-                )
-            }
             ${session && steer && item("Rename", () => openSheet({ type: "rename" }))}
             ${
                 session &&
@@ -476,7 +442,6 @@ export function MenuSheet({ places = true }) {
                       )
                     : conversation &&
                       steer &&
-                      driving &&
                       !scoped() &&
                       item(
                           "Working directory",
@@ -499,9 +464,9 @@ export function MenuSheet({ places = true }) {
             }
             ${conversation && trustAvailable() && item("Project trust", () => openSheet({ type: "trust" }), trustHint())}
             ${session && extensionMenuItems("session").map((each) => item(each.label, each.run, each.hint))}
-            ${session && steer && driving && item("Instructions for Pi", () => openSheet({ type: "instructions" }), instructions ? "on" : "none")}
-            ${conversation && steer && driving && item("Compact context", () => openSheet({ type: "compact" }), "summarize older messages")}
-            ${conversation && steer && driving && item("New context", () => openSheet({ type: "reset" }), "Pi starts fresh; history stays")}
+            ${session && steer && item("Instructions for Pi", () => openSheet({ type: "instructions" }), instructions ? "on" : "none")}
+            ${conversation && steer && item("Compact context", () => openSheet({ type: "compact" }), "summarize older messages")}
+            ${conversation && steer && item("New context", () => openSheet({ type: "reset" }), "Pi starts fresh; history stays")}
             ${conversation && memoryAvailable() && item("Memory", () => openSheet({ type: "memory" }), memoryHint(memory))}
             ${schedulesAvailable() && item("Scheduled messages", () => openSheet({ type: "schedules" }), schedulesHint(view.schedules))}
             ${
@@ -569,9 +534,8 @@ export function MenuSheet({ places = true }) {
                         "project, last picked, then Pi global",
                 )
             }
-            ${item("Your name", () => openSheet({ type: "name" }), me?.name)}
-            ${collab() ? item("People", () => openSheet({ type: "people" }), me?.role === "viewer" ? "you can view" : "") : item("Sign in another device", () => openSheet({ type: "invite" }))}
-            ${collab() && item("Notifications", () => openSheet({ type: "notifications" }), "Pi finished, approvals, chat")}
+            ${item("Sign in another device", () => openSheet({ type: "device" }))}
+            ${item("Notifications", () => openSheet({ type: "notifications" }), "Pi finished, approvals")}
             ${item("Running now", openRunning, "everything Pi is doing")}
             ${view.conversation && item("Background", () => openSheet({ type: "background" }), "what commands print as they run")}
             ${item("Spend", () => openSheet({ type: "spend" }), me?.role === "owner" ? "by person and session, limits" : "yours")}

@@ -243,7 +243,7 @@ export class Shell {
         const app = this.#app;
 
         app.requireSee(user, id);
-        await app.requireDriver(id, user);
+        app.requireSteer(user);
         await app.conversation(id);
         const command = typeof request.command === "string" ? request.command.trim() : "";
 

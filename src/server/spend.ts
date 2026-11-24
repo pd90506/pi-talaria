@@ -423,13 +423,6 @@ export class Spend {
             }
         }, context);
         this.#limitsChanged();
-        await this.#app.collab.activity(
-            id,
-            user,
-            amount === undefined
-                ? "removed the spend limit"
-                : `set a spend limit of ${dollars(amount)}`,
-        );
     }
 
     /** The owner limits what Pi may spend for a person (`null`: no limit). */

@@ -19,8 +19,7 @@ import {
     type TaskRuntime,
 } from "@earendil-works/pi-durable";
 import type { PocketApp } from "./app.ts";
-import { addActivity } from "./collab.ts";
-import { ChatDoc, type PrWatch, TurnsDoc, type WatchStatus, WatchDoc } from "./docs.ts";
+import { type PrWatch, type WatchStatus, WatchDoc } from "./docs.ts";
 import { describe, HttpError } from "./errors.ts";
 import { attribute, clip, defang, quoted } from "./fence.ts";
 import {
@@ -921,25 +920,6 @@ export class Watches {
                 return this.#again(runtime, this.timing.soon, {}, context);
             }
 
-            const turns = await app.harness.snapshot(TurnsDoc, app.rootOf(id), context);
-
-            // Someone else drives: the watch takes its turn too, until two weeks have passed with nothing told.
-            if (turns?.on === true && turns.driver !== person.id) {
-                if (app.now() - watch.lastNewsAt > QUIET_MS) {
-                    return this.#end(runtime, "expired", context);
-                }
-
-                const driver =
-                    turns.driver === undefined ? undefined : app.config.userById(turns.driver);
-
-                return this.#again(runtime, this.timing.retry, {}, context, {
-                    note:
-                        driver === undefined
-                            ? "Waits for someone to take the wheel."
-                            : `Waits while ${driver.name} drives.`,
-                });
-            }
-
             try {
                 await app.commands.submit(
                     id,
@@ -1066,14 +1046,6 @@ export class Watches {
                 item.note = why;
             }
 
-            const person = app.config.userById(item.by) ?? { id: item.by, name: "Someone" };
-
-            addActivity(
-                await tx.doc(ChatDoc, id),
-                person,
-                `watched PR #${item.number} ${endedText(item)}.`,
-                app.now(),
-            );
             ended = JSON.parse(JSON.stringify(item)) as PrWatch;
 
             return finished;

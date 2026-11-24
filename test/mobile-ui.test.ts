@@ -422,7 +422,7 @@ test("completed replies show stored message times across providers", real, async
         );
         assert.equal(
             await inPage<boolean>(`
-                return JSON.stringify(document.querySelector(".reply .reaction-host") !== null);
+                return JSON.stringify(document.querySelector('.reply [data-part="reply-actions"] button') !== null);
             `),
             true,
         );
@@ -440,11 +440,11 @@ test("completed replies show stored message times across providers", real, async
                 inPage<boolean>(`
                     const actions = document.querySelector(".answer-actions");
 
-                    return JSON.stringify(actions.firstElementChild.matches(".reaction-host") &&
+                    return JSON.stringify(actions.firstElementChild.textContent.trim() === "Copy" &&
                         actions.children[1].tagName === "TIME" &&
                         actions.lastElementChild.textContent.trim() === "More");
                 `),
-            "message time moved after React, with More still last",
+            "message time moved after Copy, with More still last",
         );
     } finally {
         await page.evaluate(`
@@ -453,78 +453,6 @@ test("completed replies show stored message times across providers", real, async
         `);
     }
 });
-
-test(
-    "on a phone, an invite lasts as long as chosen, and the one it replaces ends",
-    real,
-    async () => {
-        const code = () =>
-            inPage<string | null>(
-                `return JSON.stringify(document.querySelector(".invite-code-value")?.textContent.replace(/\\s/g, "") ?? null)`,
-            );
-        const status = async (invite: string | null) =>
-            (await fetch(`${base}/join/${invite}`)).status;
-
-        await fresh();
-        await page.evaluate(`(await import("/store.js")).openSheet({ type: "invite" })`);
-        await until(async () => (await code()) !== null, "the first invite");
-        const first = await code();
-
-        await page.evaluate(
-            `[...document.querySelectorAll(".sheet .segmented button")].find((each) => each.textContent.trim() === "1 week").click()`,
-        );
-        await until(async () => ![null, first].includes(await code()), "the week's invite");
-        const week = await code();
-
-        assert.equal(await status(week), 200);
-        await until(async () => (await status(first)) === 410, "the 15 minutes' invite, ended");
-
-        await tap('.sheet label.check input[type="checkbox"]');
-        await until(async () => ![null, week].includes(await code()), "the owner's invite");
-        await until(async () => (await status(week)) === 410, "the week's invite, ended");
-        await tap('.sheet label.check input[type="checkbox"]');
-        await until(async () => (await code()) !== null, "a guest's invite again");
-        const steer = await code();
-
-        // Not for a frame does the sheet show an invite made for other settings: View only shows no Steer invite.
-        await page.evaluate(`
-            window.frames = [];
-            const watch = () => {
-                const on = document.querySelector(".sheet .segmented .on")?.textContent.trim();
-                const code = document.querySelector(".invite-code-value")?.textContent.replace(/\\s/g, "");
-
-                window.frames.push([on, code ?? null]);
-
-                if (window.frames.length < 60) {
-                    requestAnimationFrame(watch);
-                }
-            };
-
-            requestAnimationFrame(watch);
-            [...document.querySelectorAll(".sheet .segmented button")].find((each) => each.textContent.trim() === "View only").click();
-        `);
-        await until(async () => ![null, steer].includes(await code()), "the view-only invite");
-        const frames = await inPage<[string, string | null][]>(
-            `return JSON.stringify(window.frames)`,
-        );
-
-        assert.ok(
-            !frames.some(([on, shown]) => on === "View only" && shown === steer),
-            "no frame shows the Steer invite under View only",
-        );
-        const viewOnly = await code();
-
-        // New invite makes another and leaves the one before working; closing leaves the last one working.
-        await tap(".sheet .button.wide:last-of-type");
-        await until(async () => ![null, viewOnly].includes(await code()), "another invite");
-        const another = await code();
-
-        assert.equal(await status(viewOnly), 200, "the one before New invite still works");
-        await back();
-        await reach({ sheet: null, layers: 0 }, "closed");
-        assert.equal(await status(another), 200, "the last one shown still works");
-    },
-);
 
 /** A compacted view can keep recent entries whose ids also occur before its summary. */
 async function compactedView(): Promise<void> {
@@ -1483,132 +1411,6 @@ test(
         }
     },
 );
-
-test("a session no longer shared is not kept, whatever the tab hears first", real, async () => {
-    const other = await newSession(app);
-    const theirs = await newSession(app);
-    const guest = app.config.addUser("Ivy", "guest", [String(theirs), String(other)]);
-    // The guest's own browser: the owner's would ask before it switched accounts.
-    const owners = page;
-    const guests = new Browsers({
-        dataDir: mkdtempSync(join(root, "mobile-ui-guest-")),
-        load: async () => undefined,
-        save: () => {},
-    });
-
-    await say(app, theirs, "shared for now");
-
-    try {
-        page = await guests.open(1);
-        await page.setViewport(VIEWPORTS.mobile);
-        await page.navigate(`${base}/login?token=${encodeURIComponent(guest.token)}`);
-        await until(
-            async () =>
-                (await inPage<boolean>(`
-                    const { store } = await import("/store.js");
-
-                    return JSON.stringify(store.state.me?.id === ${JSON.stringify(guest.user.id)} &&
-                        store.state.sessions.some((each) => each.id === ${Number(theirs)}));
-                `)) === true,
-            "the guest's list",
-            20_000,
-        );
-        // Open the shared session until its entries are whole (a tab keeps only such a view), then leave it.
-        await goTo(theirs);
-        await until(
-            async () =>
-                (await inPage<boolean>(`
-                    const { store } = await import("/store.js");
-                    const { view, connection } = store.state;
-
-                    return JSON.stringify(connection === "open" && view.conversation?.id === ${Number(theirs)} &&
-                        view.entries.size > 0 && ![...view.entries.values()].some((each) => each.partial));
-                `)) === true,
-            "the shared session, whole",
-        );
-        await goTo(other);
-        await reach({ path: `/s/${other}` }, "another session");
-
-        // Its connection loses the word that the session is missing, as one does when the tab leaves first (a reconnect
-        // sends the new hello and list before that word).
-        await inPage<boolean>(`
-            const { connect } = await import("/store.js");
-            const Source = window.EventSource;
-
-            window.__lost = 0;
-            window.EventSource = class extends Source {
-                constructor(url) {
-                    super(url);
-                    this.addEventListener("missing", (event) => {
-                        window.__lost++;
-                        event.stopImmediatePropagation();
-                    });
-                }
-            };
-            connect();
-            window.EventSource = Source;
-
-            return "true";
-        `);
-        await until(
-            async () =>
-                (await inPage<boolean>(`
-                    const { store } = await import("/store.js");
-
-                    return JSON.stringify(store.state.connection === "open" && store.state.view.conversation?.id === ${Number(other)});
-                `)) === true,
-            "connected again",
-        );
-
-        // Back to it: kept, it shows at once.
-        const shownAgain = await inPage<boolean>(`
-            const { navigate, store } = await import("/store.js");
-
-            navigate(${Number(theirs)});
-
-            return JSON.stringify(store.state.view.conversation?.id === ${Number(theirs)});
-        `);
-
-        assert.ok(shownAgain, "kept while it is shared");
-        await until(
-            async () =>
-                (await inPage<boolean>(`
-                    const { store } = await import("/store.js");
-
-                    return JSON.stringify(store.state.view.conversation?.id === ${Number(theirs)} &&
-                        ![...store.state.view.entries.values()].some((each) => each.partial));
-                `)) === true,
-            "the session, from the server",
-        );
-
-        // The owner stops sharing it: the tab hears its new rights and list, not that the session is missing. Wherever
-        // it goes then, nothing of the session is kept.
-        app.setAccess(owner(app), guest.user.id, { sessions: [String(other)] });
-        await until(
-            async () =>
-                (await inPage<boolean>(`
-                    const { store } = await import("/store.js");
-
-                    return JSON.stringify(window.__lost > 0 && !store.state.sessions.some((each) => each.id === ${Number(theirs)}));
-                `)) === true,
-            "the list without it",
-        );
-        const keptAfter = await inPage<boolean>(`
-            const { navigate, store } = await import("/store.js");
-
-            navigate(${Number(other)});
-            navigate(${Number(theirs)});
-
-            return JSON.stringify(store.state.view.entries.size > 0);
-        `);
-
-        assert.ok(!keptAfter, "not kept once it is no longer shared");
-    } finally {
-        await guests.closeAll({ final: true });
-        page = owners;
-        app.config.removeUser(guest.user.id);
-    }
-});
 
 test(
     "the transcript stays at the bottom as an answer streams, and as a row grows",

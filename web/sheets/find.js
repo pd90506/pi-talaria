@@ -1,6 +1,6 @@
 // Find in session: messages, commands, and files, through the whole history.
 import { useEffect, useRef, useState } from "preact/hooks";
-import { jumpToEntry } from "../chat.js";
+import { jumpToEntry } from "../jump.js";
 import { actions, closeSheet, isRow, loadEarlier, store } from "../store.js";
 import { html, Icon, Marked, plainText, Sheet, Spinner, writtenText } from "../ui.js";
 import { userSearchText } from "../user-search.js";

@@ -112,14 +112,10 @@ test("a tab gets peek tiles for the sessions on its screen, and stays out of the
             { kind: "text", text: "echo: hello there" },
         ]);
         assert.deepEqual(first.approvals, []);
-        // Peeking is not being there: the session's people and tab count leave the tab out.
+        // Peeking is not being there: the session's tab count leaves the tab out.
         const room = await app.room(other);
 
         assert.equal(room.clients.size, 1);
-        assert.deepEqual(
-            room.presence().people.map((person) => person.tabs),
-            [1],
-        );
         assert.equal(
             there.events.filter((each) => each.event === "peek").length,
             0,
@@ -273,44 +269,6 @@ test("each connection has its own list: a duplicated tab or a reconnect does not
     } finally {
         app.detach(old.client);
         app.detach(twin.client);
-    }
-});
-
-test("peeks leave out sessions the person may not see, and end with the tab or the access", async () => {
-    const mine = await newSession(app);
-    const theirs = await newSession(app);
-    const sam = app.config.addUser("Sam", "guest", [String(mine)]).user;
-    const tab = fakeTab(undefined, sam);
-
-    try {
-        await app.attach(tab.client);
-        app.setPeeks(sam, tab.client.connection, [
-            theirs,
-            mine,
-            99_999 as unknown as ConversationId,
-        ]);
-        assert.deepEqual([...(tab.client.peeks ?? [])], [mine]);
-        await until(() => peeks(tab).length > 0, "Sam's peek");
-        await settle(200);
-        assert.ok(peeks(tab).every((peek) => peek.conversationId === mine));
-        const room = await app.room(mine);
-
-        // Narrowed to another session, the tile stops.
-        app.setAccess(owner(app), sam.id, { sessions: [String(theirs)] });
-        assert.equal(tab.client.peeks?.has(mine), false);
-        await until(() => room.peekers.size === 0, "the tile to end with the access");
-
-        // A tab that goes takes its tiles with it.
-        app.setPeeks(sam, tab.client.connection, [theirs]);
-        const theirRoom = await app.room(theirs);
-
-        await until(() => theirRoom.peekers.size === 1, "the new tile");
-        app.detach(tab.client);
-        assert.equal(tab.client.peeks, undefined);
-        await until(() => theirRoom.peekers.size === 0, "the tile to end with the tab");
-    } finally {
-        app.detach(tab.client);
-        app.config.removeUser(sam.id);
     }
 });
 

@@ -23,7 +23,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { type ConversationId, InboxDoc } from "@earendil-works/pi-durable";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
-import { LinkedSessionCallsDoc, type SessionMeta, TurnsDoc } from "../src/server/docs.ts";
+import { LinkedSessionCallsDoc, type SessionMeta } from "../src/server/docs.ts";
 import { LinkedSessions } from "../src/server/linked-sessions.ts";
 
 let app: App;
@@ -409,7 +409,7 @@ test("a message to a linked session lands at its next pause unless told to wait 
     }
 });
 
-test("a start or send is refused in plan mode, past a spend limit, or without the turn", async () => {
+test("a start or send is refused in plan mode or past a spend limit", async () => {
     const id = await source();
     const { session: target, address } = await start(id);
     const count = app.sessions().length;
@@ -434,13 +434,6 @@ test("a start or send is refused in plan mode, past a spend limit, or without th
     await app.spend.setSessionBudget(owner(app), id, 0.01);
     await refused(/spend limit/);
     await app.spend.setSessionBudget(owner(app), id, null);
-
-    const driver = app.config.addUser("Driver", "guest").user;
-
-    await app.harness.commit(async (tx) => {
-        Object.assign(await tx.doc(TurnsDoc, id), { on: true, driver: driver.id, asks: [] });
-    }, context);
-    await refused(/driving/);
 });
 
 test("an unavailable model creates no session", async (t) => {
@@ -706,7 +699,7 @@ test("a linked session cannot stop or archive a session outside its team", async
     assert.notEqual(app.sessionMeta(other)?.archived, true);
 });
 
-test("stop and archive are refused in plan mode, past a spend limit, or without the turn", async () => {
+test("stop and archive are refused in plan mode or past a spend limit", async () => {
     const id = await source();
     const { session: target, address } = await start(id);
 
@@ -727,22 +720,6 @@ test("stop and archive are refused in plan mode, past a spend limit, or without 
     await until(() => app.spend.sessionSpent(id) === 0.02, "the spend");
     await refused(/spend limit/);
     await app.spend.setSessionBudget(owner(app), id, null);
-
-    const driver = app.config.addUser("Stop driver", "guest").user;
-
-    await app.harness.commit(async (tx) => {
-        Object.assign(await tx.doc(TurnsDoc, id), { on: true, driver: driver.id, asks: [] });
-    }, context);
-    await refused(/driving/);
-    await app.harness.commit(async (tx) => {
-        Object.assign(await tx.doc(TurnsDoc, id), { on: false, driver: undefined, asks: [] });
-    }, context);
-
-    // The source is free, but someone else holds the wheel in the linked session: stop and archive wait, as send does.
-    await app.harness.commit(async (tx) => {
-        Object.assign(await tx.doc(TurnsDoc, target), { on: true, driver: driver.id, asks: [] });
-    }, context);
-    await refused(/driving/);
 });
 
 test("a key that already acted on one linked session is refused for another before anything changes", async () => {
@@ -991,7 +968,7 @@ test("reports refuses a take that is not a boolean, and stores nothing", async (
     assert.deepEqual((await callRecord(id, "switched"))?.result, { take: false });
 });
 
-test("reports is refused in plan mode, past a spend limit, or without the turn", async () => {
+test("reports is refused in plan mode or past a spend limit", async () => {
     const id = await source();
 
     const refused = async (why: RegExp) => {
@@ -1012,15 +989,6 @@ test("reports is refused in plan mode, past a spend limit, or without the turn",
     await refused(/spend limit/);
     await app.spend.setSessionBudget(owner(app), id, null);
 
-    const driver = app.config.addUser("Reports driver", "guest").user;
-
-    await app.harness.commit(async (tx) => {
-        Object.assign(await tx.doc(TurnsDoc, id), { on: true, driver: driver.id, asks: [] });
-    }, context);
-    await refused(/driving/);
-    await app.harness.commit(async (tx) => {
-        Object.assign(await tx.doc(TurnsDoc, id), { on: false, driver: undefined, asks: [] });
-    }, context);
     assert.deepEqual(await takes(id, false), { take: false });
 });
 

@@ -1,5 +1,5 @@
 /**
- * Push notifications: who hears about what, and when. Pi finished, Pi needs approval, mentions, and chat messages go
+ * Push notifications: who hears about what, and when. Pi finished and Pi needs approval go
  * to the people who take part in a session, unless they are looking at it or turned that kind off.
  * Each goes through Web Push to their subscribed devices, and over the live connection to their
  * embedders (`notifyEmbedders`).
@@ -7,7 +7,7 @@
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import type { ConversationId } from "@earendil-works/pi-durable";
 import type { PocketApp } from "./app.ts";
-import { AuthorsDoc, ChatDoc } from "./docs.ts";
+import { AuthorsDoc } from "./docs.ts";
 import { describe } from "./errors.ts";
 import { entryText, projectEntry, snippet } from "./projection.ts";
 import { span, type WaitView } from "./limit-gate.ts";
@@ -311,7 +311,7 @@ export class Alerts {
         return this.#app.pushStore === undefined && !this.#app.hasEmbedders();
     }
 
-    /** People who take part in a session: whoever started it, wrote to Pi, or chatted there. */
+    /** People who take part in a session: whoever started it or wrote to Pi. */
     async participants(id: ConversationId): Promise<Set<string>> {
         const app = this.#app;
         const root = app.rootOf(id);
@@ -326,13 +326,6 @@ export class Alerts {
             (await app.harness.snapshot(AuthorsDoc, root, context))?.entries ?? {},
         )) {
             people.add(userId);
-        }
-
-        for (const message of (await app.harness.snapshot(ChatDoc, root, context))?.messages ??
-            []) {
-            if (message.kind !== "event") {
-                people.add(message.userId);
-            }
         }
 
         return people;

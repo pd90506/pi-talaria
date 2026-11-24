@@ -20,7 +20,7 @@ import { after, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import type { ConversationId } from "@earendil-works/pi-durable";
-import { ChatDoc, ScheduleDoc } from "../src/server/docs.ts";
+import { ScheduleDoc } from "../src/server/docs.ts";
 
 /** "hold" keeps Pi at work in a tool call until the test removes its flag; anything else is answered at once. */
 const route: FauxResponseStep = (request) => {
@@ -99,17 +99,6 @@ test("a repeat skips its time while its last message waits in the queue, and say
         later(11);
         await until(async () => (await item())?.skipped === 2, "the third time to be skipped");
 
-        const chat = await app.harness.snapshot(ChatDoc, id, context);
-        const lines = (chat?.messages ?? []).filter(
-            (each) => each.kind === "event" && each.text.includes("skipped"),
-        );
-
-        assert.equal(lines.length, 1, "one line, updated while the skips go on");
-        assert.equal(
-            lines[0]!.text,
-            "skipped “ping” 2 times: its last message still waits in the queue.",
-        );
-        assert.equal(lines[0]!.name, "Schedules");
         assert.equal((await item())!.skippedAt! > (await item())!.next - 11 * 60_000, true);
 
         // Pi is free: the waiting message is taken, and the next time sends again.

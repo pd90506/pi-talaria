@@ -416,11 +416,6 @@ test("export is the agent side's route, there for people who steer and not for a
     assert.ok(owned.status >= 400 && owned.status < 500);
     assert.notEqual(owned.data.error, "Unknown extension route");
     assert.equal((await call("Vic", path, body)).status, 404);
-
-    // While people take turns, only the driver exports.
-    await app.collab.turns(session, owner(app), { action: "on" });
-    assert.equal((await call("Gale", path, body)).status, 409);
-    await app.collab.turns(session, owner(app), { action: "off" });
 });
 
 test("a design with nothing kept leaves no item behind, so empty ones never use up the places", async () => {

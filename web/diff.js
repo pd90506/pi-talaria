@@ -4,7 +4,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import { useBack } from "./back.js";
-import { jumpToEntry } from "./chat.js";
+import { jumpToEntry } from "./jump.js";
 import { fingerprint, firstLine, hunkRows, markRanges, parseDiff } from "./diff-parse.js";
 import { highlight, highlightLines, langOf } from "./highlight.js";
 import { personStorage } from "./person-storage.js";

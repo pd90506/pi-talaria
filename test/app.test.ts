@@ -16,16 +16,7 @@ import {
     work,
 } from "./helpers.ts";
 import assert from "node:assert/strict";
-import {
-    chmodSync,
-    existsSync,
-    mkdirSync,
-    readdirSync,
-    readFileSync,
-    realpathSync,
-    unlinkSync,
-    writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { crc32, deflateSync } from "node:zlib";
 import { after, before, mock, test } from "node:test";
@@ -38,7 +29,7 @@ import {
 } from "@earendil-works/pi-ai/providers/faux";
 import { type ConversationId, InboxDoc, LiveDoc, type Storage } from "@earendil-works/pi-durable";
 import type { Attachment } from "../src/server/commands.ts";
-import { HeldDoc, InterruptsDoc, TurnsDoc } from "../src/server/docs.ts";
+import { HeldDoc, InterruptsDoc } from "../src/server/docs.ts";
 import type { Interrupt } from "../src/server/resend.ts";
 import createArtifacts from "../src/server/extensions/artifacts.ts";
 import type { PocketHost } from "../src/server/host.ts";
@@ -753,184 +744,7 @@ test("anyone signed in can list extensions; only the owner can change them", asy
     }
 });
 
-test("people chat beside Pi: presence, one post per request, and the chat survives a reopen", async () => {
-    const id = await newSession();
-    const guest = app.config.addUser("Alex", "guest");
-
-    type Event = { event: string; data: Record<string, unknown> };
-    const tab = (name: string, user: (typeof guest)["user"], events: Event[]) => ({
-        id: name,
-        connection: name,
-        user,
-        conversationId: id,
-        sentEntries: new Set<number>(),
-        orderKey: "",
-        send: (event: string, data: unknown) =>
-            events.push({ event, data: data as Record<string, unknown> }),
-    });
-    const mine: Event[] = [];
-    const ownerTab = tab("tab-owner", owner(), mine);
-    const guestTab = tab("tab-guest", guest.user, []);
-
-    type People = { name: string }[];
-    const people = () =>
-        (mine.findLast((each) => each.event === "presence")?.data.people ?? []) as People;
-
-    try {
-        await app.attach(ownerTab);
-        assert.deepEqual(mine.find((each) => each.event === "chat")?.data, {
-            conversationId: id,
-            full: true,
-            messages: [],
-        });
-        await app.attach(guestTab);
-        assert.deepEqual(
-            people()
-                .map((each) => each.name)
-                .sort(),
-            ["Alex", owner().name].sort(),
-        );
-
-        const posted = await app.collab.postChat(id, guest.user, {
-            text: "  hi team  ",
-            requestId: "r1",
-        });
-
-        assert.equal(
-            (await app.collab.postChat(id, guest.user, { text: "hi team", requestId: "r1" })).id,
-            posted.id,
-            "a retry does not post twice",
-        );
-        await until(
-            () =>
-                mine.some(
-                    (each) =>
-                        each.event === "chat" &&
-                        (each.data.messages as { id: string }[]).some(
-                            (message) => message.id === posted.id,
-                        ),
-                ),
-            "the message to reach the other tab",
-        );
-
-        app.detach(guestTab);
-        await until(() => people().length === 1, "Alex to leave");
-    } finally {
-        app.detach(ownerTab);
-        app.detach(guestTab);
-        app.config.removeUser(guest.user.id);
-    }
-
-    await app.close();
-    app = await open();
-    const { BACKGROUND_CONTEXT } = await import("@earendil-works/chord/context");
-    const { ChatDoc } = await import("../src/server/docs.ts");
-    const stored = await app.harness.snapshot(ChatDoc, id, BACKGROUND_CONTEXT);
-
-    assert.deepEqual(
-        stored?.messages.map((message) => [message.name, message.text]),
-        [["Alex", "hi team"]],
-    );
-});
-
 /** A fake browser tab attached to a conversation, recording what the server sends it. */
-test("viewers read and chat but never steer; people invited to one session see only that session", async () => {
-    const id = await newSession();
-    const other = await newSession();
-    const viewer = app.config.addUser("Vee", "viewer").user;
-    const scoped = app.config.addUser("Sam", "guest", [String(id)]).user;
-
-    try {
-        await assert.rejects(
-            app.commands.submit(id, viewer, { text: "hi", requestId: "v1" }),
-            /not steer/,
-        );
-        await assert.rejects(app.commands.abort(id, viewer), /not steer/);
-        await assert.rejects(app.commands.createSession(viewer, { cwd: work }), /not steer/);
-        await assert.rejects(app.answerApproval("nope", true, viewer), /not steer/);
-        assert.equal(
-            (await app.collab.postChat(id, viewer, { text: "just watching", requestId: "v2" }))
-                .text,
-            "just watching",
-        );
-
-        assert.deepEqual(
-            app.sessions(scoped).map((each) => each.id),
-            [Number(id)],
-        );
-        assert.ok(app.sessions(owner()).length >= 2);
-        await assert.rejects(
-            app.commands.submit(other, scoped, { text: "hi", requestId: "s1" }),
-            /not shared/,
-        );
-        await assert.rejects(app.commands.createSession(scoped, { cwd: work }), /one session/);
-        // Nor move it elsewhere: what they may read is its folder.
-        await assert.rejects(
-            app.commands.configure(id, scoped, { cwd: "/etc" }),
-            /cannot move it to another folder/,
-        );
-        assert.equal(app.cwdOf(id), work);
-        const tab = fakeTab(other, scoped);
-
-        await app.attach(tab.client);
-        assert.match(String(tab.last("missing")?.message), /not shared/);
-        app.detach(tab.client);
-
-        // The owner widens Sam's access and makes Vee a guest.
-        app.setAccess(owner(), scoped.id, { sessions: null });
-        assert.equal(app.config.userById(scoped.id)?.sessions, undefined);
-        app.setAccess(owner(), viewer.id, { role: "guest" });
-        assert.equal(app.config.userById(viewer.id)?.role, "guest");
-        assert.throws(() => app.setAccess(viewer, scoped.id, { role: "viewer" }), /owner/);
-        assert.throws(
-            () => app.setAccess(owner(), owner().id, { role: "viewer" }),
-            /owner can do everything/,
-        );
-    } finally {
-        app.config.removeUser(viewer.id);
-        app.config.removeUser(scoped.id);
-    }
-});
-
-test("take turns: only the driver steers, others ask, the driver hands over", async () => {
-    const id = await newSession();
-    const alex = app.config.addUser("Alex", "guest").user;
-    const ownerTab = fakeTab(id, owner());
-    const alexTab = fakeTab(id, alex);
-
-    try {
-        await app.attach(ownerTab.client);
-        await app.attach(alexTab.client);
-        await app.collab.turns(id, owner(), { action: "on" });
-        await assert.rejects(
-            app.commands.submit(id, alex, { text: "my turn?", requestId: "t1" }),
-            /is driving/,
-        );
-        await assert.rejects(app.collab.turns(id, alex, { action: "claim" }), /is driving/);
-        await app.collab.turns(id, alex, { action: "ask" });
-        await until(
-            () =>
-                (alexTab.field("turns") as { asks?: string[] } | undefined)?.asks?.includes(
-                    alex.id,
-                ) === true,
-            "the ask to show",
-        );
-        await app.collab.turns(id, owner(), { action: "handover", to: alex.id });
-        await until(
-            () => (ownerTab.field("turns") as { driver?: string } | undefined)?.driver === alex.id,
-            "Alex to drive",
-        );
-        await assert.rejects(
-            app.commands.submit(id, owner(), { text: "me again", requestId: "t2" }),
-            /Alex is driving/,
-        );
-        await app.commands.submit(id, alex, { text: "hello from the driver", requestId: "t3" });
-    } finally {
-        app.detach(ownerTab.client);
-        app.detach(alexTab.client);
-        app.config.removeUser(alex.id);
-    }
-});
 
 test("a tab gets the queue when it changes, not with each update of a turn, and only the start of each message", async () => {
     const { BACKGROUND_CONTEXT } = await import("@earendil-works/chord/context");
@@ -1387,18 +1201,14 @@ test("a tab switches session on the connection it has: the new one comes, and no
     await app.attach(watcher.client);
     await app.attach(tab.client);
     await until(() => views(tab, first).length > 0, "the first session");
-    await until(
-        () =>
-            ((watcher.last("presence")?.people as { tabs?: number }[] | undefined) ?? []).some(
-                (each) => each.tabs === 2,
-            ),
-        "both tabs there",
-    );
+    const firstRoom = await app.room(first);
+
+    await until(() => firstRoom.clients.size === 2, "both tabs there");
     await new Promise((resolve) => setTimeout(resolve, 600));
     const watched = watcher.events.length;
     const before = tab.events.length;
 
-    // To the second: `switched` first, then its view, chat, notes, and browser, as a new connection gets them; no hello,
+    // To the second: `switched` first, then its view and browser, as a new connection gets them; no hello,
     // list, or PiP state again.
     assert.equal(app.switchTo(owner(), tab.client.connection, second, undefined, 1), true);
     await until(() => views(tab, second).length > 0, "the second session");
@@ -1408,7 +1218,7 @@ test("a tab switches session on the connection it has: the new one comes, and no
     assert.equal(after[0], "switched");
     assert.deepEqual(tab.events[before]!.data, { seq: 1, conversationId: Number(second) });
 
-    for (const each of ["view", "chat", "notes", "browser"]) {
+    for (const each of ["view", "browser"]) {
         assert.ok(after.includes(each), each);
     }
 
@@ -1420,15 +1230,8 @@ test("a tab switches session on the connection it has: the new one comes, and no
         views(tab, second)[0]!.entries.some((entry) => entry.text === "in the second"),
         "the second session's entries",
     );
-    // The first session's room no longer has it, and the person stayed: the other tab sees one tab there, and no change
-    // in who is online.
-    await until(
-        () =>
-            ((watcher.last("presence")?.people as { tabs?: number }[] | undefined) ?? []).some(
-                (each) => each.tabs === 1,
-            ),
-        "one tab left there",
-    );
+    // The first session's room no longer has it, and the person stayed: one tab there, and no change in who is online.
+    await until(() => firstRoom.clients.size === 1, "one tab left there");
     assert.ok(
         !watcher.events.slice(watched).some((each) => each.event === "users"),
         "nobody left the app",
@@ -1533,86 +1336,6 @@ test("a tab switches session on the connection it has: the new one comes, and no
 
     app.detach(tab.client);
     app.detach(watcher.client);
-});
-
-test("a session no longer shared while its room opens sends nothing of it, on a new connection or a switch", async () => {
-    type View = { conversation: { id: number } };
-    const room = app.room.bind(app);
-
-    /** The owner stops sharing `id` with `userId` just as its room starts to open. */
-    const unshareAsItOpens = (id: ConversationId, userId: string, keep: string[]) => {
-        let hit = false;
-
-        (app as { room: typeof room }).room = (opened) => {
-            const opening = room(opened);
-
-            if (!hit && opened === id) {
-                hit = true;
-                app.setAccess(owner(), userId, { sessions: keep });
-            }
-
-            return opening;
-        };
-
-        return () => hit;
-    };
-
-    const nothingOf = (tab: ReturnType<typeof fakeTab>, id: ConversationId, what: string) => {
-        for (const event of ["view", "chat", "notes", "browser"]) {
-            assert.ok(
-                !tab.events.some(
-                    (each) =>
-                        each.event === event &&
-                        (event === "view"
-                            ? (each.data as View).conversation.id
-                            : each.data.conversationId) === Number(id),
-                ),
-                `${what}: no ${event} of it`,
-            );
-        }
-
-        assert.equal(tab.last("missing")?.conversationId, Number(id), `${what}: missing`);
-    };
-
-    const first = await newSession();
-    const second = await newSession();
-    const third = await newSession();
-    const guest = app.config.addUser("Uma", "guest", [
-        String(first),
-        String(second),
-        String(third),
-    ]);
-
-    try {
-        // A new connection to it.
-        const fresh = fakeTab(first, guest.user, 6);
-        let hit = unshareAsItOpens(first, guest.user.id, [String(second), String(third)]);
-
-        await app.attach(fresh.client);
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        (app as { room: typeof room }).room = room;
-        assert.ok(hit(), "its room opened");
-        nothingOf(fresh, first, "a new connection");
-        app.detach(fresh.client);
-
-        // A switch to it.
-        const tab = fakeTab(second, guest.user, 6);
-
-        await app.attach(tab.client);
-        await until(() => tab.events.some((each) => each.event === "view"), "the session shown");
-        hit = unshareAsItOpens(third, guest.user.id, [String(second)]);
-        assert.equal(app.switchTo(guest.user, tab.client.connection, third, undefined, 1), true);
-        await until(() => tab.last("missing") !== undefined, "missing");
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        (app as { room: typeof room }).room = room;
-        assert.ok(hit(), "its room opened");
-        nothingOf(tab, third, "a switch");
-        assert.equal(tab.client.conversationId, undefined, "the tab shows nothing");
-        app.detach(tab.client);
-    } finally {
-        (app as { room: typeof room }).room = room;
-        app.config.removeUser(guest.user.id);
-    }
 });
 
 test("a tab does not get the session list again when it did not change", async () => {
@@ -2385,7 +2108,7 @@ test("an Interrupt task run again, or for a run that is gone, stops nothing and 
     }
 });
 
-test("after a restart, a person still moves their own queued message; to Steer or Interrupt only while driving", async () => {
+test("after a restart, a person still moves their own queued message, and not someone else's", async () => {
     const dataDir = join(root, "move-restart");
     let again = await openApp(faux, dataDir);
     let alex: Awaited<ReturnType<typeof again.config.addUser>>["user"] | undefined;
@@ -2412,14 +2135,7 @@ test("after a restart, a person still moves their own queued message; to Steer o
         await again.close();
         again = await openApp(faux, dataDir);
         alex = again.config.users.find((user) => user.name === "Alex")!;
-        // Take turns, and Alex drives: the owner moves their own message to the queue all the same, and not Alex's.
-        // Steer and Interrupt act on the run now: Alex's turn.
-        await again.harness.commit(async (tx) => {
-            const turns = await tx.doc(TurnsDoc, id);
-
-            turns.on = true;
-            turns.driver = alex!.id;
-        }, context);
+        // The owner moves their own message, not Alex's.
         await assert.rejects(
             again.commands.moveQueued(id, ownerOf(again), Number(theirs.submissionId), "steer"),
             /Only its sender/,
@@ -2432,14 +2148,7 @@ test("after a restart, a person still moves their own queued message; to Steer o
             "followUp",
         );
 
-        for (const mode of ["steer", "interrupt"]) {
-            await assert.rejects(
-                again.commands.moveQueued(id, ownerOf(again), Number(mine.submissionId), mode),
-                /Alex is driving/,
-            );
-        }
-
-        assert.ok(again.isBusy(id), "the run Alex drives goes on");
+        assert.ok(again.isBusy(id), "the run goes on");
         await again.commands.abort(id, ownerOf(again));
     } finally {
         await again.close();
@@ -2574,143 +2283,6 @@ test("a dead holder's lock is taken over; live legacy holders with normal or ren
     }
 });
 
-test("notes refuse a stale edit, and a mention reaches the person in another session", async () => {
-    const id = await newSession();
-    const other = await newSession();
-    const alex = app.config.addUser("Alex", "guest").user;
-    const elsewhere = fakeTab(other, alex);
-
-    try {
-        await app.attach(elsewhere.client);
-        const saved = await app.collab.saveNotes(id, alex, "plan: ship it", 0);
-
-        assert.equal(saved.rev, 1);
-        await assert.rejects(
-            app.collab.saveNotes(id, owner(), "stale edit", 0),
-            /Alex changed the notes/,
-        );
-
-        const posted = await app.collab.postChat(id, owner(), {
-            text: "@alex look at this, cc @Alexander",
-            requestId: "m1",
-        });
-
-        assert.deepEqual(posted.mentions, [alex.id]);
-        await until(
-            () =>
-                elsewhere.events.some(
-                    (each) =>
-                        each.event === "notice" &&
-                        String(each.data.message).includes("mentioned you"),
-                ),
-            "Alex to hear about the mention elsewhere",
-        );
-    } finally {
-        app.detach(elsewhere.client);
-        app.config.removeUser(alex.id);
-    }
-});
-
-test("invites carry a role and a session over HTTP, and viewers get 403 on steering routes", async () => {
-    const { createServer } = await import("node:http");
-    const { createHandler } = await import("../src/server/http.ts");
-    const server = createServer(
-        createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }),
-    );
-
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
-    const call = (token: string, path: string, body?: unknown) =>
-        fetch(`${base}/api/${path}`, {
-            method: body === undefined ? "GET" : "POST",
-            headers: {
-                authorization: `Bearer ${token}`,
-                "x-pocket": "1",
-                "content-type": "application/json",
-            },
-            ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-        });
-    const id = await newSession();
-    const joined: string[] = [];
-
-    try {
-        const invite = (await (
-            await call(app.config.ownerToken, "invite", { role: "viewer", session: Number(id) })
-        ).json()) as { code: string; grant: unknown };
-
-        assert.deepEqual(invite.grant, { role: "viewer", session: String(id) });
-        const redeemed = await fetch(`${base}/join/${invite.code}`, {
-            method: "POST",
-            body: "name=Watcher",
-            headers: { "content-type": "application/x-www-form-urlencoded" },
-            redirect: "manual",
-        });
-        const token = decodeURIComponent(
-            /pocket_auth=([^;]+)/.exec(redeemed.headers.get("set-cookie") ?? "")![1]!,
-        );
-        const watcher = app.config.users.find((each) => each.name === "Watcher")!;
-
-        joined.push(watcher.id);
-        assert.equal(watcher.role, "viewer");
-        assert.deepEqual(watcher.sessions, [String(id)]);
-        assert.equal(
-            (await call(token, `c/${id}/submit`, { text: "hi", requestId: "x" })).status,
-            403,
-        );
-        assert.equal((await call(token, `c/${id}/abort`, {})).status, 403);
-        assert.equal((await call(token, "invite", {})).status, 403);
-        assert.equal((await call(token, "fs?path=/")).status, 403);
-        // A folder the server cannot read is a 403 for the owner too, not a 500 (#265). Mode 0 does not stop
-        // reads on Windows or for root: there the folder lists.
-        const locked = join(root, "locked-folder");
-
-        mkdirSync(locked, { mode: 0o000 });
-        const readable = (() => {
-            try {
-                return readdirSync(locked) !== undefined;
-            } catch {
-                return false;
-            }
-        })();
-
-        assert.equal(
-            (await call(app.config.ownerToken, `fs?path=${encodeURIComponent(locked)}`)).status,
-            readable ? 200 : 403,
-        );
-        chmodSync(locked, 0o700);
-        assert.equal(
-            (await call(token, "fs", { path: join(root, "made-by-watcher") })).status,
-            403,
-        );
-        assert.equal((await call(token, `c/${id}/files`)).status, 403);
-        assert.equal((await call(token, `c/${id}/view?path=README.md`)).status, 403);
-        assert.equal((await call(token, `c/${id}/shell`, { command: "echo hi" })).status, 403);
-        assert.equal((await call(token, `c/${id}/changes/revert`, { path: "a.txt" })).status, 403);
-        assert.equal(
-            (await call(token, `c/${id}/chat`, { text: "hello", requestId: "y" })).status,
-            200,
-        );
-        assert.equal(
-            (await call(token, `c/${Number(id) + 999}/chat`, { text: "hello", requestId: "z" }))
-                .status,
-            404,
-        );
-        const sessions = (await (await call(token, "sessions")).json()) as { id: number }[];
-
-        assert.deepEqual(
-            sessions.map((each) => each.id),
-            [Number(id)],
-        );
-    } finally {
-        for (const userId of joined) {
-            app.config.removeUser(userId);
-        }
-
-        server.closeAllConnections();
-        server.close();
-    }
-});
-
 test("the owner signs another device in as the owner: owner only, once, no one new, and a new owner token signs it out", async () => {
     const { createServer } = await import("node:http");
     const { createHandler } = await import("../src/server/http.ts");
@@ -2812,233 +2384,6 @@ test("the owner signs another device in as the owner: owner only, once, no one n
     } finally {
         app.config.removeUser(guest.user.id);
         app.config.removeUser(viewer.user.id);
-        server.closeAllConnections();
-        server.close();
-    }
-});
-
-test("an invite lasts as long as asked (an owner's always 15 minutes), outlives a restart, and ends when its maker moves on", async () => {
-    const { createServer } = await import("node:http");
-    const { createHandler } = await import("../src/server/http.ts");
-    const { Auth } = await import("../src/server/auth.ts");
-    const { ConfigStore } = await import("../src/server/config.ts");
-    const { copyFileSync, mkdtempSync, readFileSync } = await import("node:fs");
-    const server = createServer(
-        createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }),
-    );
-
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
-    const call = (token: string, path: string, body: unknown) =>
-        fetch(`${base}/api/${path}`, {
-            method: "POST",
-            headers: {
-                authorization: `Bearer ${token}`,
-                "x-pocket": "1",
-                "content-type": "application/json",
-            },
-            body: JSON.stringify(body),
-        });
-    const make = async (body: unknown) =>
-        (await (await call(app.config.ownerToken, "invite", body)).json()) as {
-            code: string;
-            expiresAt: number;
-            minutes: number;
-        };
-    const live = async (code: string) => (await fetch(`${base}/join/${code}`)).status === 200;
-    const guest = app.config.addUser("Gil", "guest");
-    const MINUTE = 60_000;
-
-    try {
-        // As long as asked, 15 minutes when not said; an owner invite, 15 whatever is asked.
-        for (const [body, minutes] of [
-            [{}, 15],
-            [{ minutes: 7 * 24 * 60, role: "owner" }, 15],
-        ] as const) {
-            const before = Date.now();
-            const invite = await make(body);
-
-            assert.equal(invite.minutes, minutes, JSON.stringify(body));
-            assert.ok(
-                invite.expiresAt >= before + minutes * MINUTE &&
-                    invite.expiresAt <= Date.now() + minutes * MINUTE,
-                JSON.stringify(body),
-            );
-        }
-
-        // Kept in the data folder, by the code's hash: another start of the server (on a copy, which writes nothing back
-        // here) finds it.
-        const week = await make({ minutes: 7 * 24 * 60 });
-        const copy = mkdtempSync(join(root, "config-"));
-
-        copyFileSync(app.config.file, join(copy, "config.json"));
-        const again = new Auth(new ConfigStore(copy));
-
-        assert.deepEqual(again.invite(week.code), { role: "guest" });
-        assert.ok(!readFileSync(app.config.file, "utf8").includes(week.code));
-
-        // Only whoever made it ends it.
-        assert.equal((await call(guest.token, "invite/cancel", { code: week.code })).status, 200);
-        assert.ok(await live(week.code), "someone else cannot end it");
-        assert.equal(
-            (await call(app.config.ownerToken, "invite/cancel", { code: week.code })).status,
-            200,
-        );
-        assert.ok(!(await live(week.code)), "its maker can");
-        const guests = (await (await call(guest.token, "invite", { minutes: 60 })).json()) as {
-            code: string;
-        };
-
-        await call(app.config.ownerToken, "invite/cancel", { code: guests.code });
-        assert.ok(await live(guests.code), "not even the owner ends someone else's");
-
-        // Two devices spending one at once: one gets in.
-        const once = await make({ minutes: 60 });
-        const both = await Promise.all(
-            ["One", "Two"].map((name) =>
-                fetch(`${base}/join/${once.code}`, {
-                    method: "POST",
-                    redirect: "manual",
-                    body: `name=${name}`,
-                    headers: { "content-type": "application/x-www-form-urlencoded" },
-                }),
-            ),
-        );
-
-        assert.deepEqual(both.map((each) => each.status).sort(), [303, 410]);
-
-        for (const name of ["One", "Two"]) {
-            const joined = app.config.users.find((each) => each.name === name);
-
-            if (joined !== undefined) {
-                app.config.removeUser(joined.id);
-            }
-        }
-
-        // It works until its time is up, and not after.
-        const auth = new Auth(app.config);
-
-        mock.timers.enable({ apis: ["Date"], now: Date.now() });
-
-        try {
-            const hour = auth.createInvite(owner(), { role: "guest" }, 60);
-            const late = auth.createInvite(owner(), { role: "guest" }, 60);
-
-            mock.timers.tick(59 * MINUTE);
-            const inTime = auth.redeem(hour.code, "In Time");
-
-            assert.equal(inTime?.user.role, "guest");
-            app.config.removeUser(inTime!.user.id);
-            mock.timers.tick(2 * MINUTE);
-            assert.equal(auth.redeem(late.code, "Too Late"), undefined);
-        } finally {
-            mock.timers.reset();
-        }
-
-        // Someone removed takes the invites they made along.
-        const leaving = app.config.addUser("Lee", "guest").user;
-        const left = auth.createInvite(leaving, { role: "viewer" }, 24 * 60);
-
-        app.config.removeUser(leaving.id);
-        assert.equal(auth.invite(left.code), undefined);
-        assert.ok(!(await live(left.code)));
-
-        // A new owner token ends owner invites not yet used, which would hand it out; others stay.
-        const mine = auth.createInvite(owner(), { role: "owner" });
-        const theirs = auth.createInvite(owner(), { role: "guest" }, 24 * 60);
-
-        app.config.rotateOwnerToken();
-        assert.equal(auth.invite(mine.code), undefined);
-        assert.deepEqual(auth.invite(theirs.code), { role: "guest" });
-    } finally {
-        app.config.removeUser(guest.user.id);
-        server.closeAllConnections();
-        server.close();
-    }
-});
-
-test("people who signed in through a Cloudflare quick tunnel are removed once that tunnel is gone", async () => {
-    const { createServer } = await import("node:http");
-    const { createHandler } = await import("../src/server/http.ts");
-    const server = createServer(
-        createHandler({ app, listen: { host: "127.0.0.1", port: 0 }, restart: () => {} }),
-    );
-
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
-    const owner = {
-        authorization: `Bearer ${app.config.ownerToken}`,
-        "x-pocket": "1",
-        "content-type": "application/json",
-    };
-
-    const join = async (name: string, host?: string): Promise<string> => {
-        const { code } = (await (
-            await fetch(`${base}/api/invite`, { method: "POST", headers: owner, body: "{}" })
-        ).json()) as { code: string };
-        const headers: Record<string, string> = {
-            "content-type": "application/x-www-form-urlencoded",
-            ...(host === undefined ? {} : { "x-forwarded-host": host }),
-        };
-        const joined = await fetch(`${base}/join/${code}`, {
-            method: "POST",
-            body: `name=${name}`,
-            headers,
-            redirect: "manual",
-        });
-
-        return decodeURIComponent(
-            /pocket_auth=([^;]+)/.exec(joined.headers.get("set-cookie") ?? "")![1]!,
-        );
-    };
-
-    const named = (name: string) => app.config.users.find((each) => each.name === name);
-    const before = app.access;
-
-    try {
-        await join("Tunnelled", "old-tunnel.trycloudflare.com");
-        await join("Wifi");
-        const legacy = await join("Legacy");
-
-        assert.equal(named("Tunnelled")?.tunnel, "old-tunnel.trycloudflare.com");
-        assert.equal(named("Wifi")?.tunnel, undefined);
-        // Someone who joined before tunnels were recorded is tagged when their cookie comes back through one.
-        await fetch(`${base}/api/me`, {
-            headers: {
-                cookie: `pocket_auth=${encodeURIComponent(legacy)}`,
-                "x-forwarded-host": "old-tunnel.trycloudflare.com",
-            },
-        });
-        assert.equal(named("Legacy")?.tunnel, "old-tunnel.trycloudflare.com");
-
-        // A server restart keeps the tunnel: nobody is removed.
-        app.setReach({
-            mode: "cloudflare",
-            label: "Cloudflare Tunnel",
-            url: "https://old-tunnel.trycloudflare.com",
-        });
-        assert.ok(named("Tunnelled") && named("Legacy") && named("Wifi"));
-        // A new tunnel: its address is new, so the old one's people go. Others and the owner stay.
-        app.setReach({
-            mode: "cloudflare",
-            label: "Cloudflare Tunnel",
-            url: "https://new-tunnel.trycloudflare.com",
-        });
-        assert.equal(named("Tunnelled"), undefined);
-        assert.equal(named("Legacy"), undefined);
-        assert.ok(named("Wifi"));
-        assert.ok(app.config.users.some((each) => each.role === "owner"));
-    } finally {
-        app.access = before;
-
-        for (const name of ["Tunnelled", "Wifi", "Legacy"]) {
-            const user = named(name);
-
-            if (user !== undefined) {
-                app.config.removeUser(user.id);
-            }
-        }
-
         server.closeAllConnections();
         server.close();
     }
@@ -3255,107 +2600,6 @@ test("the web edge: page policy, local redirects, asked account switches, no cro
 
         server.closeAllConnections();
         server.close();
-    }
-});
-
-test("access holds: a refused tab hears nothing, narrowed access evicts, removal closes tabs, files stay in the session", async () => {
-    const id = await newSession();
-    const other = await newSession();
-    const sam = app.config.addUser("Sam", "guest", [String(id)]).user;
-    const vee = app.config.addUser("Vee", "viewer").user;
-    const sneaky = fakeTab(other, sam);
-    const samTab = fakeTab(id, sam);
-    const veeTab = fakeTab(id, vee);
-    let closed = 0;
-
-    (veeTab.client as { close?: () => void }).close = () => closed++;
-
-    try {
-        // A tab pointed at a session Sam may not see gets "missing", then nothing about that session.
-        await app.attach(sneaky.client);
-        assert.equal(sneaky.client.conversationId, undefined);
-        await app.commands.updateSession(other, owner(), { title: "Secret plans" });
-        app.notice("warning", "server-wide detail");
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        assert.ok(
-            !sneaky.events.some((each) => each.event === "notice"),
-            "no notices from the other session or the server",
-        );
-        assert.ok(
-            !(app.sessions(owner()).find((each) => each.id === Number(other))?.people ?? []).some(
-                (each) => each.id === sam.id,
-            ),
-        );
-
-        // Narrowing Sam's access takes his tab out of the session at once.
-        await app.attach(samTab.client);
-        app.setAccess(owner(), sam.id, { sessions: [String(other)] });
-        assert.match(String(samTab.last("missing")?.message), /no longer shared/);
-        await app.collab.postChat(id, owner(), { text: "after the change", requestId: "acc-1" });
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        assert.ok(
-            !samTab.events.some(
-                (each) =>
-                    each.event === "chat" && JSON.stringify(each.data).includes("after the change"),
-            ),
-        );
-
-        // Viewers load images only from the session's folder.
-        const { writeFileSync } = await import("node:fs");
-        const png = Buffer.from(
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAAABJRU5ErkJggg==",
-            "base64",
-        );
-
-        writeFileSync(join(work, "inside.png"), png);
-        writeFileSync(join(root, "outside.png"), png);
-        assert.equal(
-            app.workspace.conversationFile(vee, id, "inside.png"),
-            realpathSync(join(work, "inside.png")),
-        );
-        assert.throws(
-            () => app.workspace.conversationFile(vee, id, join(root, "outside.png")),
-            /not found/,
-        );
-        assert.throws(() => app.workspace.conversationFile(vee, id, "../outside.png"), /not found/);
-        assert.equal(
-            app.workspace.conversationFile(owner(), id, join(root, "outside.png")),
-            join(root, "outside.png"),
-        );
-
-        // Removing Vee closes her tab.
-        await app.attach(veeTab.client);
-        app.removeUser(owner(), vee.id);
-        assert.equal(closed, 1);
-        assert.ok(veeTab.events.some((each) => each.event === "closing"));
-    } finally {
-        for (const tab of [sneaky, samTab, veeTab]) {
-            app.detach(tab.client);
-        }
-
-        app.config.removeUser(sam.id);
-        app.config.removeUser(vee.id);
-    }
-});
-
-test("an invite stops working when its creator loses the right to invite", async () => {
-    const { Auth } = await import("../src/server/auth.ts");
-    const auth = new Auth(app.config);
-    const guest = app.config.addUser("Gil", "guest").user;
-
-    try {
-        const { code } = auth.createInvite(guest, { role: "guest" });
-
-        app.setAccess(owner(), guest.id, { role: "viewer" });
-        assert.equal(auth.redeem(code, "Mallory"), undefined);
-        assert.ok(!app.config.users.some((each) => each.name === "Mallory"));
-        const fine = auth.createInvite(owner(), { role: "viewer" });
-        const joined = auth.redeem(fine.code, "Okay");
-
-        assert.equal(joined?.user.role, "viewer");
-        app.config.removeUser(joined!.user.id);
-    } finally {
-        app.config.removeUser(guest.id);
     }
 });
 

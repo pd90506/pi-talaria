@@ -4,7 +4,7 @@
 // needs you, what goes out next, and the schedule selected. Phones get one column, a timeline that pans, and a bar at
 // the bottom for the schedule selected.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
-import { folderColor } from "./avatar.js";
+import { folderColor } from "./colors.js";
 import { useBack } from "./back.js";
 import { api, attempt, canSteer, navigate, notify, store } from "./store.js";
 import { html, Icon, Spinner } from "./ui.js";

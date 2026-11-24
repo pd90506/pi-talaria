@@ -140,7 +140,7 @@ export class Workspace {
             throw new HttpError(403, "You were invited to one session.");
         }
 
-        await this.#app.requireDriver(id, user);
+        this.#app.requireSteer(user);
 
         const track = typeof request.track === "string" ? request.track : undefined;
         const name =
@@ -178,7 +178,6 @@ export class Workspace {
                 : `switched the branch${from} to ${name}`;
 
         await this.#app.commands.note(id, user, what);
-        await this.#app.collab.activity(id, user, what);
 
         return { branch: name };
     }
@@ -438,7 +437,7 @@ export class Workspace {
     async revertChange(id: ConversationId, user: User, path: string): Promise<void> {
         this.#app.requireSee(user, id);
         this.requireLocal(id);
-        await this.#app.requireDriver(id, user);
+        this.#app.requireSteer(user);
 
         if (this.#app.isBusy(id)) {
             throw new HttpError(
@@ -459,7 +458,6 @@ export class Workspace {
 
         this.#forgetChanges(id);
         await this.#app.commands.note(id, user, what);
-        await this.#app.collab.activity(id, user, what);
     }
 
     /** What changed in a session's folder: Pi's edits, and the uncommitted changes of its git repository. */

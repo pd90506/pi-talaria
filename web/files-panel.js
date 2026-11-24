@@ -8,7 +8,7 @@ import { useBack } from "./back.js";
 import { DiffReview, KIND_LETTERS, reloadChanges, useChanges, useWidth } from "./diff.js";
 import { loadFiles, suggestFiles } from "./files.js";
 import { FileView } from "./sheets/file.js";
-import { actions, canSteer, closePeople, panelsBeside, store } from "./store.js";
+import { actions, canSteer, panelsBeside, store } from "./store.js";
 import {
     dragWidth,
     html,
@@ -40,9 +40,7 @@ export function setFilesOpen(open, tab) {
         return;
     }
 
-    if (open) {
-        closePeople();
-    } else if (document.documentElement.dataset.focus === "files-panel") {
+    if (!open && document.documentElement.dataset.focus === "files-panel") {
         document.documentElement.dataset.focus = "pane";
     }
 

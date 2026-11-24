@@ -1,10 +1,8 @@
 // The message box: send, steer or queue while busy, attach files, mention files with @, run commands with !, recall
 // what was sent before (↑, Ctrl+R), fold long pastes, pick the model, stop.
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
-import { Avatar } from "./avatar.js";
 import { useBack } from "./back.js";
 import { boxKey, keyBox } from "./box-keys.js";
-import { chatUnread, TypingLine } from "./chat.js";
 import {
     loadTemplates,
     parseCommand,
@@ -34,7 +32,6 @@ import {
     actions,
     attempt,
     canSteer,
-    collab,
     drafts,
     navigateUp,
     dropQuote,
@@ -43,7 +40,6 @@ import {
     onItsWay,
     store,
     takeInsert,
-    typing,
     uid,
 } from "./store.js";
 import { useDock } from "./dock.js";
@@ -564,90 +560,12 @@ function queuedText(item) {
     return `from ${names.join(", ")}, on ${names.length === 1 ? "its" : "their"} way to Pi`;
 }
 
-/** Take turns: who drives, who asked, and the buttons to hand over, ask, or take the wheel. */
-function DriverBar() {
-    const { view, me, users, presence } = store.state;
-    const turns = view.turns;
-    const [handing, setHanding] = useState(false);
-
-    if (!turns?.on) {
-        return null;
-    }
-
-    const name = (id) => users.find((user) => user.id === id)?.name ?? "someone";
-    const driving = turns.driver === me?.id;
-    const driverHere =
-        turns.driver !== undefined && presence.some((person) => person.id === turns.driver);
-    const run = (action, to) =>
-        attempt(() => actions.turns(action, to)).then(() => setHanding(false));
-
-    if (driving) {
-        const others = presence.filter(
-            (person) => person.id !== me?.id && person.role !== "viewer",
-        );
-
-        return html`<div class="driver-bar mine">
-            <span class="driver-label"><${Icon} name="wheel" size=${14} /> You're driving</span>
-            ${turns.asks.map(
-                (id) => html`<span class="driver-ask">
-                    ${name(id)} asks to drive <button class="link small" onClick=${() => run("handover", id)}>Hand over</button>
-                </span>`,
-            )}
-            <span class="grow"></span>
-            ${
-                others.length > 0 &&
-                html`<button class="link small" onClick=${() => setHanding(!handing)}>
-                    Hand over…
-                </button>`
-            }
-            <button class="link small" onClick=${() => run("release")}>Let go</button>
-            ${
-                handing &&
-                html`<div class="driver-pick">
-                    ${others.map(
-                        (person) => html`<button
-                            class="chip"
-                            onClick=${() => run("handover", person.id)}
-                        >
-                            <${Avatar} person=${person} size=${16} /> ${person.name}
-                        </button>`,
-                    )}
-                </div>`
-            }
-        </div>`;
-    }
-
-    const asked = turns.asks.includes(me?.id);
-    const canTake = !driverHere || me?.role === "owner";
-
-    return html`<div class="driver-bar">
-        <span class="driver-label">
-            <${Icon} name="wheel" size=${14} />
-            ${turns.driver === undefined ? "No one is driving" : `${name(turns.driver)} is driving${driverHere ? "" : " (away)"}`}
-        </span>
-        <span class="grow"></span>
-        ${
-            turns.driver !== undefined &&
-            driverHere &&
-            html`<button class="button small" disabled=${asked} onClick=${() => run("ask")}>
-                ${asked ? "Asked ✓" : "Ask to drive"}
-            </button>`
-        }
-        ${
-            canTake &&
-            html`<button class="button small primary" onClick=${() => run("claim")}>
-                Take the wheel
-            </button>`
-        }
-    </div>`;
-}
-
 /** Plan mode: Pi proposes and changes nothing until someone here approves its plan. */
 /**
  * What a Stop held out of the queue: it waits until someone sends it. Send sends them all, in their order; Show lists
  * them, each with Edit (its sender's) and a × to withdraw it.
  */
-function HeldBar({ blocked, onEdit }) {
+function HeldBar({ onEdit }) {
     const { view, me, users } = store.state;
     const held = view.held ?? [];
     const [open, setOpen] = useState(false);
@@ -673,7 +591,6 @@ function HeldBar({ blocked, onEdit }) {
         </button>
         ${
             steer &&
-            !blocked &&
             html`<button
                 class="button small primary"
                 title="Send them to Pi, in their order"
@@ -694,7 +611,6 @@ function HeldBar({ blocked, onEdit }) {
                         <span class="queued-text">${(item.text ?? "").replace(FROM, "")}</span>
                         ${
                             steer &&
-                            !blocked &&
                             item.by !== undefined &&
                             item.by === me?.id &&
                             html`<button
@@ -707,7 +623,6 @@ function HeldBar({ blocked, onEdit }) {
                         }
                         ${
                             steer &&
-                            (!blocked || item.by === me?.id) &&
                             html`<button
                                 class="icon-button small queued-remove"
                                 aria-label="Withdraw"
@@ -724,7 +639,7 @@ function HeldBar({ blocked, onEdit }) {
     </div>`;
 }
 
-function PlanBar({ blocked }) {
+function PlanBar() {
     const { view } = store.state;
 
     if (!view.plan?.on || !planAvailable()) {
@@ -749,7 +664,6 @@ function PlanBar({ blocked }) {
             <strong>Plan mode.</strong> ${subagent ? "This subagent follows its session: it reads, and changes nothing." : "Pi reads and proposes; nothing changes until you approve."}
         </span>
         ${
-            !blocked &&
             !subagent &&
             html`<button class="link small" onClick=${() => attempt(() => actions.setPlan(false))}>
                 Turn off
@@ -1181,9 +1095,6 @@ export function Composer() {
         if (value.startsWith("/")) {
             loadTemplates();
         }
-
-        // A command is not a message to Pi: no "typing to Pi" for it.
-        typing(value.trim() === "" || value.startsWith("/") ? null : "pi");
     };
 
     /**
@@ -1972,36 +1883,6 @@ export function Composer() {
               : ` · ${users.find((user) => user.id === item.by)?.name ?? "someone"}`;
 
     useDock(dock);
-    // View only now, or someone else took the wheel: the box goes, and dictation with it.
-    const writes = !collab() || (canSteer() && !(view.turns?.on && view.turns.driver !== me?.id));
-
-    useEffect(() => {
-        if (!writes) {
-            dictation.stop(true);
-        }
-    }, [writes]);
-
-    if (collab() && !canSteer()) {
-        return html`<footer class="composer-wrap" data-part="composer">
-            <div class="dock" data-part="dock" ref=${dock}>
-                <${TypingLine} where="pi" />
-                <${SubagentsBar} />
-            </div>
-            <${ParentSessionButton} />
-            <div class="view-only">
-                <span>
-                    <strong>View only.</strong> You can read along, react, and chat with the people here.
-                </span>
-                <button class="button small" onClick=${() => openSheet({ type: "chat" })}>
-                    <${Icon} name="chat" size=${15} /> Chat
-                </button>
-            </div>
-            <${StatusLine} />
-        </footer>`;
-    }
-
-    const turns = view.turns;
-    const blocked = collab() && turns?.on && turns.driver !== me?.id;
     const level =
         agent?.thinkingLevel && agent.thinkingLevel !== "off" && agent.reasoning
             ? agent.thinkingLevel
@@ -2009,8 +1890,7 @@ export function Composer() {
 
     return html`<footer class="composer-wrap" data-part="composer">
         <div class="dock" data-part="dock" ref=${dock}>
-            <${TypingLine} where="pi" />
-            <${HeldBar} blocked=${blocked} onEdit=${editHeld} />
+            <${HeldBar} onEdit=${editHeld} />
             ${
                 // How many wait: shown when the queue does not show them all (`dock.js`).
                 inbox.length > 0 &&
@@ -2036,7 +1916,6 @@ export function Composer() {
                             </button>
                             ${
                                 canSteer() &&
-                                (!blocked || item.by === me?.id) &&
                                 html`<button
                                     class="icon-button small queued-remove"
                                     aria-label=${queuedReports(item) ? "Discard these reports" : "Withdraw"}
@@ -2052,7 +1931,6 @@ export function Composer() {
                                 item.by !== undefined &&
                                 item.by === me?.id &&
                                 canSteer() &&
-                                !blocked &&
                                 (item.mode === "steer" || item.mode === "followUp") &&
                                 html`<div class="queued-actions">
                                     <button
@@ -2102,26 +1980,16 @@ export function Composer() {
                     )}
                 </div>`
             }
-            ${collab() && html`<${DriverBar} />`}
-            <${PlanBar} blocked=${blocked} />
+            <${PlanBar} />
             <${GoalBar} />
             <${WatchBar} />
             <${SubagentsBar} />
             <${TrustBar} />
         </div>
         <${ParentSessionButton} />
-        ${
-            blocked
-                ? html`${
-                      busy &&
-                      html`<div class="composer-row stop-only">
-                          <span class="muted small grow">Pi is working…</span>
-                          <${StopButton} />
-                      </div>`
-                  }`
-                : html`${
-                      searching &&
-                      html`<div
+        ${html`${
+            searching &&
+            html`<div
                           class="commands history-options"
                           role="listbox"
                           aria-label="Sent before"
@@ -2153,7 +2021,7 @@ export function Composer() {
                               </div>`
                           }
                       </div>`
-                  }
+        }
                 ${
                     shell &&
                     html`<div class="command-hint">
@@ -2508,8 +2376,7 @@ export function Composer() {
                         </button>
                         ${busy && html`<${StopButton} />`}
                     </div>
-                </div>`
-        }
+                </div>`}
         <${StatusLine} />
     </footer>`;
 }
@@ -2610,13 +2477,11 @@ function StopButton() {
 
 /**
  * Phones: the session's places (Files, Changes, the browser…) from beside the message box, where a thumb reaches; the
- * top bar's buttons are a stretch with one hand. A dot when the chat has news or a page is open.
+ * top bar's buttons are a stretch with one hand. A dot when a page is open.
  */
 function PlacesButton() {
     const { browser } = store.state;
-    const news =
-        (collab() && chatUnread() > 0) ||
-        (browser?.open && browser.url !== "" && browser.url !== "about:blank");
+    const news = browser?.open && browser.url !== "" && browser.url !== "about:blank";
 
     return html`<button
         class="icon-button places-button badge-host"
@@ -2788,23 +2653,6 @@ defineItem("status", {
                 ${connection === "connecting" ? "connecting…" : "reconnecting…"}
             </span>`
         );
-    },
-});
-defineItem("status", {
-    id: "core:here",
-    label: "People here",
-    order: 100,
-    render() {
-        const { view, presence } = store.state;
-        // People, not tabs: one person with a phone and a laptop open is one here (presence has a row per person).
-        const here = presence.length || view.viewers?.length || 1;
-
-        return html`<span
-            class=${`here ${here === 1 ? "alone" : ""}`}
-            title=${`${(view.viewers ?? []).join(", ")}${view.clients > here ? ` · ${view.clients} tabs` : ""}`}
-        >
-            ${here} here
-        </span>`;
     },
 });
 defineItem("status", {

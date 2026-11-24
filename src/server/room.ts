@@ -22,8 +22,6 @@ import {
     type ArtifactMeta,
     ArtifactsDoc,
     AuthorsDoc,
-    ChatDoc,
-    type ChatMessage,
     type Decision,
     DecisionsDoc,
     type Goal,
@@ -31,20 +29,13 @@ import {
     HeldDoc,
     type HeldMessage,
     LinkedSessionPeersDoc,
-    type Notes,
-    NotesDoc,
-    type Pin,
-    PinsDoc,
     PlanDoc,
     type PrWatch,
-    ReactionsDoc,
     type Schedule,
     ScheduleDoc,
     type SubagentRecord,
     STOPPED,
     SubagentsDoc,
-    type Turns,
-    TurnsDoc,
     WatchDoc,
 } from "./docs.ts";
 import { COMMAND_ENTRY, SHELL_ENTRY } from "./entry-format.ts";
@@ -79,11 +70,6 @@ export const ROOM_DOCS = new Set(
         AuthorsDoc,
         ArtifactsDoc,
         SubagentsDoc,
-        ChatDoc,
-        ReactionsDoc,
-        PinsDoc,
-        NotesDoc,
-        TurnsDoc,
         DecisionsDoc,
         PlanDoc,
         ScheduleDoc,
@@ -93,8 +79,6 @@ export const ROOM_DOCS = new Set(
         HeldDoc,
     ].map((doc) => doc.definition.kind),
 );
-/** A typing indicator lasts this long unless the browser renews it. */
-const TYPING_MS = 6000;
 /** Peek tiles change at most this often: they are glanced at, and a streaming answer changes every 90 ms. */
 const PEEK_MS = 1000;
 /** Entries read from the end of a session for its peek tile: enough to find the results of the calls it shows. */
@@ -207,17 +191,6 @@ export interface Client {
     /** The JSON of the PiP state this tab last got (`pip` events), so an unchanged one is not sent again. */
     pipSent?: string;
 }
-
-export type TypingPlace = "chat" | "pi";
-
-export type Person = {
-    id: string;
-    name: string;
-    role: string;
-    tabs: number;
-    typing?: TypingPlace;
-    away?: boolean;
-};
 
 /** The subagents with a report on its way: waiting in the outbox, or in the batch sent and still queued. */
 export function reportingOf(
@@ -379,11 +352,6 @@ export class Room {
     #reporting = new Set<string>();
     /** Why their reports wait, while a spend limit holds them back. */
     #held: string | undefined;
-    chat: ChatMessage[] = [];
-    reactions: Record<string, Record<string, string[]>> = {};
-    pins: Pin[] = [];
-    notes: Notes = { text: "", rev: 0 };
-    turns: Turns = { on: false, asks: [] };
     decisions: Record<string, Decision> = {};
     plan: { on: boolean; by?: string; at?: number } = { on: false };
     schedules: Record<string, Schedule> = {};
@@ -393,8 +361,6 @@ export class Room {
     watch: PrWatch | undefined;
     /** The sessions this one knows by an address (`linked-sessions.ts`): whom each linked session's message is from. */
     peers: Record<string, number> = {};
-    /** Who is typing where, by user id. Memory only: it means nothing after a restart. */
-    readonly #typing = new Map<string, { where: TypingPlace; timer: NodeJS.Timeout }>();
     parent: { id: ConversationId; title: string } | undefined;
     subagentName: string | undefined;
 
@@ -444,25 +410,8 @@ export class Room {
         this.subagents = { ...(subagents?.agents ?? {}) } as Record<string, SubagentRecord>;
         this.#reporting = reportingOf(subagents);
         this.#held = subagents?.held;
-        this.chat = [
-            ...((await harness.snapshot(ChatDoc, this.id, context))?.messages ?? []),
-        ] as ChatMessage[];
-        this.reactions = {
-            ...((await harness.snapshot(ReactionsDoc, this.id, context))?.entries ?? {}),
-        };
-        this.pins = [
-            ...((await harness.snapshot(PinsDoc, this.id, context))?.items ?? []),
-        ] as Pin[];
-        this.notes = {
-            ...((await harness.snapshot(NotesDoc, this.id, context)) ?? { text: "", rev: 0 }),
-        };
         const owner = this.#view.conversation.owner;
-        // Take turns belongs to the session: a subagent's view shows (and follows) its session's.
-        const root = owner === undefined ? this.id : this.#app.rootOf(owner.conversationId);
 
-        this.turns = {
-            ...((await harness.snapshot(TurnsDoc, root, context)) ?? { on: false, asks: [] }),
-        } as Turns;
         this.decisions = {
             ...((await harness.snapshot(DecisionsDoc, this.id, context))?.calls ?? {}),
         };
@@ -504,40 +453,7 @@ export class Room {
     }
 
     setDoc(kind: string, value: Record<string, unknown> | null): void {
-        if (kind === ChatDoc.definition.kind) {
-            // Chat goes out on its own: new messages only, without resending the view.
-            const messages = [...((value?.messages as ChatMessage[]) ?? [])];
-            const known = new Set(this.chat.map((message) => message.id));
-            const added = messages.filter((message) => !known.has(message.id));
-
-            this.chat = messages;
-
-            if (added.length > 0) {
-                for (const client of this.clients) {
-                    client.send("chat", { conversationId: this.id, messages: added });
-                }
-            }
-
-            return;
-        }
-
-        if (kind === NotesDoc.definition.kind) {
-            this.notes = { ...((value as Notes | null) ?? { text: "", rev: 0 }) };
-
-            for (const client of this.clients) {
-                client.send("notes", { conversationId: this.id, ...this.notes });
-            }
-
-            return;
-        }
-
-        if (kind === ReactionsDoc.definition.kind) {
-            this.reactions = { ...((value?.entries as Room["reactions"]) ?? {}) };
-        } else if (kind === PinsDoc.definition.kind) {
-            this.pins = [...((value?.items as Pin[]) ?? [])];
-        } else if (kind === TurnsDoc.definition.kind) {
-            this.turns = { on: false, asks: [], ...((value as Turns | null) ?? {}) };
-        } else if (kind === DecisionsDoc.definition.kind) {
+        if (kind === DecisionsDoc.definition.kind) {
             this.decisions = { ...((value?.calls as Record<string, Decision>) ?? {}) };
         } else if (kind === PlanDoc.definition.kind) {
             this.plan = { on: false, ...((value as Room["plan"] | null) ?? {}) };
@@ -854,9 +770,6 @@ export class Room {
                     this.#app.canSee(client.user, id as unknown as ConversationId),
                 ),
             ),
-            reactions: this.reactions,
-            pins: this.pins,
-            turns: this.turns,
             decisions: this.decisions,
             plan: this.plan,
             schedules: Object.values(this.schedules)
@@ -1328,84 +1241,6 @@ export class Room {
         return false;
     }
 
-    /** The people here, one row per person however many tabs they have open, and where each is typing. */
-    presence(): { conversationId: ConversationId; people: Person[] } {
-        const people = new Map<string, Person>();
-        const visible = new Set<string>();
-
-        for (const client of this.clients) {
-            if (client.visible !== false) {
-                visible.add(client.user.id);
-            }
-
-            const person = people.get(client.user.id);
-
-            if (person !== undefined) {
-                person.tabs++;
-            } else {
-                people.set(client.user.id, {
-                    id: client.user.id,
-                    name: client.user.name,
-                    role: client.user.role,
-                    tabs: 1,
-                });
-            }
-        }
-
-        for (const person of people.values()) {
-            if (!visible.has(person.id)) {
-                person.away = true;
-            }
-        }
-
-        for (const [userId, state] of this.#typing) {
-            const person = people.get(userId);
-
-            if (person !== undefined) {
-                person.typing = state.where;
-            }
-        }
-
-        return { conversationId: this.id, people: [...people.values()] };
-    }
-
-    pushPresence(): void {
-        const presence = this.presence();
-
-        for (const client of this.clients) {
-            client.send("presence", presence);
-        }
-    }
-
-    /** Someone started, kept, or stopped typing. Only changes are sent; a renewal just extends the timer. */
-    setTyping(userId: string, where: TypingPlace | null): void {
-        const current = this.#typing.get(userId);
-
-        clearTimeout(current?.timer);
-
-        if (where === null) {
-            if (current === undefined) {
-                return;
-            }
-
-            this.#typing.delete(userId);
-        } else {
-            const timer = setTimeout(() => {
-                this.#typing.delete(userId);
-                this.pushPresence();
-            }, TYPING_MS);
-
-            timer.unref();
-            this.#typing.set(userId, { where, timer });
-
-            if (current?.where === where) {
-                return;
-            }
-        }
-
-        this.pushPresence();
-    }
-
     keepOpen(): void {
         clearTimeout(this.#closeTimer);
         this.#closeTimer = undefined;
@@ -1431,11 +1266,6 @@ export class Room {
         clearTimeout(this.#peekTimer);
         this.#peekTimer = undefined;
 
-        for (const state of this.#typing.values()) {
-            clearTimeout(state.timer);
-        }
-
-        this.#typing.clear();
         void this.#watch?.stop();
         this.#watch = undefined;
         this.#view = undefined;

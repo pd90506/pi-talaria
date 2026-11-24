@@ -6,7 +6,6 @@ import {
     attempt,
     canSteer,
     closeSheet,
-    collab,
     isUnread,
     navigate,
     notify,
@@ -74,13 +73,6 @@ function sessionItems(session) {
             },
             starts && { label: "Fork", hint: "up to the last reply", run: () => fork(id) },
             starts && { label: "New session in this folder", run: () => newIn(session.cwd) },
-            starts &&
-                collab() && {
-                    label: "Share",
-                    hint: "invite someone",
-                    opens: true,
-                    run: () => store.set({ sheet: { type: "invite", session: id } }),
-                },
         ],
         [
             !session.archived && {

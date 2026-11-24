@@ -411,7 +411,6 @@ test(
             "Copy link",
             "Rename",
             "Fork",
-            "Share",
             "Select",
             "Archive",
         ]) {

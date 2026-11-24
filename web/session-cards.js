@@ -1,6 +1,6 @@
 // Sessions an answer of PiP's links (a project's coordinator, a session it started), as cards under it: in PiP's
 // floating panel (`pip.js`) and on its board (`transcript.js`).
-import { folderColor } from "./avatar.js";
+import { folderColor } from "./colors.js";
 import { sessionChips } from "./extension-ui.js";
 import { navigate, store } from "./store.js";
 import { html, Icon } from "./ui.js";

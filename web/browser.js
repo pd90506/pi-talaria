@@ -1,7 +1,7 @@
 // The Browser panel's state, for everything that opens it: whether it is open, and opening an address in it. The
 // panel itself is browser-panel.js.
 
-import { api, attempt, closePeople, notify, store } from "./store.js";
+import { api, attempt, notify, store } from "./store.js";
 
 /** The browser is on while its extension is: the owner turns it off in Extensions. */
 export const browserAvailable = () =>
@@ -9,13 +9,9 @@ export const browserAvailable = () =>
 
 /**
  * Show or hide the panel. Kept for the session (`panel-layout.js`), so going back to it, or a reload, shows it again. It
- * takes the People panel's and the Files tile's place.
+ * takes the Files tile's place.
  */
 export function setBrowserOpen(open) {
-    if (open) {
-        closePeople();
-    }
-
     // One panel beside the conversation at a time: the browser takes the Files tile's and an extension's place too.
     store.set({
         browserOpen: open,

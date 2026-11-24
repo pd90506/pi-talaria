@@ -2,7 +2,7 @@
 import type { ConversationId } from "@earendil-works/pi-durable";
 import { BrowserError } from "../browser/cdp.ts";
 import { localServers } from "../browser/local-servers.ts";
-import { displayUrl, normalizeUrl, REMOTE_FILES } from "../browser/urls.ts";
+import { normalizeUrl, REMOTE_FILES } from "../browser/urls.ts";
 import { viewportFrom } from "../browser/viewport.ts";
 import { HttpError } from "../errors.ts";
 import { type ApiRequest, json, readJson } from "./io.ts";
@@ -117,7 +117,7 @@ export async function browserRoutes(
         throw new HttpError(404, "Unknown browser route");
     }
 
-    await app.requireDriver(id, user);
+    app.requireSteer(user);
     await app.conversation(id);
     const body = await readJson<Record<string, unknown>>(request);
 
@@ -187,13 +187,6 @@ export async function browserRoutes(
         }
 
         if (action === "navigate") {
-            // Everyone in the session sees what people open: the browser reaches what this machine reaches.
-            void app.collab.activity(
-                id,
-                user,
-                `opened ${displayUrl(target!) || target!} in the browser`,
-                false,
-            );
             const result = await page.navigate(target!, { wait: false });
 
             return json(response, 200, {

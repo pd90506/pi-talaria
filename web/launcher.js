@@ -3,7 +3,7 @@
 // themes.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import { browserAvailable, toggleBrowser } from "./browser.js";
-import { folderColor } from "./avatar.js";
+import { folderColor } from "./colors.js";
 import {
     planAvailable,
     schedulesAvailable,
@@ -28,8 +28,6 @@ import {
     attempt,
     api,
     canSteer,
-    canToggleTurns,
-    collab,
     navigate,
     notify,
     openSheet,
@@ -131,8 +129,6 @@ function actionItems() {
     const conversation = conversationId !== null ? view.conversation : null;
     const session = conversation?.kind === "session";
     const steer = canSteer();
-    // While take turns is on, the session's settings are the driver's (as in the menu).
-    const driving = !view.turns?.on || view.turns.driver === me?.id;
     const canStart = steer && !scoped();
     // The folder a session starts in "here": the one the open session works in. Issue #96, reported by @poncardasm.
     const here = view.agent?.cwd ?? conversation?.cwd ?? null;
@@ -267,12 +263,6 @@ function actionItems() {
                 icon: "fork",
                 run: () => openSheet({ type: "branch" }),
             },
-        conversation &&
-            collab() && {
-                label: "Chat with people here",
-                icon: "chat",
-                run: () => openSheet({ type: "chat" }),
-            },
         conversation && {
             label: "Find in this session",
             detail: "messages, by words",
@@ -281,16 +271,6 @@ function actionItems() {
             keys: "Mod F",
             run: () => openSheet({ type: "find" }),
         },
-        conversation &&
-            collab() &&
-            canToggleTurns() && {
-                label: view.turns?.on ? "Turn off take turns" : "Take turns",
-                detail: view.turns?.on
-                    ? "anyone here can send to Pi again"
-                    : "one person drives Pi at a time",
-                icon: "users",
-                run: () => attempt(() => actions.turns(view.turns?.on ? "off" : "on")),
-            },
         session &&
             steer && {
                 label: "Rename session",
@@ -330,7 +310,6 @@ function actionItems() {
               }
             : conversation &&
               steer &&
-              driving &&
               !scoped() && {
                   label: "Working directory",
                   detail: shortPath(view.agent?.cwd, server?.home),
@@ -346,8 +325,7 @@ function actionItems() {
                 run: () => openSheet({ type: "trust" }),
             },
         session &&
-            steer &&
-            driving && {
+            steer && {
                 label: "Instructions for Pi",
                 detail: view.agent?.instructions ? "on" : "none",
                 keywords: "prompt system",
@@ -355,16 +333,14 @@ function actionItems() {
                 run: () => openSheet({ type: "instructions" }),
             },
         conversation &&
-            steer &&
-            driving && {
+            steer && {
                 label: "Compact context",
                 detail: "summarize older messages",
                 icon: "sparkle",
                 run: () => openSheet({ type: "compact" }),
             },
         conversation &&
-            steer &&
-            driving && {
+            steer && {
                 label: "New context",
                 detail: "Pi starts fresh; history stays",
                 keywords: "reset clear",
@@ -446,9 +422,9 @@ function actionItems() {
             icon: "fork",
             run: () => toggleBoard("subagents"),
         },
-        collab() && {
+        {
             label: "Notifications",
-            detail: "Pi finished, approvals, chat",
+            detail: "Pi finished, approvals",
             icon: "pulse",
             run: () => openSheet({ type: "notifications" }),
         },
@@ -483,28 +459,16 @@ function actionItems() {
             run: () => openSheet({ type: "gallery" }),
         },
         { label: "Spend", icon: "pulse", run: () => openSheet({ type: "spend" }) },
-        collab()
-            ? {
-                  label: "People and invites",
-                  icon: "users",
-                  run: () => openSheet({ type: "people" }),
-              }
-            : {
-                  label: "Sign in another device",
-                  icon: "users",
-                  run: () => openSheet({ type: "invite" }),
-              },
+        {
+            label: "Sign in another device",
+            icon: "users",
+            run: () => openSheet({ type: "device" }),
+        },
         {
             label: "Keyboard shortcuts",
             icon: "keyboard",
             keys: "?",
             run: () => openSheet({ type: "shortcuts" }),
-        },
-        {
-            label: "Your name",
-            detail: me?.name,
-            icon: "users",
-            run: () => openSheet({ type: "name" }),
         },
         me?.role === "owner" &&
             server?.supervised && {

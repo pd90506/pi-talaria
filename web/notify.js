@@ -1,7 +1,7 @@
 // Phone notifications: this device subscribes to the server's pushes, and each person picks what they hear about.
 import { useEffect, useState } from "preact/hooks";
 import { callHost, hostCan } from "./host.js";
-import { api, attempt, closeSheet, notify, sessionUnread } from "./store.js";
+import { api, attempt, closeSheet, notify } from "./store.js";
 import { html, Loader, Sheet, Switch } from "./ui.js";
 
 const supported =
@@ -38,8 +38,6 @@ export function updateBadge(state) {
 
     if (
         countedFrom?.sessions === state.sessions &&
-        countedFrom.chatRead === state.chatRead &&
-        countedFrom.chatReads === state.chatReads &&
         countedFrom.me === state.me &&
         countedFrom.conversationId === state.conversationId
     ) {
@@ -48,14 +46,10 @@ export function updateBadge(state) {
 
     countedFrom = {
         sessions: state.sessions,
-        chatRead: state.chatRead,
-        chatReads: state.chatReads,
         me: state.me,
         conversationId: state.conversationId,
     };
-    const count = state.sessions.filter(
-        (session) => session.waiting || sessionUnread(session, state),
-    ).length;
+    const count = state.sessions.filter((session) => session.waiting).length;
 
     if (count === badged) {
         return;
@@ -124,8 +118,6 @@ const KINDS = [
         "Stalled work",
         "when a subagent or linked session makes no progress past its hard limit",
     ],
-    ["mention", "Mentions", "when someone writes @your name in a chat"],
-    ["chat", "Chat messages", "in sessions you take part in"],
 ];
 
 export function NotificationsSheet() {
