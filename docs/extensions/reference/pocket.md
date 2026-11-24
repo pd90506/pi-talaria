@@ -553,6 +553,16 @@ Since 0.20.0 · Experimental
 
 Adds words that find sessions: the session list's search and the launcher match them after the title and the folder. A row that only a word matches shows the word after its title, and the launcher shows it in the result's details. See [`SessionSearchSpec`](#sessionsearchspec).
 
+### `sidebar`
+
+```ts
+sidebar(spec: SidebarSpec): Added<SidebarSpec>;
+```
+
+Since 0.31.0 · Experimental
+
+Adds a section at the top of the session list, above its head and its search: what the module draws, such as a list of the module's own places. The sections come in the server's order of modules. The list's scroll still holds the sessions; a section that is long scrolls on its own, past half the list's height. A section that fails shows a notice in its place, and the list stays. The compact list of a phone's top bar does not show sections. See [`SidebarSpec`](#sidebarspec).
+
 ### `composerKey`
 
 ```ts
@@ -874,6 +884,24 @@ A sheet, as the app's own sheets.
 
 A page or sheet can open with an id that the module never added. Then it says that the module no longer has it.
 
+### `SidebarSpec`
+
+```ts
+interface SidebarSpec {
+    id: string;
+    title: string;
+    component: ComponentType<PageProps>;
+}
+```
+
+Since 0.31.0 · Experimental
+
+A section at the top of the session list.
+
+- `id`: the section's id in the module.
+- `title`: what the section is, for screen readers and for the notice when it fails.
+- `component`: what the section shows. It gets [`PageProps`](#pageprops); its `close` does nothing.
+
 ### `PanelSpec`
 
 ```ts
@@ -1161,6 +1189,7 @@ Since 0.20.0 · Experimental
 ```ts
 interface PipApi {
     ask(text: string, options?: { send?: boolean }): Promise<PipAskResult>;
+    open(): void;
 }
 ```
 
@@ -1172,6 +1201,7 @@ Since 0.26.0 · Experimental
     - With `send: true`, it sends the text at once, but only just after the person tapped or pressed a key (other than Escape) anywhere in the app, as a tap serves an artifact's follow-up; it need not be on the module's own controls. One tap serves for 5 seconds and for one send, so ask only from the person's own action. Without a tap, nothing is sent or drafted, and the answer says why. If PiP cannot take the message (it is not ready, or the send fails), a notice says so and the text waits in the box.
     - It works for a person who has PiP. For anyone else, and while the app does not know yet, it does not throw: the answer is `{ ok: false, reason }`.
     - Text that is empty or past 100,000 characters throws, as `insertText` does.
+- `open()`: opens PiP where the person's Appearance setting puts it: as a board in the session's place (the default), or as its floating panel. Since 0.31.0.
 
 ### `PipAskResult`
 

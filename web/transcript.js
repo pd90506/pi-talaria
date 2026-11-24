@@ -36,10 +36,12 @@ import {
     navigate,
     notify,
     openSheet,
+    showsPip,
     store,
     TRANSCRIPT_ROWS,
     viewSynced,
 } from "./store.js";
+import { SessionCards } from "./session-cards.js";
 import { openSubagent, stateOf } from "./subagents.js";
 import { motionLevel, prefs } from "./theme.js";
 import {
@@ -2479,6 +2481,13 @@ function Reply({ item, conversationId }) {
                 cache=${!growing}
             />`;
         })}
+        ${
+            item.end &&
+            showsPip() &&
+            entry.stopReason !== "toolUse" &&
+            !blocks.some((each) => each.growing) &&
+            html`<${SessionCards} text=${blocks.map(({ block }) => block.text).join("\n")} />`
+        }
         ${item.end && html`<${AnswerEnd} entry=${entry} />`}
     </div>`;
 }

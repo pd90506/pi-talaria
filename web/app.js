@@ -236,9 +236,16 @@ function Topbar() {
     const { sessions, conversationId } = store.state;
     // The top bar draws with each update of the conversation, as an answer streams: the session list is looked
     // through again only when it changes.
-    const { listed, waiting } = useMemo(
+    const { listed, waiting, lead } = useMemo(
         () => ({
             listed: sessions.find((session) => session.id === conversationId)?.title,
+            // The session that started this one (a project's coordinator, for a thread): one tap back to it.
+            lead: (() => {
+                const from = sessions.find((session) => session.id === conversationId)?.linkedFrom;
+                const parent = sessions.find((session) => session.id === from?.id);
+
+                return parent === undefined ? null : { id: parent.id, title: parent.title };
+            })(),
             // Other sessions waiting for an approval, counted on the way back to them.
             waiting: sessions.filter(
                 (session) => session.waiting && !session.archived && session.id !== conversationId,
@@ -292,6 +299,19 @@ function Topbar() {
                               <span class="title-model-name">${shortModel(view.agent)}</span>
                           </button>`
                         : html`${
+                              lead &&
+                              html`<button
+                                  class="title-lead"
+                                  aria-label=${`Started from ${lead.title ?? "another session"}: open it`}
+                                  title=${`Started from ${lead.title ?? "another session"}`}
+                                  onClick=${() => navigate(lead.id)}
+                              >
+                                  <${Icon} name="back" size=${11} /><span class="title-lead-name"
+                                      >${lead.title ?? "Started from"}</span
+                                  >
+                              </button>`
+                          }
+                          ${
                               folder &&
                               html`<span class="title-folder" aria-hidden="true">${folder}</span>`
                           }

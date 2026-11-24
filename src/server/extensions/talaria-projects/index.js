@@ -1,6 +1,8 @@
-// Projects' browser module: a Projects button on the rail and in the launcher, and a page that lists the projects,
-// newest activity first, opens a project's coordinator, and makes a new project; and, after a handoff from PiP, the
-// project's coordinator in the tab that showed PiP. It uses only `pocket`.
+// Projects' browser module. At the top of the session list: PiP and the projects, newest activity first, each with
+// where it stands and what waits on the person; the sessions of projects leave the list below (a filter turns that
+// off). Beside a project's coordinator or thread: the project, its threads by state, and its memory. A page lists every
+// project and makes new ones. After a handoff from PiP, the tab that showed PiP opens the project. It uses only
+// `pocket`.
 export const pocketApi = 2;
 
 /** Lucide's folder-kanban icon. */
@@ -34,7 +36,96 @@ function ago(at) {
 }
 
 export default function setup(pocket) {
-    const { html, useEffect, useState, Loader } = pocket;
+    const { html, useEffect, useState, Loader, Icon } = pocket;
+
+    // ─── What the server says of the projects, shared by every view of this tab ───
+
+    let latest = null;
+    let failure = null;
+    let asking = null;
+    const hearers = new Set();
+    /** The sessions of projects (coordinators and threads), which the session list leaves out. */
+    let projectSessions = new Set();
+    /** The session list's filter, and whether it hides the projects' sessions now (on until turned off). */
+    let filter = null;
+    let hiding = true;
+    const keeps = (session) => !projectSessions.has(session.id);
+
+    const refresh = () => {
+        asking ??= pocket
+            .api("projects")
+            .then((data) => {
+                latest = data;
+                failure = null;
+                projectSessions = new Set(
+                    data.projects.flatMap((project) => [
+                        project.coordinator,
+                        ...project.threads.map((each) => each.id),
+                    ]),
+                );
+                // A new function: the list asks again which sessions it keeps.
+                filter?.update({ match: hiding ? (session) => keeps(session) : null });
+                chips?.update({ chips: chipsOf });
+            })
+            .catch((error) => {
+                failure = error.message;
+            })
+            .finally(() => {
+                asking = null;
+
+                for (const hear of hearers) {
+                    hear({ data: latest, failure });
+                }
+            });
+
+        return asking;
+    };
+
+    /** The projects as the server last said, and whether it failed; asks again when the server says they changed. */
+    function useProjects() {
+        const [now, setNow] = useState({ data: latest, failure });
+
+        useEffect(() => {
+            hearers.add(setNow);
+
+            if (latest === null) {
+                void refresh();
+            }
+
+            return () => hearers.delete(setNow);
+        }, []);
+
+        return now;
+    }
+
+    pocket.on("changed", () => void refresh());
+
+    /** The session this tab shows, kept current. */
+    function useShown() {
+        const [shown, setShown] = useState(pocket.conversationId());
+
+        useEffect(() => pocket.onConversation(setShown), []);
+
+        return shown;
+    }
+
+    /** The project a session belongs to: as its coordinator, or as one of its threads. */
+    const projectOf = (data, id) =>
+        data?.projects.find(
+            (project) =>
+                project.coordinator === id || project.threads.some((each) => each.id === id),
+        );
+
+    /** How many of a project's threads are in each state. */
+    const countsOf = (project) => {
+        const counts = {};
+
+        for (const each of project.threads) {
+            counts[each.state] = (counts[each.state] ?? 0) + 1;
+        }
+
+        return counts;
+    };
 
     // PiP handed a topic over to a project: the tab that shows that PiP opens the project's coordinator.
     pocket.on("open", (data) => {
@@ -356,7 +447,7 @@ export default function setup(pocket) {
     }
 
     /** One project: its button, which opens the coordinator, then its threads by state; resolved ones folded away. */
-    function Project({ project, open }) {
+    function Project({ project, open, current = null }) {
         const [showResolved, setShowResolved] = useState(false);
         const threads = project.threads ?? [];
         const stateOf = (each) => each.state ?? (each.resolved ? "resolved" : "idle");
@@ -364,7 +455,8 @@ export default function setup(pocket) {
         const row = (each) =>
             html`<button
                 type="button"
-                class="list-item talaria-thread"
+                class=${`list-item talaria-thread ${current === each.id ? "selected" : ""}`}
+                aria-current=${current === each.id ? "true" : undefined}
                 onClick=${() => open({ coordinator: each.id })}
             >
                 <span class="grow">
@@ -377,7 +469,8 @@ export default function setup(pocket) {
 
         return html`<button
                 type="button"
-                class="list-item"
+                class=${`list-item ${current === project.coordinator ? "selected" : ""}`}
+                aria-current=${current === project.coordinator ? "true" : undefined}
                 disabled=${project.missing}
                 onClick=${() => open(project)}
             >
@@ -417,7 +510,200 @@ export default function setup(pocket) {
             <${Memory} level=${project.id} title="project memory" />`;
     }
 
+    /** What a project's row says of its threads: what waits on the person first. */
+    function Counts({ project }) {
+        const counts = countsOf(project);
+        const asks = (counts.waiting ?? 0) + (counts.failed ?? 0);
+
+        return html`${
+            asks > 0 &&
+            html`<span class="talaria-count talaria-ask" title="Threads waiting on you, or failed"
+                >${asks}</span
+            >`
+        }${
+            (counts.review ?? 0) > 0 &&
+            html`<span class="talaria-count talaria-ready" title="Threads ready for review"
+                >${counts.review}</span
+            >`
+        }${
+            (counts.working ?? 0) > 0 &&
+            html`<span
+                class="talaria-working-dot"
+                title="Threads at work"
+                aria-label="At work"
+            ></span>`
+        }`;
+    }
+
+    /** The top of the session list: PiP, then each active project; a tap opens it. */
+    function ProjectsNav() {
+        const { data, failure: failed } = useProjects();
+        const shown = useShown();
+        const current = projectOf(data, shown);
+        const projects = (data?.projects ?? []).filter(
+            (project) => project.status !== "archived" && !project.missing,
+        );
+
+        return html`<nav class="talaria-nav" aria-label="PiP and projects">
+            <button
+                type="button"
+                class="talaria-nav-row talaria-nav-pip"
+                onClick=${() => pocket.pip?.open?.()}
+            >
+                <${Icon} name="pip" size=${16} />
+                <span class="talaria-nav-name">PiP</span>
+            </button>
+            <div class="talaria-nav-head">
+                <span>Projects</span>
+                <button
+                    type="button"
+                    class="talaria-nav-all"
+                    title="All projects, and a new one"
+                    aria-label="All projects, and a new one"
+                    onClick=${() => pocket.openPage("projects")}
+                >
+                    <${Icon} name="plus" size=${14} />
+                </button>
+            </div>
+            ${failed && !data && html`<div class="muted small">${failed}</div>`}
+            ${
+                data &&
+                projects.length === 0 &&
+                html`<button
+                    type="button"
+                    class="talaria-nav-row muted"
+                    onClick=${() => pocket.openPage("projects")}
+                >
+                    Make a project
+                </button>`
+            }
+            ${projects.map(
+                (project) =>
+                    html`<button
+                        key=${project.id}
+                        type="button"
+                        class=${`talaria-nav-row ${current?.id === project.id ? "on" : ""}`}
+                        aria-current=${current?.id === project.id ? "true" : undefined}
+                        title=${project.summary ?? project.name}
+                        onClick=${() => pocket.openConversation(project.coordinator)}
+                    >
+                        <${Icon} path=${PROJECTS_PATH} size=${15} />
+                        <span class="talaria-nav-text">
+                            <span class="talaria-nav-name">${project.name}</span>
+                            ${
+                                project.summary &&
+                                html`<span class="talaria-nav-summary">${project.summary}</span>`
+                            }
+                        </span>
+                        <${Counts} project=${project} />
+                    </button>`,
+            )}
+        </nav>`;
+    }
+
+    /** Beside a project's coordinator or thread: the project, its threads by state, and its memory. */
+    function ProjectPanel() {
+        const { data } = useProjects();
+        const shown = useShown();
+        const project = projectOf(data, shown);
+
+        if (data === null) {
+            return html`<${Loader} label="Reading the project" />`;
+        }
+
+        if (project === undefined) {
+            return html`<p class="muted">
+                This session is not part of a project. Open a project from the list, or make one on
+                the Projects page.
+            </p>`;
+        }
+
+        const open = (target) => pocket.openConversation(target.coordinator);
+
+        return html`<div class="talaria-panel">
+            ${project.summary && html`<p class="talaria-panel-summary">${project.summary}</p>`}
+            <div class="sheet-list">
+                <${Project} project=${project} open=${open} current=${shown} />
+            </div>
+        </div>`;
+    }
+
+    /** Chips on a session's row and on PiP's cards: a project's coordinator, or one of its threads. */
+    function chipsOf(session) {
+        const project = projectOf(latest, session.id);
+
+        if (project === undefined) {
+            return [];
+        }
+
+        if (project.coordinator === session.id) {
+            const open = project.threads.filter((each) => each.state !== "resolved").length;
+            const counts = countsOf(project);
+            const asks = (counts.waiting ?? 0) + (counts.failed ?? 0);
+
+            return [
+                { label: "Project" },
+                ...(open > 0 ? [{ label: `${open} open thread${open === 1 ? "" : "s"}` }] : []),
+                ...(asks > 0 ? [{ label: `${asks} waiting on you` }] : []),
+            ];
+        }
+
+        return [{ label: `Thread of ${project.name}` }];
+    }
+
+    const chips =
+        typeof pocket.sessionChips === "function"
+            ? pocket.sessionChips({ id: "projects", chips: chipsOf })
+            : null;
+
+    // The projects' sessions are reached from the projects above the list: the list leaves them out until this is off.
+    if (typeof pocket.sessionFilter === "function") {
+        filter = pocket.sessionFilter({
+            id: "project-sessions",
+            title: "Hide the sessions of projects (they are under Projects above)",
+            iconPath: PROJECTS_PATH,
+            match: (session) => keeps(session),
+            run: () => {
+                hiding = !hiding;
+                filter.update({ match: hiding ? (session) => keeps(session) : null });
+            },
+        });
+    }
+
     pocket.style("style.css");
+
+    if (typeof pocket.sidebar === "function") {
+        pocket.sidebar({ id: "projects", title: "Projects", component: ProjectsNav });
+    }
+
+    if (typeof pocket.panel === "function") {
+        pocket.panel({
+            id: "project",
+            title: "Project",
+            iconPath: PROJECTS_PATH,
+            component: ProjectPanel,
+        });
+
+        // A project's coordinator opens with its threads beside it, where there is room; once a tab, for each.
+        const opened = new Set();
+
+        pocket.onConversation((id) => {
+            if (id === null || opened.has(id) || !matchMedia("(min-width: 1100px)").matches) {
+                return;
+            }
+
+            void refresh().then(() => {
+                if (latest?.projects.some((project) => project.coordinator === id)) {
+                    opened.add(id);
+
+                    if (pocket.conversationId() === id) {
+                        pocket.openPanel("project");
+                    }
+                }
+            });
+        });
+    }
+
     pocket.page({ id: "projects", title: "Projects", component: Projects });
     pocket.rail({ id: "projects", title: "Projects", iconPath: PROJECTS_PATH, page: "projects" });
     pocket.launcher({

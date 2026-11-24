@@ -1,14 +1,15 @@
-// PiP, "Pi in Pocket": the owner's assistant, in a small window over whatever is open, or (Appearance → PiP → Board)
-// opened as a conversation in the session's place, with its top bar, menu, and every step. It stays out of the way until
-// called: Alt+A, the rail's PiP button, the places, the launcher, or `/pip`; and a small mark in the corner shows only
-// while PiP works, or has something new. The panel watches PiP's conversation through a view of its own (`pipview`
-// events), so the session behind it stays as it was.
+// PiP, "Pi in Pocket": the owner's assistant, opened by default as a conversation in the session's place (a board),
+// with its top bar, menu, and every step; or (Appearance → PiP → Floating) in a small window over whatever is open. It
+// stays out of the way until called: Alt+A, the rail's PiP button, the places, the launcher, or `/pip`; and a small
+// mark in the corner shows only while PiP works, or has something new. The panel watches PiP's conversation through a
+// view of its own (`pipview` events), so the session behind it stays as it was.
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { followUpText } from "./artifact-bridge.js";
 import { useBack } from "./back.js";
 import { boxKey, keyBox } from "./box-keys.js";
 import { useDragToClose } from "./gestures.js";
 import { createPipDraft } from "./pip-attachments.js";
+import { SessionCards } from "./session-cards.js";
 import { personStorage } from "./person-storage.js";
 import { splitQuote, withQuote } from "./quote-text.js";
 import { usePipResize } from "./pip-window.js";
@@ -172,8 +173,8 @@ function tellServer(on) {
     return asked;
 }
 
-/** Where PiP opens, as Appearance says: `"floating"` (the corner, or a phone's sheet), or `"board"`. */
-export const pipPlace = () => (prefs()?.pip === "board" ? "board" : "floating");
+/** Where PiP opens, as Appearance says: `"board"` (the default), or `"floating"` (the corner, or a phone's sheet). */
+export const pipPlace = () => (prefs()?.pip === "floating" ? "floating" : "board");
 
 /**
  * PiP open as a board: its conversation is the route (`showsPip`), in the session's place, with nothing (Running now, an
@@ -813,6 +814,14 @@ function Item({ item, last, busy, conversationId }) {
                     text=${linkSessions(text)}
                     cache=${!growing}
                     conversationId=${conversationId}
+                />`
+            }
+            ${
+                !growing &&
+                text.trim() !== "" &&
+                html`<${SessionCards}
+                    text=${text}
+                    onOpen=${() => NARROW.matches && store.state.pipOpen && closePip()}
                 />`
             }
             ${entry?.stopReason === "aborted" && html`<div class="pip-event"><span>Stopped</span></div>`}

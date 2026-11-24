@@ -508,10 +508,40 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
     const { text } = host;
     /** When each session's newest run started: a thread's word on its state holds from that run on. */
     const lastStart = new Map<number, number>();
+    /** Tell the open Projects views that a run started or ended: at most once in 2 s, for a server at work. */
+    let toldAt = 0;
+    let telling: ReturnType<typeof setTimeout> | undefined;
+
+    const tellRuns = () => {
+        if (telling !== undefined) {
+            return;
+        }
+
+        telling = setTimeout(
+            () => {
+                telling = undefined;
+                toldAt = Date.now();
+                web?.send("changed");
+            },
+            Math.max(0, toldAt + 2_000 - Date.now()),
+        );
+    };
+
     const stopStarts = host.on("run.started", (run) => {
         if (run.conversationId === run.session) {
             lastStart.set(run.conversationId, Date.now());
+            tellRuns();
         }
+    });
+    const stopEnds = host.on("run.ended", (run) => {
+        if (run.conversationId === run.session) {
+            tellRuns();
+        }
+    });
+
+    web?.onDispose(() => {
+        stopEnds();
+        clearTimeout(telling);
     });
     // Threads that end close together reach their coordinator at once, in one turn.
     const stopBatch = linked.batchReports?.((lead) =>
@@ -598,6 +628,12 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
                     threads,
                     name: file?.name ?? project.name,
                     folders: file?.folders ?? [],
+                    // Where it stands, in one line: its memory's first plain line.
+                    ...(() => {
+                        const summary = memorySummary(projectMemory(project));
+
+                        return summary === undefined ? {} : { summary };
+                    })(),
                     lastActive: Math.max(
                         session?.updatedAt ?? project.createdAt,
                         ...threads.map((each) => each.lastActive),

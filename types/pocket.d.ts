@@ -2102,6 +2102,32 @@ export interface SheetSpec<P extends object = object> {
 }
 
 /**
+ * A section at the top of the session list (`pocket.sidebar`).
+ * @since 0.31.0
+ * @experimental
+ */
+export interface SidebarSpec {
+    /**
+     * The section's id in the module.
+     * @since 0.31.0
+     * @experimental
+     */
+    id: string;
+    /**
+     * What the section is, for screen readers and its failure's notice.
+     * @since 0.31.0
+     * @experimental
+     */
+    title: string;
+    /**
+     * What the section shows. It gets `pocket`, and a `close` that does nothing.
+     * @since 0.31.0
+     * @experimental
+     */
+    component: ComponentType<PageProps>;
+}
+
+/**
  * A panel beside the conversation, where the Browser and Files panels dock; over the conversation on a narrow screen.
  * The top bar and the places get a button that opens it.
  * @since 0.19.0
@@ -2912,6 +2938,12 @@ export interface PipApi {
      * @experimental
      */
     ask(text: string, options?: { send?: boolean }): Promise<PipAskResult>;
+    /**
+     * Opens PiP where Appearance says: as a board in the session's place (the default), or its floating panel.
+     * @since 0.31.0
+     * @experimental
+     */
+    open(): void;
 }
 
 /**
@@ -3180,6 +3212,12 @@ export interface Pocket {
      * @experimental
      */
     sessionSearch(spec: SessionSearchSpec): Added<SessionSearchSpec>;
+    /**
+     * Adds a section at the top of the session list, above its head: what the module draws, in its order of modules.
+     * @since 0.31.0
+     * @experimental
+     */
+    sidebar(spec: SidebarSpec): Added<SidebarSpec>;
     /**
      * Adds a key in the message boxes, the session's and PiP's, before the box's own keys.
      * @since 0.20.0

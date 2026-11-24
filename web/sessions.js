@@ -11,6 +11,7 @@ import {
     sessionFilters,
     sessionFilterTest,
     sessionWords,
+    SidebarSections,
 } from "./extension-ui.js";
 import { useDragToClose } from "./gestures.js";
 import { PeeksRailButton, wholeOnTile } from "./peeks.js";
@@ -2456,6 +2457,7 @@ function AllSessions({ compact = false }) {
         class=${`sessions ${compact ? "compact" : ""} ${tapping ? "tap-selecting" : ""}`}
         data-part="session-list"
     >
+        ${!compact && html`<${SidebarSections} />`}
         <div class="sessions-head">
             <span class="sessions-name" data-part="session-list-title">Sessions</span>
             <span class="sessions-count">${sessionsLoaded ? count : ""}</span>

@@ -204,3 +204,63 @@ test("the Projects page lists a project's threads by state", real, async () => {
         writeFileSync(join(process.env.PI_TALARIA_SHOTS, "threads.jpg"), shot.data, "base64");
     }
 });
+
+test(
+    "On a desktop, the sidebar lists projects, and a thread leads back to its project",
+    real,
+    async () => {
+        // The project's first session is its coordinator; its threads work in its folder too.
+        const coordinator = app
+            .sessions()
+            .filter((each) => each.cwd === join(root, "pip", "projects", "phone-app"))
+            .sort((a, b) => Number(a.id) - Number(b.id))[0]!;
+        const thread = app.sessions().find((each) => each.title === "Write the notes")!;
+
+        await page.setViewport({ width: 1280, height: 800, scale: 1, mobile: false });
+
+        try {
+            await page.navigate(`${base}/`);
+            await until(
+                async () =>
+                    (await inPage<string>(
+                        `return JSON.stringify(document.querySelector(".talaria-nav-row:not(.talaria-nav-pip) .talaria-nav-name")?.textContent ?? "")`,
+                    )) === "Phone App",
+                "the project in the sidebar",
+            );
+            // The project's sessions stay out of the session list: the sidebar's project leads to them.
+            assert.equal(
+                await has(
+                    `.session-row[data-id="${coordinator.id}"], .session-row[data-id="${thread.id}"]`,
+                ),
+                false,
+            );
+            await until(() => has(".talaria-nav .talaria-ready"), "the thread ready for review");
+            await inPage(
+                `document.querySelector(".talaria-nav-row:not(.talaria-nav-pip)").click(); return "null"`,
+            );
+            await until(
+                async () =>
+                    (await inPage<string>(`return JSON.stringify(location.pathname)`)) ===
+                    `/s/${coordinator.id}`,
+                "the coordinator to open",
+            );
+            await until(
+                () => has('.talaria-nav-row[aria-current="true"]'),
+                "the project marked open",
+            );
+
+            // A thread's top bar names its project, and one tap goes back to it.
+            await page.navigate(`${base}/s/${thread.id}`);
+            await until(() => has(".topbar .title-lead"), "the thread's project in its top bar");
+            await inPage(`document.querySelector(".topbar .title-lead").click(); return "null"`);
+            await until(
+                async () =>
+                    (await inPage<string>(`return JSON.stringify(location.pathname)`)) ===
+                    `/s/${coordinator.id}`,
+                "back to the coordinator",
+            );
+        } finally {
+            await page.setViewport(PHONE);
+        }
+    },
+);

@@ -129,6 +129,8 @@ These, and slots, came in 0.19.0, and are experimental: they can change in a min
 
 **`pip.ask(text, { send })`** gives the person's PiP, their assistant, a message of the module's: the findings of an analyser, a question about what the module shows. By default it opens PiP and puts the text in its message box, for the person to read, edit, and send. With `send: true` it sends at once, but only just after the person tapped or pressed a key anywhere in the app (so send only from their own action, such as a button's `run`); elsewhere the answer is `{ ok: false, reason }`. It never throws for a person who has no PiP, and resolves with `{ ok: false, reason: "PiP is not available" }`. The text starts with a line that names the module, and PiP reads it as the person's own message, so fence what the module did not write (a session's title, a web page) as untrusted data. It came in 0.26.0, and is experimental. Check for it first: `pocket.pip?.ask`.
 
+**`pip.open()`** opens PiP where the person's Appearance setting puts it: as a board in the session's place (the default) or its floating panel. It came in 0.31.0, and is experimental: `pocket.pip?.open?.()`.
+
 **`composerKey({ id, keys, label, run(box) })`** adds a key in the message boxes, the session's and PiP's: Ctrl+W to delete a word, Alt+Backspace, keys of an editor you are used to. It comes before the box's own keys. `run` gets the box's `text`, its selection (`start`, `end`), and `set(text, caret)`, which edits the box as typing does. It came in 0.20.0, and is experimental. A browser tab never gets some keys, such as Ctrl+W, which closes the tab: they reach the page only in an installed app's window, if at all.
 
 **`onConversation(listener)`**, **`messages({ before, limit, signal })`**, and **`reveal(id)`** let a module follow the session the tab shows, read its people's messages a page at a time, and scroll the transcript to one: an outline of a long session, a list of its questions. The app loads earlier history for `reveal`, and the server checks access for each page. They came in 0.20.0, and are experimental.
@@ -143,6 +145,8 @@ These came in 0.20.0, and are experimental. Check that they are there (`typeof p
 - **`sessionSearch({ id, words(session) })`** gives words that the session list's search and the launcher match, after the title and the folder. A row that only a word matches shows the word.
 - **`sessionFilter({ id, title, icon or iconPath, badge, match, … })`** adds a button in the search field, which does one thing, as a rail button does. The first 3 show. While `match` is a function, the button is lit, and the list shows only the sessions that every filter that is on keeps. `update({ match: null })` turns it off. Its `started(id)` runs when a person starts a session with New in the list's head while it is on.
 - **`sessionAction({ id, label, run(ids) or sheet, access })`** adds an action on sessions: in the sheet that a finger held on a row opens, in the menu that a right-click on a row opens, and in the bar while sessions are selected. `run` gets the session ids; a sheet gets them as the prop `sessions`. Only people who can steer see it, unless `access` is `"view"`. The first action with an `icon` or an `iconPath` is also a button on rows, where a mouse hovers.
+
+- **`sidebar({ id, title, component })`** (since 0.31.0, experimental) draws a section at the top of the session list, above its head: a module's own places, such as projects. It gets the props of a page; its `close` does nothing. A long section scrolls on its own, and a section that fails shows a notice in its place. The compact list of a phone's top bar leaves it out.
 
 `chips`, `words`, and `match` get a [`SessionInfo`](reference/pocket.md#sessioninfo), `{ id, title, cwd, archived, updatedAt }`. They must answer at once, not with a promise: one that returns a promise stops its module in that browser, as a throw does, and a filter that failed hides no session. The list can reuse their results: unchanged rows can skip `chips`, and unchanged session data and list settings can skip `words` and `match`. Keep them fast, read the module's own state in them, and do not call `pocket` in them. When that state changes, give `update` a new function: the same function draws nothing again ([Redraws](#redraws)). One that throws stops its module in that browser.
 
@@ -165,7 +169,7 @@ To show data from a service on your network, read it in a route on the server ([
 
 - Each thing that a module adds has an `id` of its own: letters, digits, `.`, `_`, `:`, and `-`, that starts with a letter or a digit, up to a [length](reference/limits.md#names).
 - To add a thing with the same `id` again replaces it.
-- Each `rail`, `menu`, `launcher`, `page`, `sheet`, `panel`, `status`, `topbar`, `composerButton`, `replyAction`, `sessionChips`, `sessionAction`, `sessionFilter`, and `sessionSearch` returns `{ update(patch), remove() }`. `update` takes an object.
+- Each `rail`, `menu`, `launcher`, `page`, `sheet`, `panel`, `status`, `topbar`, `composerButton`, `replyAction`, `sessionChips`, `sessionAction`, `sessionFilter`, `sessionSearch`, and `sidebar` returns `{ update(patch), remove() }`. `update` takes an object.
 
 ## Redraws
 

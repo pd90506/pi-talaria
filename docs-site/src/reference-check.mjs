@@ -93,6 +93,7 @@ export const PAGES = {
         "LauncherSpec",
         "PageSpec",
         "SheetSpec",
+        "SidebarSpec",
         "PanelSpec",
         "StatusSpec",
         "Placement",
