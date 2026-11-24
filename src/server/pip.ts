@@ -1102,7 +1102,7 @@ export class Pip {
         message: string,
         steer: boolean,
         key: string,
-        options: { started?: boolean; handoff?: boolean } = {},
+        options: { started?: boolean; handoff?: boolean; modelCheck?: string } = {},
     ): Promise<{ requestId: string }> {
         const user = this.#person(pipId);
         const id = this.#session(pipId, user, sessionId);
@@ -1120,14 +1120,14 @@ export class Pip {
             requestId: await this.#submit(id, user, text, key, steer, async () => {
                 // The first message of a session the same call started (`started`) needs no look, there being nothing to
                 // see, and was checked for model names as the session started. A handoff a module builds (`handoff`)
-                // goes to a project's coordinator, which takes it as its next input whatever it is doing; PiP's summary
-                // in it is still checked for model names.
+                // goes to a project's coordinator, which takes it as its next input whatever it is doing; PiP's own
+                // words in it (`modelCheck`: not the person's, which the app copied) are still checked for model names.
                 if (options.started !== true) {
                     if (options.handoff !== true) {
                         this.#requireLooked(pipId, sessionId, "message");
                     }
 
-                    await this.#requireNoModelChoice(pipId, user, text);
+                    await this.#requireNoModelChoice(pipId, user, options.modelCheck ?? text);
                 }
             }),
         };

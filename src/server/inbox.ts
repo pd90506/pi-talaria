@@ -32,13 +32,16 @@ export interface InboxDelivery {
     limit?: { bucket: string; perHour: number };
 }
 
-/** A label as one line without brackets: the message shows as `[via <label>]`. */
-const viaLabel = (text: string): string =>
-    text
+/** A label as one line without brackets: the message shows as `[via <label>]`. Never PiP's own label. */
+const viaLabel = (text: string): string => {
+    const label = text
         .replace(/[[\]]/g, "")
         .replace(/[\p{Cc}\p{Cf}\s]+/gu, " ")
         .trim()
         .slice(0, 80);
+
+    return label.toLowerCase() === "pip" ? `${label} (inbox)` : label;
+};
 
 /** An attribute's value as one line: line breaks of every kind become spaces, and bidi and format characters go. */
 const oneLine = (text: string): string =>

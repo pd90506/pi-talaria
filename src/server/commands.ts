@@ -868,9 +868,12 @@ export class Commands {
         // The heading whole, with files alone too: what reads the message splits it there.
         const written =
             lines.length === 0 ? text : `${text}${ATTACHMENTS_HEADING}${lines.join("\n")}`;
+        // Only PiP's handoffs (`talaria-projects.ts`) open a <pip-handoff>: from anywhere else it is text.
         const body = this.messageText(
             user,
-            via === undefined ? written : `[via ${via}] ${written}`,
+            via === undefined
+                ? written
+                : `[via ${via}] ${via === "PiP" ? written : written.replace(/<(?=\s*\/?\s*pip-(?:handoff|summary)\b)/giu, "‹")}`,
         );
         const about = this.#aboutSession(id, user, request.about);
         const mentioned =
