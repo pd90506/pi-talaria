@@ -113,6 +113,36 @@ test("a one-time sign-in link gives the owner's token once, and only for a minut
     assert.equal(auth.redeemSignInLink(links[1]!), config.ownerToken);
 });
 
+test("a trusted Tailscale login is the owner without a token, and only that login", () => {
+    const config = new ConfigStore(mkdtempSync(join(root, "tailscale-")));
+    const owner = new Auth(config).tokenUser(config.ownerToken);
+    const request = (headers: Record<string, string>) => ({ headers }) as never;
+    const trusting = new Auth(config, " Me@Example.com ");
+
+    assert.ok(owner);
+    assert.equal(
+        trusting.user(request({ "tailscale-user-login": "me@example.com" }))?.id,
+        owner.id,
+    );
+    assert.equal(
+        trusting.user(request({ "tailscale-user-login": "other@example.com" })),
+        undefined,
+    );
+    assert.equal(trusting.user(request({})), undefined, "no header, no owner");
+    assert.equal(
+        trusting.user(
+            request({ "tailscale-user-login": "me@example.com", cookie: "pocket_auth=stale" }),
+        )?.id,
+        owner.id,
+        "a stale cookie does not hide the trusted login",
+    );
+    assert.equal(
+        new Auth(config, "").user(request({ "tailscale-user-login": "me@example.com" })),
+        undefined,
+        "off unless a login is set",
+    );
+});
+
 async function freePort(): Promise<number> {
     const probe = createServer();
 
