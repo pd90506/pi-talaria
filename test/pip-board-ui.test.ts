@@ -205,7 +205,7 @@ before(async () => {
     page = await browsers.open(1);
     await page.navigate(`${base}/login?token=${encodeURIComponent(app.config.ownerToken)}`);
     await see(`${STORE}.store.state.me?.role === 'owner'`, "owner signed in");
-    assert.equal(await inPage(`(await import('/theme.js')).prefs().pip`), "floating");
+    assert.equal(await inPage(`(await import('/theme.js')).prefs().pip`), "board");
 });
 
 after(async () => {
@@ -441,6 +441,21 @@ test("Ask PiP: the passage over the board's box, and PiP told its session", real
     await until(async () => lastAsked.includes("the build is red"), "PiP asked");
     assert.ok(lastAsked.includes(`<pocket-context session=\\"${Number(background)}`));
     await page.evaluate(`${PIP}.closePip()`);
+});
+
+test("A session PiP's answer names shows as a card that opens it", real, async () => {
+    await fresh("board");
+    await page.evaluate(`${PIP}.openPip()`);
+    await boarded("PiP");
+    await type(BOARD_BOX, `look at /s/${Number(background)} and /s/999999`);
+    await page.click({ selector: ".pane .pip-send" });
+    await see(
+        `document.querySelectorAll('.pane .pip-card').length === 1 &&
+            document.querySelector('.pane .pip-card-title')?.textContent !== ''`,
+        "one card, for the session that is there",
+    );
+    await page.click({ selector: ".pane .pip-card" });
+    await backTo(background, "the card opens its session");
 });
 
 test("PiP's one box: its words, file, quote, and send on its way move with it", real, async () => {

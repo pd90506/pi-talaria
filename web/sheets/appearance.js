@@ -730,12 +730,12 @@ export function AppearanceSheet() {
                 pipAvailable() &&
                 html`<${SettingRow}
                     title="PiP"
-                    detail="Floating: a window in the corner, or a sheet on a phone. Board: its conversation in the session's place, with every step and its menu"
+                    detail="Board: its conversation in the session's place, with every step and its menu. Floating: a window in the corner, or a sheet on a phone"
                 >
                     <div class="segmented">
                         ${[
-                            ["floating", "Floating"],
                             ["board", "Board"],
+                            ["floating", "Floating"],
                         ].map(
                             ([value, label]) =>
                                 html`<button

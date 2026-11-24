@@ -100,3 +100,144 @@
 .talaria-thread.selected {
     background: var(--hover, rgba(127, 127, 127, 0.12));
 }
+
+/* At the top of the session list: PiP, then the projects. */
+.talaria-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.talaria-nav-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 10px 8px 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+}
+
+.talaria-nav-all {
+    display: inline-grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: var(--r-tag);
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.talaria-nav-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    min-height: 36px;
+    padding: 6px 8px;
+    border: none;
+    border-radius: var(--r-card, 8px);
+    background: none;
+    color: var(--body);
+    text-align: left;
+    cursor: pointer;
+}
+
+.talaria-nav-row > svg {
+    flex: none;
+    color: var(--muted);
+}
+
+.talaria-nav-row.on {
+    background: var(--card-2);
+}
+
+.talaria-nav-row.on > svg,
+.talaria-nav-pip > svg {
+    color: var(--accent);
+}
+
+.talaria-nav-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.talaria-nav-name {
+    overflow: hidden;
+    font-size: 13.5px;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.talaria-nav-summary {
+    overflow: hidden;
+    font-size: 11.5px;
+    color: var(--muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.talaria-count {
+    flex: none;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+    text-align: center;
+}
+
+.talaria-ask {
+    background: var(--err);
+    color: var(--bg);
+}
+
+.talaria-ready {
+    background: var(--card-2);
+    color: var(--accent);
+}
+
+.talaria-working-dot {
+    flex: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: talaria-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes talaria-pulse {
+    50% {
+        opacity: 0.35;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .talaria-working-dot {
+        animation: none;
+    }
+}
+
+@media (hover: hover) {
+    .talaria-nav-row:hover,
+    .talaria-nav-all:hover {
+        background: var(--card);
+    }
+}
+
+/* Beside a project's sessions: where it stands, then its threads. */
+.talaria-panel-summary {
+    margin: 0 0 12px;
+    color: var(--muted);
+}
+
+.list-item.selected {
+    background: var(--card-2);
+}

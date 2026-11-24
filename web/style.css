@@ -1546,6 +1546,35 @@ kbd {
     text-overflow: ellipsis;
 }
 
+/* The session this one was started from (a thread's project): a tag that goes back to it, before the folder. */
+.title-sub > button.title-lead {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 45%;
+    height: 20px;
+    padding: 0 7px;
+    border-radius: calc(var(--r-tag) + 1px);
+    background: var(--card);
+    font-size: 11.5px;
+    color: var(--accent);
+}
+
+.title-lead-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (hover: hover) {
+    .title-sub > button.title-lead:hover {
+        background: var(--card-2);
+    }
+}
+
 /* Over the title's button, which takes the taps around it. */
 .title-sub > button.title-branch {
     position: relative;
@@ -5383,6 +5412,21 @@ pre.diff .del {
     flex-direction: column;
     padding: calc(env(safe-area-inset-top) + 14px) 12px calc(env(safe-area-inset-bottom) + 10px);
     container: sessions / inline-size;
+}
+
+/* Modules' sections at the top of the list (`pocket.sidebar`): they take what they need, up to about half the height. */
+.ext-sidebar {
+    flex: 0 1 auto;
+    max-height: 50%;
+    min-height: 0;
+    overflow-y: auto;
+    margin: 0 -4px 12px;
+    padding: 0 4px 10px;
+    border-bottom: 1px solid var(--line);
+}
+
+.ext-sidebar-section + .ext-sidebar-section {
+    margin-top: 10px;
 }
 
 .sessions-head {
@@ -21991,4 +22035,83 @@ pre.gallery-code {
     background: var(--accent-soft, var(--card));
     color: var(--accent);
     font: 12px var(--mono);
+}
+
+/* Sessions PiP's answer links, as cards under it: a tap opens one. */
+.pip-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.pip-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 480px;
+    min-height: 48px;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-card, 10px);
+    background: var(--card);
+    color: var(--body);
+    text-align: left;
+    cursor: pointer;
+    transition:
+        border-color var(--t-hover) var(--ease-out),
+        background-color var(--t-hover) var(--ease-out);
+}
+
+.pip-card > .folder-mark {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--folder, var(--accent));
+}
+
+.pip-card-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.pip-card-title {
+    overflow: hidden;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pip-card-detail {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.pip-card-state.needs-you {
+    color: var(--warn, var(--err));
+}
+
+.pip-card-state.working {
+    color: var(--accent);
+}
+
+.pip-card-chip {
+    padding: 0 6px;
+    border-radius: var(--r-tag);
+    background: var(--card-2);
+}
+
+@media (hover: hover) {
+    .pip-card:hover {
+        border-color: var(--line-strong);
+        background: var(--card-2);
+    }
 }

@@ -265,6 +265,8 @@ before(async () => {
         `(await import('/store.js')).store.state.me?.role === 'owner'`,
         "isolated owner signed in",
     );
+    // These are the floating panel's: PiP opens as a board unless Appearance says Floating.
+    await page.evaluate(`(await import('/theme.js')).setPrefs({ pip: 'floating' })`);
 });
 
 after(async () => {

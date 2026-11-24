@@ -76,6 +76,7 @@ const POCKET_MEMBERS: Record<keyof Pocket, true> = {
     sessionAction: true,
     sessionFilter: true,
     sessionSearch: true,
+    sidebar: true,
     composerKey: true,
     fence: true,
     mathInline: true,

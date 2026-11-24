@@ -34,7 +34,7 @@ import {
     panelsBeside,
     store,
 } from "./store.js";
-import { askPipFrom } from "./pip.js";
+import { askPipFrom, openPip } from "./pip.js";
 import { fromExtensions, SLOTS, slotsChanged } from "./slots.js";
 import { setCallSummary } from "./turns.js";
 import {
@@ -75,6 +75,7 @@ const KINDS = [
     "sessionAction",
     "sessionFilter",
     "sessionSearch",
+    "sidebar",
     "composerKey",
     "fence",
     "mathInline",
@@ -723,9 +724,16 @@ function check(kind, spec) {
     }
 
     if (
-        ["rail", "page", "sheet", "panel", "topbar", "composerButton", "sessionFilter"].includes(
-            kind,
-        )
+        [
+            "rail",
+            "page",
+            "sheet",
+            "panel",
+            "topbar",
+            "composerButton",
+            "sessionFilter",
+            "sidebar",
+        ].includes(kind)
     ) {
         text("title");
     } else if (kind === "status") {
@@ -788,7 +796,7 @@ function check(kind, spec) {
         }
     }
 
-    if (kind === "page" || kind === "sheet" || kind === "panel") {
+    if (kind === "page" || kind === "sheet" || kind === "panel" || kind === "sidebar") {
         if (typeof spec.component !== "function") {
             throw new Error(`${name} ${spec.id}: give it a component to show`);
         }
@@ -1257,6 +1265,7 @@ function pocketFor(record) {
         sessionAction: (spec) => add("sessionAction", spec),
         sessionFilter: (spec) => add("sessionFilter", spec),
         sessionSearch: (spec) => add("sessionSearch", spec),
+        sidebar: (spec) => add("sidebar", spec),
         composerKey: (spec) => add("composerKey", spec),
         fence: (spec) => add("fence", spec),
         mathInline: (spec) => add("mathInline", spec),
@@ -1289,6 +1298,14 @@ function pocketFor(record) {
                 }
 
                 return askPipFrom(`the extension “${record.title}”`, text, options?.send === true);
+            },
+            /** Open PiP where Appearance says, as its button does. */
+            open() {
+                tick(record);
+
+                if (live()) {
+                    void openPip();
+                }
             },
         }),
         /**
@@ -2818,6 +2835,39 @@ export function ExtensionSheet({ sheet }) {
             close=${close}
         />
     <//>`;
+}
+
+/**
+ * What modules add at the top of the session list (`pocket.sidebar`): each in its module's order, under a Guard, so one
+ * that fails says so in its place and the list goes on.
+ */
+export function SidebarSections() {
+    const sections = added("sidebar");
+
+    if (sections.length === 0) {
+        return null;
+    }
+
+    return html`<div class="ext-sidebar" data-part="extension-sidebar">
+        ${sections.map(
+            ({ record, spec }) => html`<section
+                key=${itemId(record, spec)}
+                class="ext-sidebar-section"
+                data-module=${record.module}
+                aria-label=${spec.title}
+            >
+                <${Guard}
+                    key=${`${record.url}#${componentId(spec.component)}`}
+                    name=${spec.title}
+                >
+                    <${Drawn}
+                        component=${spec.component}
+                        props=${{ pocket: record.pocket, close: () => {} }}
+                    />
+                <//>
+            </section>`,
+        )}
+    </div>`;
 }
 
 /**

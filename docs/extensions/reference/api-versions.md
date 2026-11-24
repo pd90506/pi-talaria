@@ -105,3 +105,5 @@ Each member in the reference has its own Since line. These parts came together:
 | `subagents: "always"` on a tool: the tool comes with every subagent that has a tool list (experimental)                                                           | 0.29.0 |
 | `host.pendingApprovals`: read-only approval snapshots and events (experimental)                                                                                   | 0.30.0 |
 | `host.annotateTurns`: notes for the model after a person's message (experimental)                                                                                 | 0.30.0 |
+| `pocket.sidebar`: a section at the top of the session list (experimental)                                                                                         | 0.31.0 |
+| `pocket.pip.open`: open PiP where Appearance says (experimental)                                                                                                  | 0.31.0 |
