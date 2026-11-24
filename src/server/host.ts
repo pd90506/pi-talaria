@@ -28,6 +28,7 @@ import type { FetchPublic } from "./public-fetch.ts";
 import type { BrowserControl } from "./browser/page.ts";
 import type { CommandEnvProvider, HiddenValue } from "./hidden.ts";
 import type { TurnAnnotator } from "./turn-notes.ts";
+import type { SessionMessage } from "./session-messages.ts";
 import type { AppEventName, AppEvents } from "./app-events.ts";
 import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import type { SettingField, SettingValue } from "./extension-settings.ts";
@@ -54,6 +55,10 @@ export interface LinkedSession {
      * everyone who sees the asking session sees this one too. A later run clears it.
      */
     failed?: string;
+    /** The session that started the asking one. */
+    lead?: true;
+    /** A session the asking one started. */
+    started?: true;
 }
 
 /** A linked session at work, as a stall watch sees it (`LinkedSessionsApi.activity`). */
@@ -128,6 +133,14 @@ export interface LinkedSessionsApi {
     ): Promise<{ take: boolean }>;
     /** The sessions linked to `source`, at any distance, that the person Pi works for there sees. */
     list(source: ConversationId): Promise<LinkedSession[]>;
+    /**
+     * Messages of the session at address `to` that `source` started, newest first, without tool calls (see
+     * `session-messages.ts`): `limit` up to 50, older than `before` when given.
+     */
+    read?(
+        source: ConversationId,
+        request: { to: string; limit?: number; before?: number },
+    ): Promise<{ messages: SessionMessage[]; before?: number }>;
     /** The sessions `source` started and takes the answers of, while they are at work: for a stall watch. */
     activity?(source: ConversationId): Promise<LinkedActivity[]>;
     /** Stop one stuck call of a session `source` leads; its run goes on. False when no such call runs. */
@@ -653,6 +666,16 @@ export interface PocketHost {
     readonly sessions: SessionsApi;
     /** The conversation's current working folder or workspace URI. @experimental @since 0.28.0 */
     cwdOf(conversationId: ConversationId): string;
+    /** The session that started this one as a linked session, if any. */
+    linkedFromOf?(conversationId: ConversationId): ConversationId | undefined;
+    /**
+     * This conversation's own messages, newest first, without tool calls (see `session-messages.ts`). For words a
+     * module checks a person typed here; never hand another session's messages to a caller that may not see it.
+     */
+    messagesOf?(
+        conversationId: ConversationId,
+        request?: { limit?: number; before?: number },
+    ): Promise<{ messages: SessionMessage[]; before?: number }>;
     /** Messages to Pi for later: the schedule tool sets up Pi's own. */
     readonly schedules: Pick<Schedules, "add" | "cancel" | "limits" | "list" | "task">;
     /** Archived sessions cleaned up and removed from the app. */

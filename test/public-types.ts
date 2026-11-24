@@ -85,7 +85,9 @@ type Internal =
     | "toolNames"
     | "stopToolCall"
     | "waitsForLimit"
-    | "alertOwner";
+    | "alertOwner"
+    | "linkedFromOf"
+    | "messagesOf";
 
 type PublicHost = Pick<PocketHost, keyof Host>;
 

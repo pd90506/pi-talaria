@@ -118,6 +118,7 @@ import { Pip, PIP_ONLY_EXTENSIONS } from "./pip.ts";
 import { PIP_COMPACT_CHOICES, PipCompaction } from "./pip-compact.ts";
 import { RepoWatches } from "./repo-watches.ts";
 import { snippet } from "./projection.ts";
+import { sessionMessages } from "./session-messages.ts";
 import { loadPromptTemplates, type PromptTemplate, type SkillCommand } from "./prompts.ts";
 import { BASE_THEME, Themes } from "./themes.ts";
 import { THEME_ID } from "./themes/format.ts";
@@ -960,6 +961,12 @@ export class PocketApp {
             linkedSessions: this.linkedSessions,
             sessions: this.extensionSessions,
             cwdOf: (conversationId) => this.cwdOf(conversationId),
+            linkedFromOf: (conversationId) => {
+                const lead = this.sessionMeta(conversationId)?.linkedFrom?.id;
+
+                return lead === undefined ? undefined : (lead as unknown as ConversationId);
+            },
+            messagesOf: (conversationId, request) => sessionMessages(this, conversationId, request),
             schedules: this.schedules,
             sessionCleanup: this.sessionCleanup,
             background: this.background,
