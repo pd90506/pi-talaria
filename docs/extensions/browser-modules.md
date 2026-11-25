@@ -139,7 +139,7 @@ These, and slots, came in 0.19.0, and are experimental: they can change in a min
 
 ## The session list
 
-These came in 0.20.0, and are experimental. Check that they are there (`typeof pocket.sessionChips === "function"`) to work with an older app too. Session tags, a built-in module (`src/server/extensions/session-tags.ts`), uses all four.
+These came in 0.20.0, and are experimental. Check that they are there (`typeof pocket.sessionChips === "function"`) to work with an older app too.
 
 - **`sessionChips({ id, chips(session) })`** puts chips under the titles of rows: `chips` gives `[{ label, title, run }]` for a session. A chip with `run` is a button. A row with chips is taller, and the space beside them opens the session.
 - **`sessionSearch({ id, words(session) })`** gives words that the session list's search and the launcher match, after the title and the folder. A row that only a word matches shows the word.

@@ -1124,7 +1124,7 @@ A filter button. `title`, `icon`, `iconPath`, and `badge` are as for a rail butt
 
 - `match`: whether the list keeps a session. Only `true` keeps it. While it is a function, the filter is on. Null or no `match` turns it off. The list can reuse the result until its sessions, grouping, search, or extensions change. Keep it fast, and do not call `pocket` in it. When the module's filter state changes, give `update` a new function: `added.update({ match: (session) => matches(session) })`. A `match` that throws stops its module in that browser, and the list then shows the sessions again.
 
-- `started`: runs when a person starts a session with **New session** at the top of the sidebar while the filter is on. It gets the new session's id, so the module can make the session meet the filter, as Session tags gives it the chosen tags. Other ways to start a session (the launcher, Alt+N) do not run it. When it throws or rejects, a notice says so.
+- `started`: runs when a person starts a session with **New session** at the top of the sidebar while the filter is on. It gets the new session's id, so the module can make the session meet the filter, as a tag filter would give it the chosen tags. Other ways to start a session (the launcher, Alt+N) do not run it. When it throws or rejects, a notice says so.
 
 The filter is in each tab that loads the module, not saved for the person: a module that wants its choices to last keeps them itself.
 

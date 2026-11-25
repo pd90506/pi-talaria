@@ -92,7 +92,7 @@ Ask these questions in this order. The first "yes" gives the answer.
 ### Session tags (#118, 0.20.0)
 
 - **Core:** the session list's extension points: chips on rows (`pocket.sessionChips`), words for the search and the launcher (`pocket.sessionSearch`), filters beside the search (`pocket.sessionFilter`), and actions on sessions (`pocket.sessionAction`). On the server, `request.sessions()` gives the sessions that a person can see, so a route checks ids with core's own rule.
-- **Built-in extension: Session tags** (`extensions/session-tags.ts` and `session-tags/`). Its document of tags, its routes, its chips, filter, and sheets. It is off by default. At run time it uses only `host` and `web`, as a drop-in does.
+- **Extension:** tags themselves. Pi Talaria dropped its built-in Session tags module; a drop-in can bring them back on these points.
 - **Why:** pull request #118, by Jeroen Dee (@jeroendee), first put tags in core, on the session list's stored data. Tags are a way to organize work that only some people want (C6), so the workflow became an extension, and the mechanism a set of extension points that other modules can use (C7). Who can see a session stays in core (C1, C9).
 
 ### Web access (#126, 0.20.0)
