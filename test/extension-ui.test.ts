@@ -294,7 +294,7 @@ after(async () => {
     cleanUp();
 });
 
-const rail = (title: string) => `.sidebar .rail-ext[title="${title}"]`;
+const rail = (title: string) => `.sidebar .nav-ext[title="${title}"]`;
 
 test(
     "a browser module's rail button opens its page, which calls its route and hears its events",
@@ -670,13 +670,13 @@ test("safe mode: ?noext=1 loads no browser modules in the tab, across a reload",
                 ),
             "the notice",
         );
-        assert.equal(await has(".rail-ext"), false);
+        assert.equal(await has(".nav-ext"), false);
 
         // A reload in the same tab keeps it.
         await page.navigate(`${base}/s/${session}`);
         await until(() => has(".composer"), "the conversation again");
         await sleep(500);
-        assert.equal(await has(".rail-ext"), false);
+        assert.equal(await has(".nav-ext"), false);
     } finally {
         await inPage<null>(`sessionStorage.removeItem("pocket.noext"); return "null"`);
     }
@@ -845,97 +845,6 @@ test(
             }
         } finally {
             await busy(false);
-            await page.setViewport(DESKTOP);
-        }
-    },
-);
-
-test(
-    "many rail buttons: the rail scrolls as a whole, and fades the edge where more is",
-    real,
-    async () => {
-        const measure = () =>
-            inPage<{
-                more: string | null;
-                scroll: number;
-                client: number;
-                groupScrolls: boolean;
-                lastIn: boolean;
-            }>(`
-                const rail = document.querySelector(".sidebar .rail");
-                const group = rail.querySelector(".rail-exts");
-                const last = [...rail.querySelectorAll(".rail-ext")].at(-1).getBoundingClientRect();
-                const box = rail.getBoundingClientRect();
-
-                return JSON.stringify({
-                    more: rail.dataset.more ?? null,
-                    scroll: rail.scrollHeight,
-                    client: rail.clientHeight,
-                    groupScrolls: group.scrollHeight > group.clientHeight,
-                    lastIn: last.top >= box.top && last.bottom <= box.bottom,
-                });
-            `);
-        const frames = () =>
-            page.evaluate(`
-                for (let frame = 0; frame < 3; frame++) {
-                    await new Promise((resolve) => requestAnimationFrame(resolve));
-                }
-            `);
-
-        try {
-            await page.setViewport({ ...DESKTOP, height: 560 });
-            await page.navigate(`${base}/s/${session}`);
-            await until(() => has(rail("Meter")), "the meter's rail button");
-            await withMeter(`
-                globalThis.manyRail = [];
-
-                for (let at = 0; at < 8; at++) {
-                    globalThis.manyRail.push(
-                        pocket.rail({ id: "many-" + at, title: "Many " + at, icon: "grid", run: () => {} }),
-                    );
-                }
-
-                return "null";
-            `);
-            await until(() => has(rail("Many 7")), "the eight buttons");
-            await frames();
-            const top = await measure();
-
-            // One scroller: the extensions' group shows all its buttons, and the rail says that more is below.
-            assert.equal(
-                top.groupScrolls,
-                false,
-                "the extensions' buttons do not scroll on their own",
-            );
-            assert.ok(
-                top.scroll > top.client,
-                `the rail is taller than the window: ${JSON.stringify(top)}`,
-            );
-            assert.equal(top.more, "down");
-            assert.equal(top.lastIn, false);
-
-            await page.evaluate(`document.querySelector(".sidebar .rail").scrollTop = 1e6`);
-            await frames();
-            const end = await measure();
-
-            assert.equal(end.more, "up");
-            assert.equal(end.lastIn, true, "the last button scrolls into view");
-
-            // Room for all: no fade.
-            await page.setViewport({ ...DESKTOP, height: 1400 });
-            await frames();
-            await until(
-                async () => (await measure()).more === null,
-                "no fade once everything shows",
-            );
-        } finally {
-            await withMeter(`
-                for (let at = 0; at < 8; at++) {
-                    globalThis.manyRail?.[at]?.remove();
-                }
-
-                return "null";
-            `);
             await page.setViewport(DESKTOP);
         }
     },

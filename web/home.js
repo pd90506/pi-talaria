@@ -4,7 +4,7 @@ import { folderColor } from "./colors.js";
 import { useEffect, useRef } from "preact/hooks";
 import { sessionMark } from "./sessions.js";
 import { canSteer, navigate, openSheet, scoped, store, workspaceOrder } from "./store.js";
-import { lookLabel, prefs } from "./theme.js";
+import { lookLabel } from "./theme.js";
 import { html, Icon, Keys, shortPath, timeAgo } from "./ui.js";
 
 const LOGO = [
@@ -21,7 +21,6 @@ const LOGO = [
 /** The home screen on wide screens: what fastfetch shows for a machine, for this Pi Pocket. */
 export function Splash() {
     const { me, sessions, models, server, guard } = store.state;
-    const p = prefs();
     const busy = sessions.filter((session) => session.busy && !session.archived).length;
     const recent = workspaceOrder().slice(0, 5);
     const splash = useRef(null);

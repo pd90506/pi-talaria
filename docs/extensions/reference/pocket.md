@@ -421,7 +421,7 @@ rail(spec: RailSpec): Added<RailSpec>;
 
 Since 0.14.0 · Stable
 
-Adds a button on the rail, after the app's own tools. It shows in the sidebar, in the drawer, and on a phone's home screen. See [`RailSpec`](#railspec).
+Adds a place to the sidebar, a row with its icon and title after New session and Search. It shows in the sidebar, in the drawer, and on a phone's home screen. See [`RailSpec`](#railspec).
 
 ### `menu`
 
@@ -785,15 +785,13 @@ type RailSpec = Action & {
 
 Since 0.14.0 · Stable
 
-A button on the rail.
+A place in the sidebar (the rail, by its older name).
 
 - `id`: the button's id in the module.
 - `title`: the button's label.
 - `icon`: the name of one of the app's icons, such as `pulse`, `grid`, `globe`, `key`, `chat`, `folder`, or `search`. An unknown name shows `grid`.
 - `iconPath`: an icon of your own, as the `d` of a stroked SVG path in a 24 × 24 box.
 - `badge`: a short count or word on the button. `0`, `NaN`, `-Infinity`, `""`, `"0"`, `null`, and `false` show no badge, as the app's own counts do at 0. A count that is too large shows a maximum with `+`. Long text is cut, also in the button's label, without cutting a character in two. [Limits](limits.md#browser-modules) gives the numbers.
-
-Modules' rail buttons have a fixed height together. When they need more, they scroll.
 
 ### `MenuSpec`
 
@@ -1114,7 +1112,7 @@ A filter button. `title`, `icon`, `iconPath`, and `badge` are as for a rail butt
 
 - `match`: whether the list keeps a session. Only `true` keeps it. While it is a function, the filter is on. Null or no `match` turns it off. The list can reuse the result until its sessions, grouping, search, or extensions change. Keep it fast, and do not call `pocket` in it. When the module's filter state changes, give `update` a new function: `added.update({ match: (session) => matches(session) })`. A `match` that throws stops its module in that browser, and the list then shows the sessions again.
 
-- `started`: runs when a person starts a session with **New** in the session list's head while the filter is on. It gets the new session's id, so the module can make the session meet the filter, as Session tags gives it the chosen tags. Other ways to start a session (the launcher, Alt+N, the rail) do not run it. When it throws or rejects, a notice says so.
+- `started`: runs when a person starts a session with **New session** at the top of the sidebar while the filter is on. It gets the new session's id, so the module can make the session meet the filter, as Session tags gives it the chosen tags. Other ways to start a session (the launcher, Alt+N) do not run it. When it throws or rejects, a notice says so.
 
 The filter is in each tab that loads the module, not saved for the person: a module that wants its choices to last keeps them itself.
 
@@ -1478,7 +1476,7 @@ Since 0.14.0 · Stable
 
 ## CSS names Pi Pocket keeps
 
-To look like the app, use its colors and classes. The colors follow the theme. Pi Pocket keeps these names. The rest of its CSS can change. These names are a subset of [the theme surface](theme-surface.md#extensions-css-names), the one full list of the tokens, parts, and states Pi Pocket keeps.
+To look like the app, use its colors and classes. The colors follow the theme. Pi Pocket keeps these names. The rest of its CSS can change.
 
 - Colors: `var(--text)`, `var(--muted)`, `var(--accent)`, `var(--bg)`, `var(--card)`, `var(--line)`, `var(--err)`, `var(--warn)`, and `var(--ok)`.
 - Classes: `button` (with `primary`), `error-box`, `muted`, `small`, `mono`, and `setting` (a row with a label and a control).

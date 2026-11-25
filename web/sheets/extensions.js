@@ -2,7 +2,7 @@
 // its context.
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { browserModuleState, leaveSafeMode, safeMode } from "../extension-ui.js";
-import { api, attempt, closeSheet, openSheet, store } from "../store.js";
+import { api, attempt, closeSheet, store } from "../store.js";
 import { html, Icon, Loader, Sheet, shortPath, Switch } from "../ui.js";
 import { personColor } from "../colors.js";
 

@@ -225,8 +225,8 @@ after(async () => {
 
 test("Board: the ways in open it, and Back, Alt+A, and its × close it", real, async () => {
     await fresh("board");
-    await page.click({ selector: ".rail-pip" });
-    await boarded("the rail button");
+    await page.click({ selector: ".talaria-nav-pip" });
+    await boarded("the sidebar's PiP");
     await page.evaluate(`history.back()`);
     await shut("Back");
     await backTo(background, "the session after Back");
@@ -288,13 +288,13 @@ test("Board: the session under it stays marked open, and is where it closes to",
     assert.equal(await markedOpen(), Number(background));
 
     // Running now takes PiP's place.
-    await page.click({ selector: ".rail-running" });
+    await page.click({ selector: ".nav-running" });
     await see(
         `document.querySelector('.running-board') !== null && !${PIP}.pipShown()`,
         "Running now",
     );
     await settle();
-    await page.click({ selector: ".rail-pip" });
+    await page.click({ selector: ".talaria-nav-pip" });
     await boarded("PiP over Running now");
     await page.evaluate(`${PIP}.closePip()`);
     await backTo(background, "the session it was first opened over");

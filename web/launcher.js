@@ -152,15 +152,9 @@ function actionItems() {
             icon: "home",
             run: () => navigate(null),
         },
-        wide && {
-            label: prefs().sidebar === "rail" ? "Unfold the sidebar" : "Fold the sidebar",
-            icon: "sidebar",
-            keys: "Mod B",
-            run: () => setPrefs({ sidebar: prefs().sidebar === "rail" ? "open" : "rail" }),
-        },
         {
             label: "Appearance",
-            detail: "theme, colors, tiling, motion, text size, thinking, reply speed",
+            detail: "light or dark, text size, thinking, reply speed",
             icon: "palette",
             run: () => openSheet({ type: "appearance" }),
         },

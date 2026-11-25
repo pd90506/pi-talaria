@@ -308,6 +308,8 @@ export const store = {
         board: false,
         /** Every subagent in every session, while the board shows; null until the server's first list arrives. */
         boardAgents: null,
+        /** The running board's filter as the sidebar opened it: `"scheduled"` for its Scheduled place, else null. */
+        boardFilter: null,
         /** An extension's page in the conversation's place, as the board shows (`extension-ui.js`): `{ module, id }`. */
         page: null,
         /**
@@ -2914,7 +2916,7 @@ export const panelsBeside = () => PANEL_DOCK.matches;
 function sheetChange(sheet) {
     // Running now was a sheet; it is a board in the conversation's place now, wherever an old caller asks for it.
     if (sheet?.type === "running") {
-        return { sheet: null, board: "running", boardAgents: null, page: null };
+        return { sheet: null, board: "running", boardAgents: null, boardFilter: null, page: null };
     }
 
     return { sheet };
@@ -3076,7 +3078,14 @@ export function closeSheet() {
 
 /** Show the Running now board in the conversation's place (`running-board.js`), over whatever sheet was open. */
 export function openRunning() {
-    store.set({ board: "running", boardAgents: null, drawer: false, page: null, sheet: null });
+    store.set({
+        board: "running",
+        boardAgents: null,
+        boardFilter: null,
+        drawer: false,
+        page: null,
+        sheet: null,
+    });
 }
 
 // Per-person, per-conversation drafts survive reloads, including the automatic ones after a live edit.

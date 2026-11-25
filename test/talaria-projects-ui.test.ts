@@ -1,4 +1,4 @@
-// Projects' page in a real Chromium, at a phone's size: the rail button opens it, the form makes a project, and the
+// Projects' page in a real Chromium, at a phone's size: the sidebar's place opens it, the form makes a project, and the
 // app opens the new project's coordinator; back on the page, the project is listed.
 import { type App, cleanUp, context, openApp, root, say, scriptedModel, until } from "./helpers.ts";
 import assert from "node:assert/strict";
@@ -68,8 +68,8 @@ after(async () => {
 
 test("the Projects page makes a project and opens its coordinator", real, async () => {
     await page.navigate(`${base}/`);
-    await until(() => has('.rail-ext[title="Projects"]'), "the Projects rail button");
-    await inPage(`document.querySelector('.rail-ext[title="Projects"]').click(); return "null"`);
+    await until(() => has('.nav-ext[title="Projects"]'), "the Projects place in the sidebar");
+    await inPage(`document.querySelector('.nav-ext[title="Projects"]').click(); return "null"`);
     await until(() => has(".talaria-new input"), "the Projects page");
     assert.equal(await has(".talaria-projects .list-item"), false);
 
@@ -111,8 +111,8 @@ test("the Projects page makes a project and opens its coordinator", real, async 
 
     // Back on the page, from home, the project is listed.
     await page.navigate(`${base}/`);
-    await until(() => has('.rail-ext[title="Projects"]'), "the Projects rail button");
-    await inPage(`document.querySelector('.rail-ext[title="Projects"]').click(); return "null"`);
+    await until(() => has('.nav-ext[title="Projects"]'), "the Projects place in the sidebar");
+    await inPage(`document.querySelector('.nav-ext[title="Projects"]').click(); return "null"`);
     await until(
         async () =>
             (await inPage<string>(
@@ -163,8 +163,8 @@ test("the Projects page lists a project's threads by state", real, async () => {
     }, context);
 
     await page.navigate(`${base}/`);
-    await until(() => has('.rail-ext[title="Projects"]'), "the Projects rail button");
-    await inPage(`document.querySelector('.rail-ext[title="Projects"]').click(); return "null"`);
+    await until(() => has('.nav-ext[title="Projects"]'), "the Projects place in the sidebar");
+    await inPage(`document.querySelector('.nav-ext[title="Projects"]').click(); return "null"`);
     await until(() => has(".talaria-review"), "the Ready for review group");
     assert.deepEqual(
         await inPage<string[]>(

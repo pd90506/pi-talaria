@@ -108,14 +108,13 @@ const DEFAULTS = {
 
 /**
  * What the one look fixes, which code elsewhere still reads: no tiled windows, the system's motion, the usual spacing
- * and widths, the sidebar open, no session tabs, no peek tiles, and every slot in the app's own order.
+ * and widths, no session tabs, no peek tiles, and every slot in the app's own order.
  */
 const FIXED = {
     tiling: false,
     motion: "auto",
     density: "comfortable",
     width: "comfortable",
-    sidebar: "open",
     sessionTabs: false,
     peeks: false,
     layout: {},

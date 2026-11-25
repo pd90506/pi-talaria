@@ -307,7 +307,7 @@ const FILTERS = [
 export function RunningBoard() {
     const { board, error, reload } = useBoard();
     const phone = useMatches(PHONE);
-    const [filter, setFilter] = useState("all");
+    const [filter, setFilter] = useState(() => store.state.boardFilter ?? "all");
     const [query, setQuery] = useState("");
     const [range, setRange] = useState("day");
     const [selected, setSelected] = useState(null);

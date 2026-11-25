@@ -36,7 +36,6 @@ A drop-in extension stays when Pi Pocket updates, and the owner can turn it off 
     - The members of `host`, `web`, and `pocket` are in [extensions/reference/](extensions/reference/host.md).
     - The exact types are in [types/pocket.d.ts](../types/pocket.d.ts).
     - Working examples are in [examples/](examples/).
-- extensions/themes.md: how to make a theme, which changes how the app looks and is laid out. Every token and part is in [extensions/reference/theme-surface.md](extensions/reference/theme-surface.md).
 - [extensions/policies/](extensions/policies/index.md): the rules for extensions and changes to Pi Pocket: what belongs in core, the public API and how it changes, the security model for authors, and the gallery's review.
 - [self-editing.md](self-editing.md): how to change Pi Pocket's code while it runs, check the change, and undo a change that breaks it.
 - [embedders.md](embedders.md): the app bridge, for an embedder (an app that shows Pi Pocket inside itself, such as an Electron or Tauri wrapper): `/api/pocket/info`, `window.pocketHost`, and notifications without Web Push.

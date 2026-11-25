@@ -374,7 +374,7 @@ test(
     real,
     async () => {
         await inPage(`globalThis.labelsFilter.update({ match: () => true }); return "null"`);
-        await page.click({ selector: ".sidebar .new-button" });
+        await page.click({ selector: ".sidebar .nav-new" });
         await until(
             () =>
                 inPage<boolean>(

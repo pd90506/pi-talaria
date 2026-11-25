@@ -46,7 +46,6 @@ export const SIDEBAR = [
             ["docs/extensions/reference/web.md", "web"],
             ["docs/extensions/reference/pocket.md", "pocket"],
             ["docs/extensions/reference/command-context.md", "Command context"],
-            ["docs/extensions/reference/theme-surface.md", "Theme surface"],
             ["docs/extensions/reference/names.md", "Names"],
             ["docs/extensions/reference/limits.md", "Limits"],
             ["docs/extensions/reference/api-versions.md", "API versions"],

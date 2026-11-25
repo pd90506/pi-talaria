@@ -1478,7 +1478,7 @@ test("Pi's question shows its answers as buttons a thumb can tap", real, async (
 
 // Issue #131: a phone on its side with a notch. Another Chromium fakes the safe-area insets on its own page.
 test(
-    "with a notch, the rail, the top bar, and the message box clear it; with none, nothing moves",
+    "with a notch, the sidebar's column, the top bar, and the message box clear it; with none, nothing moves",
     real,
     async (t) => {
         const WIDTH = 844;
@@ -1524,7 +1524,7 @@ test(
             });
             await until(
                 () =>
-                    run<boolean>(`return !!document.querySelector(".home-list > .rail")`).catch(
+                    run<boolean>(`return !!document.querySelector(".home-list > .side")`).catch(
                         () => false,
                     ),
                 "the session list",
@@ -1570,14 +1570,19 @@ test(
                 );
             };
 
-            await clear(".home-list > .rail button, .home-list > .rail .avatar");
+            await clear(".home-list > .side button");
             await enter(notched);
             await clear(".topbar button");
             await clear(".composer-wrap .composer");
 
             const plain = await visit(0);
 
-            assert.deepEqual(await edges(plain, ".home-list > .rail"), [{ left: 0, right: 56 }]);
+            assert.equal(
+                await plain<string>(
+                    `return getComputedStyle(document.querySelector(".home-list > .side")).paddingLeft`,
+                ),
+                "0px",
+            );
             await enter(plain);
             assert.deepEqual(
                 await plain<string[]>(`

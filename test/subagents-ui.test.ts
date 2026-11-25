@@ -188,7 +188,7 @@ test("the board shows a sub-tile for each subagent at work, with what it does", 
     await started(0);
     await page.setViewport(VIEWPORTS.desktop);
     await settled();
-    await page.click({ selector: ".rail-agents" });
+    await page.click({ selector: ".nav-agents" });
     await see(
         `return JSON.stringify((await import("/store.js")).store.state.board === "subagents")`,
         "the board",
@@ -393,7 +393,7 @@ test(
 
         await page.setViewport(VIEWPORTS.desktop);
         await settled();
-        await page.click({ selector: ".rail-running" });
+        await page.click({ selector: ".nav-running" });
         await see(
             `return JSON.stringify((await import("/store.js")).store.state.board === "running" && document.querySelector(".running-board") !== null)`,
             "the Running now board",
@@ -455,7 +455,7 @@ test(
         await page.setViewport(VIEWPORTS.desktop);
         await page.navigate(`${base}/s/${id}`);
         await settled();
-        await page.click({ selector: ".rail-running" });
+        await page.click({ selector: ".nav-running" });
         await see(
             `return JSON.stringify(document.querySelectorAll(".rb-timeline .rb-pin.repeat").length > 1)`,
             "the repeat's times on the timeline",

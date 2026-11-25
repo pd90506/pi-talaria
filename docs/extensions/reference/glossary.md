@@ -176,7 +176,7 @@ One open copy of the app in a browser.
 
 ### rail
 
-The column of buttons at the edge of the app: in the sidebar, in the drawer, and on a phone's home screen.
+The sidebar's places, a row each under New session and Search: in the sidebar, in the drawer, and on a phone's home screen. `pocket.rail` adds one; the name is older than the sidebar's look.
 
 ### menu
 

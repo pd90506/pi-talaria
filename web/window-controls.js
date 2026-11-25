@@ -4,7 +4,7 @@ const overlay = navigator.windowControlsOverlay;
 const root = document.documentElement;
 
 const BARS =
-    ".tabstrip, .topbar, .viewer-head, .lightbox-bar, .board-head, .files-bar, .ext-panel-bar, .browser-bar, .people-head";
+    ".topbar, .viewer-head, .lightbox-bar, .board-head, .files-bar, .ext-panel-bar, .browser-bar, .people-head";
 const PUSHED = ".drawer, .home-list, .layout > .window";
 const LAYOUT = `${BARS}, .drawer, .home-list, .layout, .window`;
 const NOTCH_GAP = 6;
@@ -319,7 +319,7 @@ if (overlay) {
     // Windows, viewers, and bars come and go; the sidebar folds, shows, and hides with the width and the person's
     // choices. A mutation is seen before the frame that shows it, so those make room at once. The rest (a streamed
     // reply's words) is checked a little later.
-    new MutationObserver(update).observe(root, { attributeFilter: ["data-rail", "data-tiling"] });
+    new MutationObserver(update).observe(root, { attributeFilter: ["data-tiling"] });
     new MutationObserver((records) => (moves(records) ? update() : soon())).observe(document.body, {
         childList: true,
         subtree: true,
