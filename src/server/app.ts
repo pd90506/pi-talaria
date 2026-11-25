@@ -100,7 +100,6 @@ import { compactionReader } from "./compaction.ts";
 import { configureHttp } from "./net.ts";
 import { expandHome, workspaceScheme } from "./paths.ts";
 import { createPublicFetch } from "./public-fetch.ts";
-import { PiSessions } from "./pi-sessions.ts";
 import { Hooks } from "./hooks.ts";
 import { Inbox, type InboxDelivery } from "./inbox.ts";
 import { Pip, PIP_ONLY_EXTENSIONS } from "./pip.ts";
@@ -410,7 +409,6 @@ export class PocketApp {
     /** The conversation's stored history, as people read it. */
     readonly transcripts = new Transcripts(this);
     /** Pi's sessions from the terminal, which the owner can continue here. */
-    readonly piSessions = new PiSessions(this);
     /** PiP, the owner's assistant: its conversation, what its tools do, and the follows that report to it. */
     readonly pip = new Pip(this);
     /** PiP's context kept small: compacted sooner than a session's, with summaries of its own (`pip-compact.ts`). */
@@ -2725,7 +2723,7 @@ export class PocketApp {
                 const failure = this.#failed.get(Number(id) as unknown as ConversationId);
                 const failedAgents = failedSubagents(subagents.get(id) ?? []);
                 const ask = asks.get(id);
-                // Which of Pi's sessions it continues is the owner's to know (the Pi sessions sheet), not the list's.
+                // Which of Pi's sessions an older session continued is not the list's to show.
                 const { fromPi: _fromPi, linkedFrom, ...shown } = meta;
                 // Linking does not share the origin: do not leak its id to someone who only sees the new chat.
                 const origin =
