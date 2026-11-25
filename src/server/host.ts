@@ -97,6 +97,11 @@ export interface LinkedSessionsApi {
             model?: string;
             thinking?: string;
             cwd?: string;
+            /**
+             * Start it as a project thread: unlike other linked sessions, it may start linked sessions of its own (its
+             * helpers), which may not. Its helpers' spend counts against its limit too.
+             */
+            thread?: boolean;
         },
         key: string,
     ): Promise<{ session: ConversationId; address: string; answers?: boolean }>;

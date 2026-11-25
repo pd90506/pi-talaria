@@ -279,6 +279,7 @@ export class LinkedSessions implements LinkedSessionsApi {
 
         lifetime?.addEventListener("abort", close, { once: true });
 
+        const mayLead = () => this.#mayLead(source);
         const admissionContext: Context = {
             // Durable reads cancellation when its queued admission enters the mutation line. Check synchronous
             // config here too; no Session calls, writes, or asynchronous work are allowed in this getter.
@@ -294,7 +295,7 @@ export class LinkedSessions implements LinkedSessionsApi {
 
                     if (
                         current.sessions !== undefined ||
-                        app.sessionMeta(source)?.linkedFrom !== undefined ||
+                        !mayLead() ||
                         app.sessionMeta(target)?.linkedFrom?.id !== Number(source)
                     ) {
                         throw new HttpError(403, "This person cannot start linked sessions.");
@@ -728,6 +729,13 @@ export class LinkedSessions implements LinkedSessionsApi {
         return sessionMessages(app, id, request);
     }
 
+    /** Whether `source` may start linked sessions: one that is not linked, or a project thread (`SessionMeta.thread`). */
+    #mayLead(source: ConversationId): boolean {
+        const meta = this.#app.sessionMeta(source);
+
+        return meta?.linkedFrom === undefined || meta.thread === true;
+    }
+
     #family(source: ConversationId, user: User) {
         const sessions = this.#app.sessions(user);
         const found = new Set([Number(source)]);
@@ -772,6 +780,7 @@ export class LinkedSessions implements LinkedSessionsApi {
             model?: string;
             thinking?: string;
             cwd?: string;
+            thread?: boolean;
         },
         key: string,
     ): Promise<{ session: ConversationId; address: string; answers: boolean }> {
@@ -786,6 +795,7 @@ export class LinkedSessions implements LinkedSessionsApi {
             model?: string;
             thinking?: string;
             cwd?: string;
+            thread?: boolean;
         },
         key: string,
         actor?: RequestActor,
@@ -961,7 +971,13 @@ export class LinkedSessions implements LinkedSessionsApi {
     async #create(
         source: ConversationId,
         user: User,
-        request: { title: string; model?: string; thinking?: string; cwd?: string },
+        request: {
+            title: string;
+            model?: string;
+            thinking?: string;
+            cwd?: string;
+            thread?: boolean;
+        },
         token: string,
         actor?: RequestActor,
         approved?: StartSettings,
@@ -973,7 +989,7 @@ export class LinkedSessions implements LinkedSessionsApi {
             throw new HttpError(403, "You were invited to one session and cannot start new ones.");
         }
 
-        if (app.sessionMeta(source)?.linkedFrom !== undefined) {
+        if (!this.#mayLead(source)) {
             throw new HttpError(403, "A linked session cannot start sessions.");
         }
 
@@ -1011,10 +1027,7 @@ export class LinkedSessions implements LinkedSessionsApi {
                     );
                 }
 
-                if (
-                    user.sessions !== undefined ||
-                    app.sessionMeta(source)?.linkedFrom !== undefined
-                ) {
+                if (user.sessions !== undefined || !this.#mayLead(source)) {
                     throw new HttpError(403, "This person or source cannot start linked sessions.");
                 }
             }
@@ -1048,6 +1061,12 @@ export class LinkedSessions implements LinkedSessionsApi {
                 updatedAt: now,
                 createdBy: user.id,
                 linkedFrom: { id: Number(source) },
+                // Only an extension's own call makes a thread, and only a session that is not linked leads one.
+                ...(request.thread === true &&
+                actor === undefined &&
+                app.sessionMeta(source)?.linkedFrom === undefined
+                    ? { thread: true as const }
+                    : {}),
             };
             receipt.conversationId = Number(child.id);
             receipt.by = user.id;

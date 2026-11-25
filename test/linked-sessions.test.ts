@@ -436,6 +436,53 @@ test("a start or send is refused in plan mode or past a spend limit", async () =
     await app.spend.setSessionBudget(owner(app), id, null);
 });
 
+test("a project thread may start helpers, which may not, and its limit covers what they spend", async () => {
+    const id = await source();
+    const { session: thread } = await app.linkedSessions.start(
+        id,
+        { title: "Thread", message: "a task", thread: true },
+        crypto.randomUUID(),
+    );
+
+    assert.equal(app.sessionMeta(thread)?.thread, true);
+    await until(async () => (await sent(thread)) === 1, "the thread's first message");
+
+    const { session: helper } = await start(thread);
+
+    assert.equal(app.sessionMeta(helper)?.linkedFrom?.id, Number(thread));
+    assert.equal(app.sessionMeta(helper)?.thread, undefined);
+    await until(async () => (await sent(helper)) === 1, "the helper's first message");
+    // A helper cannot start sessions, and a linked session cannot make one of its own a thread.
+    await assert.rejects(start(helper), /cannot start/);
+
+    const { session: plain } = await app.linkedSessions.start(
+        id,
+        { title: "Plain", message: "a task" },
+        crypto.randomUUID(),
+    );
+
+    await assert.rejects(start(plain), /cannot start/);
+
+    const { session: notThread } = await app.linkedSessions.start(
+        thread,
+        { title: "Nested", message: "a task", thread: true },
+        crypto.randomUUID(),
+    );
+
+    assert.equal(app.sessionMeta(notThread)?.thread, undefined);
+
+    // What a helper spends counts against the thread's own limit, and the thread shows it.
+    await recordCost(app, helper, 0.02);
+    await until(() => app.spend.sessionSpent(helper) === 0.02, "the spend");
+    await app.spend.setSessionBudget(owner(app), thread, 0.01);
+    await assert.rejects(start(thread), /spend limit/);
+    assert.equal(
+        app.spend.summary(owner(app)).sessions.find((each) => each.id === Number(thread))?.spent,
+        0.02,
+    );
+    await app.spend.setSessionBudget(owner(app), thread, null);
+});
+
 test("an unavailable model creates no session", async (t) => {
     const id = await source();
     const count = app.sessions().length;

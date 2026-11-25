@@ -274,6 +274,8 @@ test("the coordinator's prompt says it coordinates the project, and its thread s
 
     assert.ok(thread, "a thread");
     assert.equal(thread.cwd, work);
+    // A thread may start helpers of its own.
+    assert.equal(app.sessionMeta(thread.id as never)?.thread, true);
     await until(
         async () =>
             (await modelTexts(app, thread.id as never)).some((text) =>
@@ -288,6 +290,7 @@ test("the coordinator's prompt says it coordinates the project, and its thread s
     assert.match(brief, /<cited author=\\"user\\"[^>]*>\\nSTART_THREAD please/);
     // The thread's own rules are in its prompt.
     assert.match(requests.join("\n"), /You are a thread of the project \\"My App\\"/);
+    assert.match(requests.join("\n"), /you may start helpers with the team tool/);
 
     // The thread's final answer comes back to the coordinator by itself.
     await until(
