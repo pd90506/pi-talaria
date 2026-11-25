@@ -24,6 +24,7 @@ import {
     AuthorsDoc,
     type Decision,
     DecisionsDoc,
+    ReactionsDoc,
     type Goal,
     GoalDoc,
     HeldDoc,
@@ -71,6 +72,7 @@ export const ROOM_DOCS = new Set(
         ArtifactsDoc,
         SubagentsDoc,
         DecisionsDoc,
+        ReactionsDoc,
         PlanDoc,
         ScheduleDoc,
         GoalDoc,
@@ -361,6 +363,8 @@ export class Room {
     watch: PrWatch | undefined;
     /** The sessions this one knows by an address (`linked-sessions.ts`): whom each linked session's message is from. */
     peers: Record<string, number> = {};
+    /** Pi's emoji reactions to the person's messages (`react` tool): entry id → emoji → who reacted (`pi`). */
+    reactions: Record<string, Record<string, string[]>> = {};
     parent: { id: ConversationId; title: string } | undefined;
     subagentName: string | undefined;
 
@@ -415,6 +419,9 @@ export class Room {
         this.decisions = {
             ...((await harness.snapshot(DecisionsDoc, this.id, context))?.calls ?? {}),
         };
+        this.reactions = {
+            ...((await harness.snapshot(ReactionsDoc, this.id, context))?.entries ?? {}),
+        };
         this.plan = { ...((await harness.snapshot(PlanDoc, this.id, context)) ?? { on: false }) };
         this.schedules = {
             ...((await harness.snapshot(ScheduleDoc, this.id, context))?.items ?? {}),
@@ -455,6 +462,8 @@ export class Room {
     setDoc(kind: string, value: Record<string, unknown> | null): void {
         if (kind === DecisionsDoc.definition.kind) {
             this.decisions = { ...((value?.calls as Record<string, Decision>) ?? {}) };
+        } else if (kind === ReactionsDoc.definition.kind) {
+            this.reactions = { ...((value?.entries as Room["reactions"]) ?? {}) };
         } else if (kind === PlanDoc.definition.kind) {
             this.plan = { on: false, ...((value as Room["plan"] | null) ?? {}) };
         } else if (kind === ScheduleDoc.definition.kind) {
@@ -771,6 +780,7 @@ export class Room {
                 ),
             ),
             decisions: this.decisions,
+            reactions: this.reactions,
             plan: this.plan,
             schedules: Object.values(this.schedules)
                 .sort((a, b) => a.next - b.next)

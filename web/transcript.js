@@ -846,8 +846,27 @@ function UserMessage({ entry, view, users }) {
                     </div>`
                 }
                 <${MessageExtras} entry=${entry} attachments=${attachments} />
+                <${PiReactions} reactions=${view.reactions?.[entry.id]} />
             </div>
         </div>
+    </div>`;
+}
+
+/** Pi's emoji reactions to a person's message (the react tool), as the server keeps them: emoji → who reacted. */
+function PiReactions({ reactions }) {
+    const shown = Object.entries(reactions ?? {}).filter(([, who]) => who.includes("pi"));
+
+    if (shown.length === 0) {
+        return null;
+    }
+
+    return html`<div class="pi-reactions" data-part="pi-reactions">
+        ${shown.map(
+            ([emoji]) =>
+                html`<span class="pi-reaction" title="Pi reacted" aria-label=${`Pi reacted ${emoji}`}
+                    >${emoji}</span
+                >`,
+        )}
     </div>`;
 }
 
@@ -2760,6 +2779,8 @@ function rowDeps(entry) {
 
     if (entry.kind === "user") {
         deps.push(view.authors?.[entry.id]);
+        // Pi's reactions to it: the server sends a new object only when they change.
+        deps.push(view.reactions?.[entry.id]);
 
         if (entry.text.startsWith("[subagent ")) {
             deps.push(agentsKey(view));

@@ -2673,7 +2673,7 @@ kbd {
     }
 }
 
-/* Under Pi's answers: reactions, then React, Discuss, Pin, Copy, and More. */
+/* Under Pi's answers: Copy, and More. */
 .answer-actions {
     display: flex;
     flex-wrap: wrap;
@@ -2684,38 +2684,27 @@ kbd {
     line-height: 1.6;
 }
 
-.reaction {
+/* Pi's emoji reactions under a person's message (the react tool): read-only, one pill each. */
+.pi-reactions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.pi-reaction {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    height: 26px;
-    padding: 0 10px;
+    height: 24px;
+    padding: 0 8px;
     border: 1px solid var(--hair-2);
     border-radius: var(--r-pill);
-    color: var(--text);
-    white-space: nowrap;
-    transition:
-        border-color var(--t-hover) var(--ease-out),
-        background-color var(--t-hover) var(--ease-out);
+    font-size: 14px;
+    line-height: 1;
+    animation: pop 0.2s var(--ease-out);
 }
 
-.reaction > span {
-    font: 11.5px var(--mono);
-}
-
-@media (hover: hover) {
-    .reaction:hover {
-        border-color: var(--edge);
-    }
-}
-
-.reaction.mine {
-    border-color: var(--accent-line);
-    background: var(--accent-soft);
-}
-
-.answer-actions > button.answer-tool,
-.reaction.add {
+.answer-actions > button.answer-tool {
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -2733,8 +2722,7 @@ kbd {
 }
 
 @media (hover: hover) {
-    .answer-actions > button.answer-tool:hover,
-    .reaction.add:hover {
+    .answer-actions > button.answer-tool:hover {
         color: var(--text);
         background: var(--hover);
     }
@@ -2750,40 +2738,6 @@ kbd {
     .answer-actions:focus-within > .answer-tool,
     .answer-actions.picking > .answer-tool {
         opacity: 1;
-    }
-}
-
-.reaction-host {
-    position: relative;
-    display: inline-flex;
-}
-
-/* The six emoji, in a popover over the button. */
-.reaction-picker {
-    position: absolute;
-    bottom: calc(100% + 6px);
-    left: 0;
-    z-index: 5;
-    display: flex;
-    gap: 2px;
-    padding: 4px;
-    border-radius: var(--r-card);
-    background: var(--panel);
-    box-shadow: var(--pop);
-    animation: pop 0.2s var(--ease-out);
-}
-
-.reaction-picker button {
-    width: 32px;
-    height: 32px;
-    border-radius: var(--r-row);
-    font-size: 17px;
-    line-height: 1;
-}
-
-@media (hover: hover) {
-    .reaction-picker button:hover {
-        background: var(--hover);
     }
 }
 
