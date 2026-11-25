@@ -4,7 +4,27 @@ import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { browserModuleState, leaveSafeMode, safeMode } from "../extension-ui.js";
 import { api, attempt, closeSheet, openSheet, store } from "../store.js";
 import { html, Icon, Loader, Sheet, shortPath, Switch } from "../ui.js";
-import { ACCESS_WORDS, galleryApi, galleryAvailable, Tile } from "./gallery.js";
+import { personColor } from "../colors.js";
+
+/** Who a browser module or a route is for, in words. */
+const ACCESS_WORDS = {
+    owner: "the owner",
+    steer: "people who can steer",
+    view: "everyone who sees every session",
+};
+
+/** A module's tile: its icon, or its first letter, in a color of its own. */
+function Tile({ name, title, icon = null }) {
+    const letter = (title ?? name ?? "?").trim().charAt(0).toUpperCase() || "?";
+
+    return html`<span
+        class="ext-tile"
+        style=${`--tint:${personColor(name ?? title ?? "")}`}
+        aria-hidden="true"
+    >
+        ${icon ? html`<${Icon} name=${icon} size=${11} />` : letter}
+    </span>`;
+}
 
 /** The guide for people who write extensions: its first page, on the docs site, which describes the latest release. */
 const GUIDE = "https://tannermidd.github.io/pi-pocket/docs/extensions/first-extension/";
@@ -297,58 +317,6 @@ function SafeMode() {
     </div>`;
 }
 
-/**
- * How a drop-in the gallery installed stands (`installed`: the gallery's word on it), or, for one of the owner's own, a
- * way to share it. Nothing for the rest.
- */
-function GalleryPart({ module, installed, busy, turnOff }) {
-    if (!galleryAvailable() || module.source !== "drop-in") {
-        return null;
-    }
-
-    if (!installed) {
-        return html`<div class="extension-gallery">
-            <button
-                class="link small"
-                onClick=${() => openSheet({ type: "gallery-share", id: module.file })}
-            >
-                Share…
-            </button>
-        </div>`;
-    }
-
-    return html`${
-        installed.revoked !== null &&
-        html`<div class="error-box small">
-            The gallery revoked this version: ${installed.revoked}
-            ${
-                module.enabled &&
-                html`<div class="sheet-actions">
-                    <button class="button small primary" disabled=${busy} onClick=${turnOff}>
-                        Turn it off
-                    </button>
-                </div>`
-            }
-        </div>`
-    }
-    <div class="extension-gallery">
-        <span class="pi-tag gallery-plain">from the gallery · ${installed.version}</span>
-        ${installed.update && html`<span class="pi-tag behind">update available</span>`}
-        <button
-            class="link small"
-            onClick=${() =>
-                openSheet({
-                    type: "gallery-entry",
-                    id: installed.name,
-                    tab: "installed",
-                    origin: store.state.sheet?.origin ?? "extensions",
-                })}
-        >
-            Details
-        </button>
-    </div>`;
-}
-
 /** When PiP compacts its own context: once idle above so many tokens (`pip-compact.ts`), or only as sessions do. */
 const PIP_COMPACT = [
     [0, "As sessions do"],
@@ -410,7 +378,6 @@ const ICONS = {
     "memory.ts": "pin",
     "pip.ts": "pip",
     "triggers.ts": "pulse",
-    "gallery.ts": "grid",
     "agent-teams.ts": "fork",
     "guard.ts": "shield",
     "anthropic-subscription.ts": "key",
@@ -424,16 +391,8 @@ function summaryOf(module) {
     return rest.charAt(0).toUpperCase() + rest.slice(1);
 }
 
-/** The same management controls standalone or in the hub's Installed tab. */
-export function ExtensionsContent({
-    galleryInstalled,
-    query = "",
-    onChanged = () => {},
-    hub = false,
-    before = null,
-    beforeCount = 0,
-    between = null,
-}) {
+/** The modules, each with its switch, settings, and details. */
+export function ExtensionsContent({ query = "", onChanged = () => {} }) {
     const { me } = store.state;
     const owner = me?.role === "owner";
     const [data, setData] = useState(null);
@@ -446,25 +405,11 @@ export function ExtensionsContent({
     const [open, setOpen] = useState(new Set());
     const guardCancel = useRef(null);
     const guardSwitch = useRef(null);
-    // What the gallery installed, by module file: read after the list, and never in the way of it.
-    const [fromGallery, setFromGallery] = useState(new Map());
     const load = () =>
         api("extensions").then(
             (result) => {
                 setData(result);
                 setProblem(null);
-
-                if (
-                    galleryInstalled === undefined &&
-                    galleryAvailable() &&
-                    result.modules.some((each) => each.source === "drop-in")
-                ) {
-                    galleryApi("installed").then(
-                        ({ items }) =>
-                            setFromGallery(new Map(items.map((each) => [each.file, each]))),
-                        () => {},
-                    );
-                }
             },
             (error) =>
                 setProblem(
@@ -476,7 +421,7 @@ export function ExtensionsContent({
 
     useEffect(() => {
         load();
-    }, [galleryInstalled]);
+    }, []);
     // The model download changes the guard's status in every tab (the server pushes it): read the list again.
     const modelState = store.state.guard?.model?.state;
 
@@ -539,34 +484,22 @@ export function ExtensionsContent({
         setOpen(next);
     };
 
-    const installedByFile =
-        galleryInstalled === undefined
-            ? fromGallery
-            : new Map(galleryInstalled.map((item) => [item.file, item]));
     const needle = query.trim().toLowerCase();
     const managed = (data?.modules ?? []).filter(
         (module) =>
-            (galleryInstalled === undefined ||
-                !installedByFile.has(module.file) ||
-                // Failed gallery modules stay here: the hub's own rows show their errors.
-                (!hub &&
-                    (module.error ||
-                        browserModuleState(module.file.replace(/\.ts$/, ""))?.status ===
-                            "failed"))) &&
-            (!needle ||
-                [
-                    module.title,
-                    module.file,
-                    module.summary ?? "",
-                    ...module.extensions.flatMap((extension) => extension.tools),
-                ].some((text) => text.toLowerCase().includes(needle))),
+            !needle ||
+            [
+                module.title,
+                module.file,
+                module.summary ?? "",
+                ...module.extensions.flatMap((extension) => extension.tools),
+            ].some((text) => text.toLowerCase().includes(needle)),
     );
 
     const row = (module) => {
         const tools = module.extensions.flatMap((extension) => extension.tools);
         const guard = module.file === "guard.ts";
         const note = guard ? guardNote(module, data.guard) : null;
-        const installed = installedByFile.get(module.file);
         const isOpen = open.has(module.file);
         const id = `ext-more-${module.file.replace(/[^a-z0-9]/gi, "-")}`;
 
@@ -588,8 +521,6 @@ export function ExtensionsContent({
                 </span>
                 ${module.summary && html`<span class="ext-row-desc" title=${summaryOf(module)}>${summaryOf(module)}</span>`}
                 ${module.error && html`<span class="ext-row-meta warn">Did not load</span>`}
-                ${installed?.revoked && html`<span class="ext-row-meta warn">The gallery revoked this version</span>`}
-                ${installed?.update && html`<span class="ext-row-meta accent">An update is ready</span>`}
             </button>
             <div class="ext-row-end">
                 ${
@@ -698,12 +629,6 @@ export function ExtensionsContent({
                         module.web?.settings &&
                         html`<${ModuleSettings} module=${module.file.replace(/\.ts$/, "")} />`
                     }
-                    <${GalleryPart}
-                        module=${module}
-                        installed=${installed}
-                        busy=${busy !== null}
-                        turnOff=${() => change(module, "", { enabled: false })}
-                    />
                     <div class="muted small mono">
                         ${module.source === "drop-in" ? `drop-in${module.path ? ` · ${shortPath(module.path, store.state.server?.home)}` : ""}` : module.file}
                         ${tools.length > 0 ? ` · tools: ${tools.join(", ")}` : ""}
@@ -725,58 +650,6 @@ export function ExtensionsContent({
             }
         </div>`;
     };
-
-    if (hub) {
-        const yours = managed.filter((module) => module.source === "drop-in");
-        const builtIn = managed.filter((module) => module.source !== "drop-in");
-        const on = builtIn.filter((module) => module.enabled).length;
-
-        return html`<div class="extension-management hub">
-            <${SafeMode} />
-            ${problem && html`<div class="error-box">${problem}</div>`}
-            ${!data && !problem && html`<${Loader} label="Loading extensions" />`}
-            ${
-                builtIn.length > 0 &&
-                html`<section class="ext-section ext-builtins">
-                    <div class="ext-section-head">
-                        <h3 class="ext-section-title">Built in <span>${builtIn.length}</span></h3>
-                        <span class="muted small">${on} on, ${builtIn.length - on} off</span>
-                    </div>
-                    <div class="ext-list">${builtIn.map(row)}</div>
-                </section>`
-            }
-            ${
-                (beforeCount > 0 || yours.length > 0) &&
-                html`<section class="ext-section">
-                    <h3 class="ext-section-title">Extensions <span>${beforeCount + yours.length}</span></h3>
-                    ${before}
-                    ${yours.length > 0 && html`<div class="ext-list">${yours.map(row)}</div>`}
-                </section>`
-            }
-            ${between}
-            ${
-                data &&
-                needle &&
-                managed.length === 0 &&
-                beforeCount === 0 &&
-                html`<p class="muted small">Nothing installed matches.</p>`
-            }
-            ${
-                owner &&
-                html`<footer class="ext-footer">
-                    ${
-                        data?.dropIns &&
-                        html`<span>
-                            Make your own: a <span class="mono">.ts</span> module in <span class="mono">${shortPath(data.dropIns, store.state.server?.home)}</span> stays off until you turn it on.
-                        </span>`
-                    }
-                    <a class="link small" href=${GUIDE} target="_blank" rel="noopener noreferrer">
-                        How to write one <${Icon} name="external" size=${13} />
-                    </a>
-                </footer>`
-            }
-        </div>`;
-    }
 
     return html`<div class="extension-management">
         <p class="ext-intro">
@@ -808,13 +681,6 @@ export function ExtensionsContent({
         ${
             owner &&
             html`<footer class="ext-footer">
-                ${
-                    galleryInstalled === undefined &&
-                    galleryAvailable() &&
-                    html`<button class="link small" onClick=${() => openSheet({ type: "gallery" })}>
-                        <${Icon} name="search" size=${14} /> Find extensions
-                    </button>`
-                }
                 ${
                     data?.dropIns &&
                     html`<span>

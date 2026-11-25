@@ -281,7 +281,6 @@ stopWatching = (() => {
     ];
 
     opened.loader.watch();
-    opened.themes.watch();
 
     return () => {
         for (const each of stops) {
@@ -291,12 +290,6 @@ stopWatching = (() => {
 })();
 
 const token = encodeURIComponent(opened.config.ownerToken);
-
-// An update this process started for is done only now: a start that fails before here, the launcher undoes. One that
-// stopped part way is put back, and the server restarts on the files before.
-await opened.updates.recover().catch((error: unknown) => {
-    console.error(`Pi Pocket could not finish its update: ${(error as Error).message}`);
-});
 
 if (launcher) {
     process.send?.({

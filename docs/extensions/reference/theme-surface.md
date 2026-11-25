@@ -1,6 +1,6 @@
 # The theme surface
 
-What a theme may rely on, at theme API version 1: the tokens (CSS variables), the parts (`data-part` names), their states, and the page's own attributes. [../themes.md](../themes.md) is the guide. `web/theme-surface.js` lists the tokens and parts, and `test/theme-surface.test.ts` checks that each one is still there.
+What a theme may rely on, at theme API version 1: the tokens (CSS variables), the parts (`data-part` names), their states, and the page's own attributes. ../themes.md is the guide. `web/theme-surface.js` lists the tokens and parts, and `test/theme-surface.test.ts` checks that each one is still there.
 
 This page is the one full list of the CSS names Pi Pocket keeps. Every name on it is there since 0.14.0, the first release with themes; a later one says since when. Everything else in the app's CSS and markup (class names, the order of elements) may change in any release.
 
@@ -60,7 +60,7 @@ Set by Colors (`colors.toml`, an Omarchy palette, or the desktop's). A theme rea
 
 | Token                                                          | Default                                                                                                                                                                                                                                                     |
 | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--sans`, `--mono`                                             | Geist for words; JetBrains Mono for code, paths, counts, keys. The app's other fonts a theme can name: [themes.md](../themes.md)                                                                                                                            |
+| `--sans`, `--mono`                                             | Geist for words; JetBrains Mono for code, paths, counts, keys. The app's other fonts a theme can name: themes.md                                                                                                                                            |
 | `--ligatures`                                                  | `none`: no ligatures, as in a terminal. `contextual` turns on a font's `calt`; `normal`, all its usual ones                                                                                                                                                 |
 | `--r-mark`, `--r-tag`, `--r-seg`, `--r-row`, `--r-control`     | 2, 4, 5, 6, 7 px: state squares, tags, segments, rows, fields                                                                                                                                                                                               |
 | `--r-card`, `--r-window`, `--r-sheet`, `--r-float`, `--r-pill` | 8, 10, 12, 12, 999 px: cards, windows, sheets, PiP, pills                                                                                                                                                                                                   |

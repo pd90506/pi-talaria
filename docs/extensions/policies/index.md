@@ -5,7 +5,7 @@ The guides tell how to do a thing. These policies tell what is permitted, and wh
 ## How to read them
 
 - **Must** and **do not** are rules. **Should** is a strong recommendation. **Can** and **may** give a choice.
-- Each rule has an ID: C for [core or extension](core-or-extension.md), A for [the API](api-stability.md), S for [security](security-model.md), and G for [the gallery](gallery-review.md). Use the ID in issues and reviews, for example "G14".
+- Each rule has an ID: C for [core or extension](core-or-extension.md), A for [the API](api-stability.md), S for [security](security-model.md), and G for the gallery. Use the ID in issues and reviews, for example "G14".
 - Each rule has a reason. When a case is not in the rules, use the reasons to decide.
 - These pages collect rules from [extensions.md](../../extensions.md), [SECURITY.md](../../../SECURITY.md), and the gallery's index, and add their own. When they do not agree, tell us in an issue. Until it is fixed, obey the stricter text.
 
@@ -17,7 +17,7 @@ The guides tell how to do a thing. These policies tell what is permitted, and wh
 
 **[The security model for extension authors](security-model.md).** What a module can do, and who can reach it. A drop-in runs with the owner's rights, and a browser module with the rights of the person whose tab loads it. The page tells who reaches routes and commands, which input is untrusted, where secrets must not go, and what Lancet Guard does not see.
 
-**[Gallery entries and their review](gallery-review.md).** The rules for an entry in the gallery's index, what its checks and its maintainers check, and what gets refused. It also tells how updates are reviewed, and what happens to entries that are abandoned, revoked, or removed.
+**Gallery entries and their review.** The rules for an entry in the gallery's index, what its checks and its maintainers check, and what gets refused. It also tells how updates are reviewed, and what happens to entries that are abandoned, revoked, or removed.
 
 ## Changes to these pages
 

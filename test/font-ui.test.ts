@@ -12,7 +12,7 @@ import {
     until,
 } from "./helpers.ts";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -105,41 +105,12 @@ async function open(): Promise<Look> {
     `);
 }
 
-/** Choose a theme in Appearance, as a person does. */
-async function choose(name: string): Promise<void> {
-    await sheet("appearance");
-    await see(
-        `return JSON.stringify([...document.querySelectorAll(".look-grid > *")].some((card) => card.textContent.includes(${JSON.stringify(name)})))`,
-        `the ${name} theme`,
-    );
-    await page.evaluate(`
-        const card = [...document.querySelectorAll(".look-grid > *")].find((each) => each.textContent.includes(${JSON.stringify(name)}));
-
-        (card.querySelector("button") ?? card).click();
-    `);
-    await see(
-        `return JSON.stringify(document.documentElement.dataset.theme !== "pocket")`,
-        `${name} in use`,
-    );
-    await sheet(null);
-}
-
 before(async () => {
     if (chromium === undefined) {
         return;
     }
 
     app = await openApp(scriptedModel());
-    // The owner's theme: the app's own look, in Inter and Fira Code, with ligatures.
-    const theme = join(app.dataDir, "themes", "reader");
-
-    mkdirSync(theme, { recursive: true });
-    writeFileSync(join(theme, "theme.json"), JSON.stringify({ themeApi: 1, name: "Reader" }));
-    writeFileSync(
-        join(theme, "theme.css"),
-        `:root { --sans: "Pocket Inter", sans-serif; --mono: "Pocket Fira Code", "Pocket Nerd Symbols", monospace; --ligatures: contextual; }\n`,
-    );
-    await app.themes.load();
 
     const handler = createHandler({
         app,
@@ -205,72 +176,6 @@ test(
 );
 
 test(
-    "a guest who chooses the owner's theme gets its fonts and ligatures, preloaded on a reload",
-    real,
-    async () => {
-        await page.evaluate(`localStorage.clear()`);
-        await open();
-        await choose("Reader");
-
-        const shown = await open();
-
-        assert.equal(shown.prose, "Pocket Inter");
-        assert.equal(shown.code, "Pocket Fira Code");
-        assert.equal(shown.ligatures, "contextual");
-        assert.deepEqual(shown.preloads, [
-            "/fonts/InterVariable.woff2",
-            "/fonts/FiraCode-VF.woff2",
-        ]);
-        // JetBrains Mono may come too, for a character Fira Code lacks; Geist never.
-        assert.ok(
-            !shown.loaded.includes("Pocket Sans"),
-            "the default font for words is not fetched",
-        );
-    },
-);
-
-test(
-    "the message box measures again when a theme's font changes how its text wraps",
-    real,
-    async () => {
-        await page.evaluate(`localStorage.clear()`);
-        await open();
-        // Wide letters: Inter's are wider than Geist's, so the text wraps onto more lines and the box must grow.
-        await page.type({ selector: ".composer textarea" }, "WWWW ".repeat(30));
-
-        // The height the box should have: its text's own, measured with nothing else on the page changing it. Its own
-        // height is put back as it was: a fixed one would keep the box from sizing itself (`field-sizing`) after.
-        const fits = `
-        const box = document.querySelector(".composer textarea");
-        const height = box.offsetHeight;
-        const inline = box.style.height;
-
-        box.style.height = "auto";
-        const wanted = Math.min(box.scrollHeight, innerHeight * 0.4);
-        box.style.height = inline;
-
-        return JSON.stringify(Math.abs(height - wanted) <= 1 ? height : -1);
-    `;
-        const before = await inPage<number>(fits);
-
-        assert.ok(before > 0, "the box fits its text in the default font");
-        await choose("Reader");
-        await see(
-            `return JSON.stringify(getComputedStyle(document.querySelector(".composer textarea")).fontFamily.includes("Pocket Inter") && document.fonts.status === "loaded")`,
-            "the box in the theme's font",
-        );
-
-        const after = await inPage<number>(fits);
-
-        assert.ok(
-            after > 0,
-            "the box fits its text in the theme's font, with no typing to make it measure",
-        );
-        assert.ok(after > before, "the box grew with the wider font");
-    },
-);
-
-test(
     "the Nerd Fonts icons come from a file that loads only for them, one cell wide",
     real,
     async () => {
@@ -302,102 +207,6 @@ test(
         assert.equal(drawn.width, 1, "each icon one letter wide, so columns line up");
     },
 );
-
-test(
-    "the owner picks a theme's fonts in Appearance: they show at once, for whoever uses it, and stay",
-    real,
-    async () => {
-        // A sheet just closed goes back through history a moment later, which cancels a navigation under way.
-        await until(
-            async () =>
-                (
-                    await page.navigate(
-                        `${base}/login?token=${encodeURIComponent(app.config.ownerToken)}`,
-                    )
-                ).error === undefined,
-            "a sign-in that is not cancelled",
-        );
-        // Signed in as the guest, the link asks first.
-        await page.click({ selector: "form button" });
-        await see(
-            `return JSON.stringify((await import("/store.js")).store.state.me?.role === "owner")`,
-            "signed in as the owner",
-        );
-        await page.evaluate(`localStorage.clear()`);
-        await open();
-        // The app's own look: its fonts, and a way to a copy that can change, not menus.
-        await sheet("appearance");
-        await see(
-            `const tools = document.querySelector(".font-tools");
-
-            return JSON.stringify(tools?.querySelector(".font-title").textContent === "Fonts for Pocket" && tools.querySelector("select") === null && tools.textContent.includes("Geist") && tools.textContent.includes("JetBrains Mono") && tools.textContent.includes("Duplicate to change"))`,
-            "Pocket's fonts, to duplicate",
-        );
-        await sheet(null);
-        await choose("Reader");
-        await sheet("appearance");
-        await see(
-            `return JSON.stringify(document.querySelector(".font-title")?.textContent === "Fonts for Reader" && [...document.querySelectorAll(".font-tools select")].map((menu) => menu.value).join() === "Pocket Inter,Pocket Fira Code")`,
-            "the menus showing the theme's fonts",
-        );
-        await page.select({ selector: ".font-tools .font-menu:nth-of-type(2) select" }, "Iosevka");
-        await see(
-            `return JSON.stringify(getComputedStyle(document.querySelector(".font-preview code")).fontFamily.startsWith('"Pocket Iosevka"'))`,
-            "the preview in the new code font",
-        );
-        await page.evaluate(`document.querySelector('.font-tools [role="switch"]').click()`);
-        await see(
-            `return JSON.stringify(getComputedStyle(document.querySelector(".font-preview code")).fontVariantLigatures === "none")`,
-            "ligatures switched off",
-        );
-        await page.evaluate(
-            `[...document.querySelectorAll('.font-tools button')].find((button) => button.textContent.trim() === "Theme's own").click()`,
-        );
-        await see(
-            `return JSON.stringify(getComputedStyle(document.querySelector(".font-preview code")).fontVariantLigatures === "contextual")`,
-            "the theme's own ligatures restored",
-        );
-        await sheet(null);
-
-        const shown = await open();
-
-        assert.equal(shown.prose, "Pocket Inter", "the text font as it was");
-        assert.equal(shown.code, "Pocket Iosevka");
-        assert.equal(shown.ligatures, "contextual");
-        assert.ok(
-            shown.preloads.includes("/fonts/Iosevka-Regular.woff2"),
-            "the new font preloaded",
-        );
-    },
-);
-
-test("message jumps use the app's motion choice instead of the OS query", real, async () => {
-    await open();
-    const modes = await inPage<string[]>(`
-        const { setPrefs } = await import('/theme.js');
-        const { jumpToEntry } = await import('/jump.js');
-        const id = Number(document.querySelector('[id^="entry-"]').id.slice(6));
-        const scroll = Element.prototype.scrollIntoView;
-        const query = window.matchMedia;
-        const modes = [];
-        Element.prototype.scrollIntoView = (options) => modes.push(options.behavior);
-        try {
-            window.matchMedia = (text) => text === '(prefers-reduced-motion: reduce)' ? { matches: false } : query(text);
-            setPrefs({ motion: 'reduced' });
-            await jumpToEntry(id);
-            window.matchMedia = (text) => text === '(prefers-reduced-motion: reduce)' ? { matches: true } : query(text);
-            setPrefs({ motion: 'full' });
-            await jumpToEntry(id);
-        } finally {
-            Element.prototype.scrollIntoView = scroll;
-            window.matchMedia = query;
-            setPrefs({ motion: 'auto' });
-        }
-        return JSON.stringify(modes);
-    `);
-
-    assert.deepEqual(modes, ["auto", "smooth"]);
-});
 
 /** Wait until the sheet stops moving: it rises as it opens, and a click mid-rise misses. */
 const settled = () =>

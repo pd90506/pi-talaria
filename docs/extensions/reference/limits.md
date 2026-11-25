@@ -19,7 +19,7 @@ All the numbers that limit a module, in one place. Each group links to the guide
 - **An id of a rail button, menu row, launcher action, page, sheet, panel, status item, top bar button, message box button, or action under answers:** 64 characters at most. [Browser modules](../browser-modules.md)
 - **A command's name:** 64 characters at most. [Slash commands](../commands.md)
 - **An event's name:** 1 to 64 characters. [Events](../events.md)
-- **A gallery entry's name:** 2 to 64 characters. [Publishing to the gallery](../publishing.md)
+- **A gallery entry's name:** 2 to 64 characters. Publishing to the gallery
 
 ## Host
 
@@ -154,7 +154,7 @@ All the numbers that limit a module, in one place. Each group links to the guide
 
 ## Gallery
 
-[Publishing to the gallery](../publishing.md), [Gallery entry](gallery-entry.md)
+Publishing to the gallery, Gallery entry
 
 - **The index:** 4 MB at most, with 2000 entries at most.
 - **The index's `name`:** 80 characters at most. Its `repo`: 160 characters at most.
@@ -179,13 +179,13 @@ All the numbers that limit a module, in one place. Each group links to the guide
 - **Presentations of one module:** 32 at most.
 - **A kind:** `x.<module>.<name>`. `<name>` is 1 to 64 characters: a letter or a digit, then letters, digits, `_`, and `-`.
 - **A label:** one line of 80 characters at most, with no control characters.
-- **A `userPrefix`:** up to 200 characters, at least 3 of them not spaces, and not starting with `[` (the app's own inputs nobody typed do). It cannot start another module's `userPrefix`, or start with one, nor another of the same module's.
+- **A `userPrefix`:** up to 200 characters, at least 3 of them not spaces, and not starting with `` (the app's own inputs nobody typed do). It cannot start another module's `userPrefix`, or start with one, nor another of the same module's.
 - **`entry.data.summary`:** whitespace collapsed to one line, and past 200 characters cut to 199 and "…".
 - **Modes this browser remembers:** 256 kinds; past that, the one chosen longest ago is forgotten. Each is `open`, `folded`, or `hidden`.
 
 ## Themes
 
-[Themes](../themes.md)
+[Themes
 
 - **A theme's id (its folder's name):** 2 to 48 characters.
 - **`theme.json`:** 8 KB. Its `name` and `author`: 60 characters each; its `description`: 200; its `version` and `minPocket`: 32.

@@ -40,7 +40,7 @@ This page is the map. Read all of it, then only the pages that your task needs.
 | Send live updates to the browser                                | [Events](extensions/events.md)                                                                                  |
 | Stop timers and close connections when a module loads again     | [Cleanups](extensions/cleanups.md)                                                                              |
 | Test a module                                                   | [Testing](extensions/testing.md)                                                                                |
-| Share a module, or install one that other people wrote          | [Publishing to the gallery](extensions/publishing.md)                                                           |
+| Share a module, or install one that other people wrote          | Publishing to the gallery                                                                                       |
 | Move a module into Pi Pocket itself                             | [Making it built in](extensions/built-in.md)                                                                    |
 | Find a member of `host`, `web`, `pocket`, or a command's `ctx`  | [The reference](extensions/reference/host.md), and the exact types in [types/pocket.d.ts](../types/pocket.d.ts) |
 | Find a limit, or what a word means                              | [Limits](extensions/reference/limits.md), [Glossary](extensions/reference/glossary.md)                          |
@@ -52,7 +52,7 @@ This page is the map. Read all of it, then only the pages that your task needs.
 
 - It stays when Pi Pocket updates.
 - It starts off. The owner turns it on in Menu → Extensions.
-- Drop-ins that other people wrote come from the gallery, and the owner can share their own there ([Publishing to the gallery](extensions/publishing.md)).
+- Drop-ins that other people wrote come from the gallery, and the owner can share their own there (Publishing to the gallery).
 
 A drop-in runs inside the server, with the owner's rights. It can read `config.json`, with the owner's token, and each session. Lancet Guard never sees what its code does. Its browser module, if it has one, runs in the app's own page, with the rights of the person whose tab loads it. Before you ask the owner to turn on a drop-in, show the owner the whole module, its browser files too, and say what it does.
 
