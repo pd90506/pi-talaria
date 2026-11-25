@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-process.env.PI_POCKET_GUARD = "off";
 const { sniffImage } = await import("../src/server/http/assets.ts");
 const { uploadMime } = await import("../src/server/http/conversation-routes.ts");
 

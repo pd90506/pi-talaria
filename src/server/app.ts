@@ -91,7 +91,6 @@ import {
     type WebAccess,
     type WorkspaceProvider,
 } from "./host.ts";
-import { type GuardStatus, LancetGuard } from "./lancet.ts";
 import { takeLock } from "./lock.ts";
 import { pendingApprovalsFor } from "./pending-approvals.ts";
 import { Memory } from "./memory.ts";
@@ -166,8 +165,6 @@ export type AccessInfo = {
     url?: string;
 };
 
-/** The extension module that runs Lancet Guard on tool calls. */
-const GUARD_FILE = "guard.ts";
 /** How long the server waits, when it stops, for extension modules' cleanups that wait. */
 const CLEANUP_LIMIT_MS = 3000;
 /** The extension module with the browser tool. While it is off, the Browser panel is off too. */
@@ -371,7 +368,6 @@ export class PocketApp {
     /** Push subscriptions and their keys; undefined until the server opened. */
     pushStore: PushStore | undefined;
     readonly approvals = new Approvals((id) => this.attribution.requesterOf(id));
-    readonly guard = new LancetGuard();
     readonly dataDir: string;
     readonly defaultCwd: string;
     readonly supervised: boolean;
@@ -451,7 +447,7 @@ export class PocketApp {
     readonly browsers: Browsers;
     /** What extension modules add to the app: their routes, browser modules, and events (`extension-web.ts`). */
     readonly webs: ExtensionWebs;
-    /** Core's own secrets: hidden in every session, and kept from Pi by Lancet Guard (`secrets.ts`). */
+    /** Core's own secrets: hidden in every session (`secrets.ts`). */
     readonly secrets: CoreSecrets;
     #websTimer: NodeJS.Timeout | undefined;
     /** Whose tabs the next `hello` for browser modules goes to: those who may use any of these. */
@@ -631,7 +627,6 @@ export class PocketApp {
             settingsOf: (module) => this.webs.settingsOf(module),
             log: (line) => this.#log(line),
         });
-        this.guard.protect = (tool, args, cwd) => this.secrets.blocked(tool, args, cwd);
     }
 
     /**
@@ -843,7 +838,6 @@ export class PocketApp {
             }),
         );
         const host: PocketHost = {
-            guard: this.guard,
             approvals: this.approvals,
             pendingApprovals: pendingApprovalsFor(this),
             agentDir: getAgentDir(),
@@ -1047,10 +1041,6 @@ export class PocketApp {
                 () => {},
             );
         });
-
-        if (this.guardOn()) {
-            void this.guard.warm().catch(() => {});
-        }
 
         // Core's secrets are hidden before any work goes on, with the settings the modules that loaded declare.
         this.secrets.sync();
@@ -1769,8 +1759,8 @@ export class PocketApp {
     }
 
     /**
-     * Start sending a tab its events. The tab may close during the waits here (opening a room, or the guard's status
-     * right after a restart, when every browser reconnects at once): `detach` has then run, and the tab must not be added.
+     * Start sending a tab its events. The tab may close during the waits here (opening a room right after a restart,
+     * when every browser reconnects at once): `detach` has then run, and the tab must not be added.
      */
     async attach(client: Client): Promise<void> {
         const arriving = !this.#online(client.user.id);
@@ -2544,7 +2534,6 @@ export class PocketApp {
             user: helloUser(user),
             users: this.people(user),
             models: await this.modelList(),
-            guard: await this.guardStatus(),
             server: {
                 pocketVersion: pocketVersion(),
                 supervised: this.supervised,
@@ -2593,7 +2582,7 @@ export class PocketApp {
                 // The most hours a run waits for a provider's limit to clear; 0: it does not wait (`limit-gate.ts`).
                 limitWaitHours: this.config.limitWaitHours,
             },
-            // Read after the guard's wait, so a connecting device does not replace a live update with an older list.
+            // Read last, so a connecting device does not replace a live update with an older list.
             folderFavorites: await this.folderFavorites.list(user),
         };
     }
@@ -3436,30 +3425,8 @@ export class PocketApp {
 
     // ─── Extensions ─────────────────────────────────────────────────────────
 
-    /** Whether Lancet Guard's module is on here; Pi's own setting may still turn the guard off. */
-    guardOn(): boolean {
-        return this.loader.enabled(GUARD_FILE);
-    }
-
-    /** Lancet Guard as it applies here: Pi's own setting, unless the guard extension is off in Pi Pocket. */
-    async guardStatus(): Promise<GuardStatus> {
-        const status = await this.guard.status();
-
-        if (this.guardOn()) {
-            return status;
-        }
-
-        return {
-            available: status.available,
-            enabled: false,
-            detail: "Lancet Guard is off in Pi Pocket: bash, background, write, and edit calls run unchecked here.",
-        };
-    }
-
     /** The extension modules, as this person may see them: where the server keeps files is for the owner only. */
-    async extensions(
-        user: User,
-    ): Promise<{ modules: ExtensionInfo[]; guard: GuardStatus; dropIns?: string }> {
+    async extensions(user: User): Promise<{ modules: ExtensionInfo[]; dropIns?: string }> {
         const owner = user.role === "owner";
         // A load error can name the server's folders too.
         // Modules' routes are the owner's to know: others see only whose tabs load a browser module.
@@ -3480,10 +3447,8 @@ export class PocketApp {
                   },
         );
 
-        // The guard row shows Pi's own setting, so the owner can tell "off here" from "off everywhere".
         return {
             modules,
-            guard: await this.guard.status(),
             ...(owner ? { dropIns: join(this.dataDir, "extensions") } : {}),
         };
     }
@@ -3519,10 +3484,6 @@ export class PocketApp {
             await this.#refreshClients();
         }
 
-        if (file === GUARD_FILE && enabled) {
-            void this.guard.warm().catch(() => {});
-        }
-
         if (file === BROWSER_FILE && !enabled) {
             await this.browsers.closeAll();
         }
@@ -3555,41 +3516,6 @@ export class PocketApp {
         } finally {
             await this.#refreshClients();
         }
-    }
-
-    /**
-     * The owner starts the LANCET model download. It runs on in the background; every tab hears each step in the guard's
-     * status, and everyone in the app is told how it ended.
-     */
-    async setupGuardModel(user: User): Promise<void> {
-        if (user.role !== "owner") {
-            throw new HttpError(403, "Only the owner can do that");
-        }
-
-        if (this.guard.directory === undefined) {
-            throw new HttpError(400, "specpi-lancet-guard is not installed in Pi");
-        }
-
-        if ((await this.guard.model())?.state === "ready") {
-            return;
-        }
-
-        const refresh = () => void this.#refreshClients().catch(() => {});
-        const run = this.guard.setupModel(refresh);
-
-        this.notice("info", `${user.name} started the LANCET model download.`);
-        refresh();
-        run.then(
-            () => {
-                this.notice("info", "The LANCET model is installed.");
-
-                if (this.guardOn()) {
-                    void this.guard.warm().catch(() => {});
-                }
-            },
-            (error: unknown) =>
-                this.notice("warning", `The LANCET model download failed: ${describe(error)}`),
-        ).finally(refresh);
     }
 
     /** The owner changes who may allow risky calls. */
@@ -3954,7 +3880,6 @@ export class PocketApp {
             this.#unsubscribeRunEnds?.();
             this.#unsubscribeApprovals?.();
             this.#unsubscribeBrowsers?.();
-            this.guard.close();
 
             // Modules' cleanups may wait (closing a connection), but not for long: the rest must close too.
             const cleaned = this.loader?.close();

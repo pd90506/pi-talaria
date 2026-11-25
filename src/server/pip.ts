@@ -74,7 +74,6 @@ export const PIP_EXTENSIONS = [
     PIP_EXTENSION,
     "pocket-artifacts",
     "pocket-schedules",
-    "pocket-guard",
     "pocket-codemode",
     "pocket-memory",
     PROJECTS_PIP_EXTENSION,

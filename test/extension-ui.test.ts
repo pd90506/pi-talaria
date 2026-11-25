@@ -683,34 +683,6 @@ test("safe mode: ?noext=1 loads no browser modules in the tab, across a reload",
     }
 });
 
-test("Lancet Guard stays on until its inline confirmation is accepted", real, async () => {
-    await app.setExtensionEnabled(owner(app), "guard.ts", true);
-    await page.navigate(`${base}/s/${session}`);
-    await until(() => has(".composer"), "the conversation");
-    await inPage(
-        `(await import("/store.js")).openSheet({ type: "extensions", tab: "installed" }); return "null";`,
-    );
-    await until(() => has('.switch[aria-label="Lancet Guard: on"]'), "the guard switch");
-    await settled();
-    await inPage(
-        `document.querySelector('.switch[aria-label="Lancet Guard: on"]').focus(); return "null";`,
-    );
-    await page.press("Space");
-    await until(() => has(".guard-confirm"), "the inline confirmation");
-    assert.equal(await has('.switch[aria-label="Lancet Guard: on"]'), true);
-    await page.press("Enter");
-    await until(async () => !(await has(".guard-confirm")), "Keep it on cancels");
-    assert.equal(await has('.switch[aria-label="Lancet Guard: on"]'), true);
-    await page.press("Space");
-    await until(() => has(".guard-confirm"), "the confirmation to accept");
-    await page.press("Tab");
-    await page.press("Enter");
-    await until(
-        () => has('.switch[aria-label="Lancet Guard: off"]:focus'),
-        "guard off and focus restored",
-    );
-});
-
 test(
     "Send, and while Pi works Stop, stay inside the message box on every phone width, with extension buttons and with more",
     real,

@@ -197,29 +197,9 @@ test("past a spend limit Pi takes no more rounds toward the goal", async () => {
     assert.equal(goal?.status, "working", "the goal stays, for when the limit is raised");
 });
 
-test("a goal needs the right to drive, and Lancet Guard's leave for its check", async () => {
+test("a goal needs the right to drive", async () => {
     const id = await sessionIn("rules");
     const viewer = app.config.addUser("Vee", "viewer").user;
 
     await assert.rejects(app.commands.setGoal(id, viewer, "npm test"), { status: 403 });
-    // With the guard on, a check it would ask about cannot run unasked after every answer.
-    const enabled = app.loader.enabled;
-    const judge = app.guard.judge;
-
-    app.loader.enabled = (file: string) => file === "guard.ts" || enabled.call(app.loader, file);
-    app.guard.judge = async (_tool, args) =>
-        ({
-            subject: String(args.command),
-            decision: { action: "ask", reason: "deletes files", source: "rules", terminate: false },
-        }) as never;
-
-    try {
-        await assert.rejects(app.commands.setGoal(id, owner(app), "rm -rf build && npm test"), {
-            status: 403,
-            message: /Lancet Guard does not allow this check to run unasked: deletes files/,
-        });
-    } finally {
-        app.loader.enabled = enabled;
-        app.guard.judge = judge;
-    }
 });

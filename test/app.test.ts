@@ -580,39 +580,40 @@ test("long polling delivers the stream's events, resends until acknowledged, and
     }
 });
 
-test("the owner turns extensions off and on, the guard follows its switch, and the choice survives a restart", async () => {
+test("the owner turns extensions off and on, and the choice survives a restart", async () => {
     const module = (file: string) => app.loader.list().find((each) => each.file === file)!;
 
-    // Lancet Guard is off until the owner turns it on.
-    assert.equal(module("guard.ts").enabled, false);
-    assert.ok(!app.loader.extensionNames().includes("pocket-guard"));
-    await app.setExtensionEnabled(owner(), "guard.ts", true);
-    assert.ok(app.loader.extensionNames().includes("pocket-guard"));
+    // Relay is off until the owner turns it on.
+    assert.equal(module("pocket-relay.ts").enabled, false);
+    assert.ok(!app.loader.extensionNames().includes("pocket-relay"));
+    await app.setExtensionEnabled(owner(), "pocket-relay.ts", true);
+    assert.ok(app.loader.extensionNames().includes("pocket-relay"));
 
     await app.setExtensionEnabled(owner(), "subagents.ts", false);
     assert.equal(module("subagents.ts").enabled, false);
     assert.deepEqual(module("subagents.ts").extensions, []);
     assert.ok(!app.loader.extensionNames().includes("pocket-subagents"));
 
-    await app.setExtensionEnabled(owner(), "guard.ts", false);
-    assert.equal((await app.guardStatus()).enabled, false);
+    await app.setExtensionEnabled(owner(), "pocket-relay.ts", false);
+    assert.ok(!app.loader.extensionNames().includes("pocket-relay"));
 
     await app.close();
     app = await open();
     assert.equal(module("subagents.ts").enabled, false);
     assert.ok(!app.loader.extensionNames().includes("pocket-subagents"));
-    assert.equal(module("guard.ts").enabled, false);
+    assert.equal(module("pocket-relay.ts").enabled, false);
 
     await app.setExtensionEnabled(owner(), "subagents.ts", true);
-    await app.setExtensionEnabled(owner(), "guard.ts", true);
+    await app.setExtensionEnabled(owner(), "pocket-relay.ts", true);
     assert.deepEqual(module("subagents.ts").extensions[0]?.tools, ["subagent"]);
-    assert.ok(app.loader.extensionNames().includes("pocket-guard"));
+    assert.ok(app.loader.extensionNames().includes("pocket-relay"));
 
     // Turned on, it stays on after a restart.
     await app.close();
     app = await open();
-    assert.equal(module("guard.ts").enabled, true);
-    assert.ok(app.loader.extensionNames().includes("pocket-guard"));
+    assert.equal(module("pocket-relay.ts").enabled, true);
+    assert.ok(app.loader.extensionNames().includes("pocket-relay"));
+    await app.setExtensionEnabled(owner(), "pocket-relay.ts", false);
 });
 
 test("anyone signed in can list extensions; only the owner can change them", async () => {
@@ -639,16 +640,16 @@ test("anyone signed in can list extensions; only the owner can change them", asy
     try {
         assert.equal((await call(guest.token, "extensions")).status, 200);
         assert.equal(
-            (await call(guest.token, "extensions/guard.ts", { enabled: false })).status,
+            (await call(guest.token, "extensions/codemode.ts", { enabled: false })).status,
             403,
         );
-        assert.equal((await call(guest.token, "extensions/guard.ts/reload", {})).status, 403);
+        assert.equal((await call(guest.token, "extensions/codemode.ts/reload", {})).status, 403);
         assert.equal(
-            (await call(app.config.ownerToken, "extensions/guard.ts", { enabled: true })).status,
+            (await call(app.config.ownerToken, "extensions/codemode.ts", { enabled: true })).status,
             200,
         );
         assert.equal(
-            (await call(app.config.ownerToken, "extensions/guard.ts/reload", {})).status,
+            (await call(app.config.ownerToken, "extensions/codemode.ts/reload", {})).status,
             200,
         );
     } finally {

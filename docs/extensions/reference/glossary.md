@@ -298,13 +298,9 @@ This app, which runs Pi in a browser, for one or more people.
 
 The owner's assistant in Pi Pocket, which runs the owner's other sessions.
 
-### Lancet Guard
-
-A built-in module that asks a person before Pi runs a tool call that could be risky.
-
 ### approval
 
-A person's answer to a tool call that Lancet Guard holds: allow or deny.
+A person's answer to a tool call that a hook holds (`host.approvals`): allow or deny.
 
 ### provider
 

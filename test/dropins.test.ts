@@ -215,9 +215,9 @@ test("a drop-in cannot take a name Pi Pocket keeps: it is refused", async () => 
         assert.deepEqual(module(file)[0]?.extensions, [], `${file} installed nothing`);
     };
 
-    // Lancet Guard's name, while the guard is off: turning it on later would replace the drop-in, and the drop-in
-    // turned off would remove the guard.
-    await refused("guard-twin.ts", named("pocket-guard"), /pocket-guard is Pi Pocket's own/);
+    // Relay's name, while Relay is off: turning it on later would replace the drop-in, and the drop-in turned off would
+    // remove Relay.
+    await refused("relay-twin.ts", named("pocket-relay"), /pocket-relay is Pi Pocket's own/);
     await refused("my-bash.ts", named("my-bash", "bash"), /bash is a built-in tool's/);
 });
 

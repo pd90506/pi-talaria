@@ -146,11 +146,11 @@ Sources: [Rules that are easy to break](../../extensions.md#rules-that-are-easy-
   _Reason:_ then no other module's data meets yours, and stored data with an old name is not lost.
 - The name stops collisions. It does not keep data private: any module can read any document.
 
-## S8. What Lancet Guard does not see
+## S8. What policy hooks do not see
 
 Sources: SECURITY.md, "Approvals", "The built-in browser", and "Drop-in extensions"; [Drop-in or built-in](../../extensions.md#drop-in-or-built-in); [Hooks](../hooks.md).
 
-Lancet Guard is off by default. When it is on, it judges each `bash`, `write`, and `edit` call before it runs, codemode's calls included. Risky calls wait for a person to approve them. It does not see:
+A module's `beforeTool` hook can judge each tool call before it runs, codemode's calls included, and block it or make it wait for a person's approval (`host.approvals`). Such a hook does not see:
 
 - what a module's own code does: its file reads, processes, and network calls;
 - what an extension's tool does inside, even when the tool runs a shell command;
@@ -160,11 +160,11 @@ Lancet Guard is off by default. When it is on, it judges each `bash`, `write`, a
 Rules:
 
 - **S8.1. Do not make a tool that runs a command or writes a file that the model chose.** Let Pi use `bash`, `write`, and `edit` for that.\
-  _Reason:_ the guard sees those tools, and it does not see yours.
-- **S8.2. Do not get around a block.** Do not answer, skip, or turn off the guard or an approval from a module.\
-  _Reason:_ a guard or a person said no for a reason.
+  _Reason:_ a policy hook knows those tools, and it does not know yours.
+- **S8.2. Do not get around a block.** Do not answer, skip, or turn off another module's hook or an approval from a module.\
+  _Reason:_ a hook or a person said no for a reason.
 - **S8.3. When a tool must run a program, name the program and its use in the tool's description and in the module's description.**\
-  _Reason:_ the owner knows then what runs with no guard.
+  _Reason:_ the owner knows then what runs unchecked.
 
 ## Report a problem
 

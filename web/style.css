@@ -2773,7 +2773,7 @@ kbd {
     }
 }
 
-/* Who allowed or denied a call Lancet Guard asked about. */
+/* Who allowed or denied a call a hook asked about. */
 .step-decision {
     display: flex;
     align-items: center;
@@ -2968,7 +2968,7 @@ pre.diff .del {
     color: var(--warn);
 }
 
-/* Lancet Guard asks before a call: at the end of the turn, until someone answers. */
+/* A hook asks before a call: at the end of the turn, until someone answers. */
 .approval {
     display: flex;
     flex-direction: column;
@@ -3956,7 +3956,7 @@ pre.diff .del {
     padding: calc(6px * var(--space-y)) calc(10px * var(--space-x)) calc(4px + 6px * var(--space-y));
 }
 
-/* On a phone its bottom keeps 5px or more at every density: the status line's guard reaches up into it for a thumb's
+/* On a phone its bottom keeps 5px or more at every density: the status line's pills reach up into it for a thumb's
  * tap. */
 @media (max-width: 699px) {
     .composer-row {
@@ -4472,8 +4472,8 @@ pre.diff .del {
     cursor: default;
 }
 
-/* Under the message box: who is here, how fast the last answer came, the context, the cache, the spend, and Lancet
- * Guard. Its numbers are in mono. */
+/* Under the message box: who is here, how fast the last answer came, the context, the cache, and the spend. Its
+ * numbers are in mono. */
 .status-line {
     display: flex;
     flex-wrap: wrap;
@@ -4500,23 +4500,6 @@ pre.diff .del {
 
 .status-line .meter {
     width: 36px;
-}
-
-/* Lancet Guard: a pill that opens Extensions, green while it guards and yellow while it does not. */
-.status-line .guard {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 8px;
-    border-radius: var(--r-pill);
-    background: var(--ok-soft);
-    color: var(--ok);
-    font: inherit;
-}
-
-.status-line .guard.off {
-    background: var(--warn-soft);
-    color: var(--warn);
 }
 
 /* Commands Pi runs in the background: a pill that opens Running now, with a dot that pulses while they run. */
@@ -4628,9 +4611,8 @@ pre.diff .del {
 
 .status-line[data-short~="words"] .speed .long,
 .status-line[data-short~="here"] .here.alone,
-.status-line[data-short~="guard"] .guard .word,
-.status-line[data-short~="guard"] .background-now .word,
-.status-line[data-short~="guard"] .schedules-now .word,
+.status-line[data-short~="pills"] .background-now .word,
+.status-line[data-short~="pills"] .schedules-now .word,
 .status-line[data-short~="cache"] .cache,
 .status-line[data-short~="wait"] .speed .wait,
 .status-line[data-short~="wait"] .speed.wait-only {
@@ -4703,24 +4685,6 @@ pre.diff .del {
 .notifications-sheet .extension,
 .message-worktree {
     align-items: center;
-}
-
-.guard-confirm {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-top: 8px;
-    padding: 10px 12px;
-    border-radius: var(--r-control);
-    border: 1px solid var(--warn-line);
-    background: var(--warn-soft);
-    color: var(--text);
-    font-size: 12.5px;
-}
-
-.guard-confirm .primary {
-    background: var(--warn);
-    border-color: transparent;
 }
 
 .extension-main {
@@ -15862,7 +15826,7 @@ textarea.notes {
         position: absolute;
         inset: -12px -2px;
     }
-    /* The status line's guard sits low: room below it, so its hit area stays on the screen, and above the message
+    /* The status line's pills sit low: room below it, so its hit area stays on the screen, and above the message
      * box's bottom edge, which its hit area reaches into. */
     .status-line {
         position: relative;
@@ -15883,14 +15847,12 @@ textarea.notes {
         padding-inline: 6px;
         margin-inline: -6px;
     }
-    /* The guard and the review's branch keep their small pills; an invisible layer past each takes a thumb's tap. */
-    .status-line .guard,
+    /* The status line's pills and the review's branch keep their small size; an invisible layer past each takes a thumb's tap. */
     .status-line .background-now,
     .status-line .schedules-now,
     .dr-branch {
         position: relative;
     }
-    .status-line .guard::after,
     .status-line .background-now::after,
     .status-line .schedules-now::after,
     .dr-branch::after {
@@ -18437,10 +18399,6 @@ textarea.notes {
     background: var(--card);
     color: var(--text);
     font-size: 12.5px;
-}
-
-.ext-row-under.guard-confirm {
-    margin-top: 0;
 }
 
 .extension-management {

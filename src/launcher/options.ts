@@ -32,8 +32,7 @@ Usage: pi-pocket [options]
                       access choice is not saved
   -h, --help          Show this help
 
-Environment: PI_POCKET_ACCESS, PI_POCKET_PORT, PI_POCKET_DIR, PI_POCKET_HOST, PI_POCKET_SOCKET,
-PI_POCKET_GUARD=off`;
+Environment: PI_POCKET_ACCESS, PI_POCKET_PORT, PI_POCKET_DIR, PI_POCKET_HOST, PI_POCKET_SOCKET`;
 
 export interface Options {
     access: AccessMode | undefined;

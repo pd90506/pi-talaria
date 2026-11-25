@@ -1,6 +1,6 @@
 // Core's own secrets (`secrets.ts`): every value core keeps secret is hidden in every session (as `host.hide` hides a
-// value), again when the owner saves settings or a file changes, and the old value stays hidden; Lancet Guard blocks a
-// call that names a file core keeps secrets in. All values here are made up for the test.
+// value), again when the owner saves settings or a file changes, and the old value stays hidden. All values here are
+// made up for the test.
 import {
     type App,
     cleanUp,
@@ -16,14 +16,13 @@ import {
 } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
-import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { FauxResponseStep } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxText, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import type { ConversationId } from "@earendil-works/pi-durable";
 import { HiddenValues } from "../src/server/hidden.ts";
-import { isEnvFile } from "../src/server/secrets.ts";
 
 /** A made-up secret, unlike anything else in the test's output. */
 const fake = (name: string) => `synthetic-${name}-${randomBytes(9).toString("hex")}`;
@@ -226,7 +225,7 @@ test("a command's output hides every secret, in the transcript and in what the m
     assert.ok(turn.includes(push.vapid.publicKey), "the push public key shows");
 });
 
-test("the reported command, with Lancet Guard off: config.json's secrets are hidden in what it prints", async () => {
+test("the reported command: config.json's secrets are hidden in what it prints", async () => {
     const id = await newSession(app);
     const turn = await say(id, `run jq . ${join(dataDir, "config.json")}`);
 
@@ -286,217 +285,6 @@ test("PiP's tool results hide core's secrets too", async () => {
 
     assert.match(transcript, /\[secret vault\.apiKey\]/);
     assertHidden(transcript, S.apiKey, S.newApiKey, app.config.ownerToken, S.previewSecret);
-});
-
-test("Lancet Guard blocks each way to read a file core keeps secrets in, without its package, model, or settings", () => {
-    const blocked = (tool: string, args: Record<string, unknown>, cwd = work) =>
-        app.secrets.blocked(tool, args, cwd);
-    const config = join(dataDir, "config.json");
-    const link = join(work, "innocent.json");
-
-    symlinkSync(config, link);
-
-    const cases: [string, Record<string, unknown>, string?][] = [
-        // The reported command.
-        ["bash", { command: `jq . ${config}` }],
-        ["bash", { command: `cat ${join(dataDir, "push.json")}` }],
-        ["bash", { command: `cat ${join(dataDir, "preview-secret")}` }],
-        ["bash", { command: `cat ${join(agentDir, "auth.json")}` }],
-        ["bash", { command: "cat /home/someone/.pi/agent/auth.json" }],
-        ["bash", { command: `cat ${join(dataDir, "x.vault", "state.json")}` }],
-        ["bash", { command: `ls ${join(dataDir, "x.vault")}` }],
-        ["bash", { command: `cd ${dataDir} && jq . config.json` }],
-        ["bash", { command: "jq . config.json" }, dataDir],
-        ["bash", { command: "cat x.vault/state.json" }, dataDir],
-        ["bash", { command: `cat ${dataDir}/conf*` }],
-        ["bash", { command: `cat ${dataDir}/*.json` }],
-        ["bash", { command: `cat ${dataDir}/x.*/state.json` }],
-        ["bash", { command: `cat '${config}' | head` }],
-        ["bash", { command: `python3 -c 'print(open("${config}").read())'` }],
-        ["bash", { command: "cat .env" }],
-        ["bash", { command: "set -a; source .env.local" }],
-        ["bash", { command: "cat .plane.env" }],
-        ["bash", { command: "cat .env*" }],
-        ["bash", { command: "docker compose --env-file=.env up" }],
-        ["bash", { command: `cat ${link}` }],
-        ["powershell", { command: `Get-Content ${config}` }],
-        ["background", { action: "start", command: `tail -f ${config}` }],
-        ["read", { path: config }],
-        ["read", { path: "config.json" }, dataDir],
-        ["read", { path: "./x.vault/state.json" }, dataDir],
-        ["read", { path: join(agentDir, "auth.json") }],
-        ["read", { path: link }],
-        ["read", { path: ".env" }],
-        ["read", { path: "deploy/prod.env" }],
-        ["edit", { path: config, edits: [] }],
-        ["artifact", { id: "a", title: "A", path: config }],
-        ["artifact", { id: "a", title: "A", content: "x", assets: [{ name: "c", path: config }] }],
-    ];
-
-    for (const [tool, args, cwd] of cases) {
-        const why = blocked(tool, args, cwd);
-
-        assert.ok(why !== undefined, `${tool} ${JSON.stringify(args)} is blocked`);
-        // The reason names the file, never what it holds.
-        assertHidden(why, app.config.ownerToken, S.apiKey);
-    }
-});
-
-test("ordinary work goes on: other files, a project's config.json, templates, and the environment", () => {
-    const allowed = (tool: string, args: Record<string, unknown>, cwd = work) =>
-        app.secrets.blocked(tool, args, cwd);
-
-    writeFileSync(join(work, "config.json"), "{}\n");
-
-    const cases: [string, Record<string, unknown>, string?][] = [
-        ["bash", { command: "echo hello" }],
-        ["bash", { command: "jq . config.json" }],
-        ["bash", { command: `cat ${join(work, "config.json")}` }],
-        ["bash", { command: "cat .env.example" }],
-        ["bash", { command: `node -e "console.log(Object.keys(process.env).length)"` }],
-        ["bash", { command: "env | wc -l" }],
-        ["bash", { command: `ls ${join(dataDir, "extensions")}` }],
-        ["bash", { command: "git status --short" }],
-        ["background", { action: "output", id: "1" }],
-        ["read", { path: "config.json" }],
-        ["read", { path: ".env.example" }],
-        ["read", { path: join(dataDir, "extensions", "vault.ts") }],
-        // Writing a new file reads nothing back.
-        ["write", { path: ".env", content: "A=1\n" }],
-    ];
-
-    for (const [tool, args, cwd] of cases) {
-        assert.equal(allowed(tool, args, cwd), undefined, `${tool} ${JSON.stringify(args)} runs`);
-    }
-
-    assert.ok(isEnvFile(".env") && isEnvFile(".env.production") && isEnvFile(".plane.env"));
-    assert.ok(!isEnvFile(".env.example") && !isEnvFile("environment.ts") && !isEnvFile("env"));
-});
-
-test("a word that cannot be a path (too long, under a file) is not a secret's file, and the call goes on", () => {
-    for (const command of [
-        `curl -H "Authorization: Bearer ${"a".repeat(400)}" https://example.com`,
-        `ls ${import.meta.filename}/x`,
-    ]) {
-        // ENAMETOOLONG and ENOTDIR threw out of the rule: the call failed with a raw fs error.
-        assert.equal(app.secrets.blocked("bash", { command }, work), undefined);
-    }
-});
-
-test("a glob of every file, a name as text, and a write to .env are not reads of a secret", () => {
-    for (const command of [
-        "ls *",
-        "du -sh *",
-        "git add *",
-        "for f in *; do wc -l $f; done",
-        "ls .*",
-        "echo .env >> .gitignore",
-        "cp .env.example .env",
-        "tar --exclude=.env -czf out.tgz .",
-        "cat > .env <<EOF\nA=1\nEOF",
-    ]) {
-        assert.equal(app.secrets.blocked("bash", { command }, work), undefined, command);
-    }
-
-    for (const command of [
-        "cp .env /tmp/copy",
-        "echo $(cat .env)",
-        "wc -l < .env",
-        "grep -r --include=.env KEY .",
-        "sort -m .env",
-        "sed -e p .env",
-        "bash <<EOF\ncat .env\nEOF",
-    ]) {
-        assert.ok(app.secrets.blocked("bash", { command }, work) !== undefined, command);
-    }
-});
-
-test("a long command is judged at once: each word is not checked again for each folder it names", () => {
-    const words = Array.from({ length: 1000 }, (_, at) => `/usr/lib/p${at} rel${at}`);
-    const started = performance.now();
-
-    assert.equal(
-        app.secrets.blocked("bash", { command: `ls ${words.join(" ")}` }, work),
-        undefined,
-    );
-    // About 5 ms; the check that ran for each word and folder took minutes.
-    assert.ok(performance.now() - started < 1000, "judged in under a second");
-
-    // Code such as `x.items.map` is not a drop-in's folder: it was joined to each folder named (2.8 s for 401).
-    const folders = Array.from({ length: 400 }, (_, at) => join(work, "folders", `f${at}`));
-    const code = Array.from({ length: 4000 }, (_, at) => `v${at} = x.items.map((x) => x.v${at});`);
-
-    folders.forEach((folder) => mkdirSync(folder, { recursive: true }));
-
-    const again = performance.now();
-
-    assert.equal(
-        app.secrets.blocked(
-            "bash",
-            { command: `ls ${folders.join(" ")}; node -e '${code.join("\n")}'` },
-            work,
-        ),
-        undefined,
-    );
-    assert.ok(performance.now() - again < 500, "judged in under half a second");
-});
-
-test("with home in the data folder (as an installation's service has), ~ and $HOME name core's files", () => {
-    const home = process.env.HOME;
-
-    process.env.HOME = dataDir;
-
-    try {
-        for (const command of [
-            "jq . ~/config.json",
-            "cat $HOME/push.json",
-            "cat ${HOME}/preview-secret",
-            "ls ~/x.vault",
-        ]) {
-            assert.ok(app.secrets.blocked("bash", { command }, work) !== undefined, command);
-        }
-
-        assert.ok(app.secrets.blocked("read", { path: "~/config.json" }, work) !== undefined);
-        assert.equal(app.secrets.blocked("bash", { command: "ls ~" }, work), undefined);
-    } finally {
-        process.env.HOME = home;
-    }
-});
-
-test("the block is enforced in Pi's own tool calls while the Lancet Guard module is on, and only then", async () => {
-    const config = join(dataDir, "config.json");
-
-    await app.setExtensionEnabled(owner(app), "guard.ts", true);
-
-    try {
-        const id = await newSession(app);
-        const ran = await say(id, `run jq . ${config}`);
-
-        // Blocked before it ran: nothing of config.json came back, not even its field names.
-        assert.match(ran, /Lancet Guard blocked this bash call/);
-        assert.doesNotMatch(ran, /extensionSettings/);
-
-        const read = await say(id, `read ${config}`);
-
-        assert.match(read, /Lancet Guard blocked this read call/);
-        assert.doesNotMatch(read, /extensionSettings/);
-
-        // Ordinary commands still run.
-        const plain = await say(id, "run echo ordinary-output-$((40 + 2))");
-
-        assert.match(plain, /ordinary-output-42/);
-        assert.doesNotMatch(plain, /blocked/);
-    } finally {
-        await app.setExtensionEnabled(owner(app), "guard.ts", false);
-    }
-
-    // With the module off nothing blocks: the command runs, and only hiding keeps the values out.
-    const id = await newSession(app);
-    const ran = await say(id, `run jq . ${config}`);
-
-    assert.doesNotMatch(ran, /blocked/);
-    assert.match(ran, /extensionSettings/);
-    assertHidden(await stored(id), app.config.ownerToken, S.apiKey, S.newApiKey);
 });
 
 test("a value that is too short to hide safely is not hidden, and the list never takes the values", () => {

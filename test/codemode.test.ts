@@ -12,7 +12,6 @@ import {
 } from "@earendil-works/pi-durable";
 import { CodemodeStoreDoc } from "../src/server/docs.ts";
 import createCodemode from "../src/server/extensions/codemode.ts";
-import createGuard from "../src/server/extensions/guard.ts";
 import { Approvals, type PocketHost } from "../src/server/host.ts";
 
 const context = BACKGROUND_CONTEXT;
@@ -187,19 +186,37 @@ test("store() values last across scripts; failed scripts keep their output and c
     assert.deepEqual(fake.store.values, { count: 2 });
 });
 
-test("with Lancet Guard asking, each nested call waits for its own answer, even in parallel", async () => {
+test("with a hook asking, each nested call waits for its own answer, even in parallel", async () => {
     const approvals = new Approvals(() => undefined);
-    const guardHost = {
-        approvals,
-        guard: {
-            judge: async (_tool: string, args: { command: string }) => ({
-                subject: args.command,
-                decision: { action: "ask", source: "test", reason: "risky" },
+    // Asks a person about every call, as a policy hook would, naming the call (a script makes several in one task).
+    const asker = defineExtension({
+        name: "asker",
+        hooks: [
+            hook(ToolTask, {
+                beforeTool: async (call, api, context) => {
+                    const command = (call.arguments as { command: string }).command;
+                    const answer = await approvals.request(
+                        {
+                            id: `${api.taskId}:${call.id}`,
+                            conversationId: api.conversationId,
+                            taskId: api.taskId,
+                            callId: call.id,
+                            tool: call.name,
+                            subject: command,
+                            reason: "risky",
+                            createdAt: Date.now(),
+                        },
+                        context,
+                    );
+
+                    return answer.allow
+                        ? undefined
+                        : { block: `${answer.by} denied this ${call.name} call (risky)` };
+                },
             }),
-        },
-    } as unknown as PocketHost;
-    const guard = createGuard(guardHost);
-    const fake = fakeApi([shell], [guard]);
+        ],
+    });
+    const fake = fakeApi([shell], [asker]);
     const running = run(
         fake,
         `const [a, b] = await Promise.allSettled([tools.bash({ command: "one" }), tools.bash({ command: "two" })]);
@@ -223,10 +240,7 @@ test("with Lancet Guard asking, each nested call waits for its own answer, even 
     const [first, second] = JSON.parse(result.text.split("Output:\n")[1]!) as string[];
 
     assert.equal(first, "ran one ✓");
-    assert.match(
-        second!,
-        /^Tool call blocked: Sam denied this bash call after Lancet Guard asked \(risky\)/,
-    );
+    assert.match(second!, /^Tool call blocked: Sam denied this bash call \(risky\)/);
 });
 
 test("Only mode on a server from before host.toolNames hides nothing", () => {

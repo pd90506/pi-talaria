@@ -571,13 +571,6 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return extensionRoute(route, parts.slice(1));
         }
 
-        // Fetch the LANCET model Lancet Guard needs. Answers at once; the download goes on and shows in the guard's status.
-        if (first === "guard" && second === "model" && third === undefined && method === "POST") {
-            await app.setupGuardModel(user);
-
-            return json(response, 200, await app.extensions(user));
-        }
-
         // A module's settings (`web.settings`): the owner sets them; whoever its browser module is for reads them.
         if (first === "extension-settings" && second !== undefined && third === undefined) {
             if (method === "GET") {

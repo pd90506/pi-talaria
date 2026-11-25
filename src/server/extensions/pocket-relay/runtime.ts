@@ -1,6 +1,6 @@
 /**
- * The relay's runtime. Its files are 0600, in `x.pocket-relay`, which Lancet Guard keeps Pi out of. Nothing here throws
- * into the server: a connector's error is its status.
+ * The relay's runtime. Its files are 0600, in `x.pocket-relay`. Nothing here throws into the server: a connector's
+ * error is its status.
  */
 import { randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync } from "node:fs";

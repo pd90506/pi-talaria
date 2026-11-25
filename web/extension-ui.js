@@ -2302,7 +2302,7 @@ function revisionOf(spec) {
 
 /**
  * The status line's items that extensions added. One that opens or runs something is a button. A narrow line shows
- * each one's `short` form, after it gives up "1 here" and before the guard's word (`SHORTER`, composer.js).
+ * each one's `short` form, after it gives up "1 here" and before the pills' words (`SHORTER`, composer.js).
  */
 function statusItems() {
     return added("status").map(({ record, spec }) => ({

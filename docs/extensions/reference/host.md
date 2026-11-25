@@ -985,7 +985,6 @@ The page, with what Pi's `browser` tool does, but no script to run in it.
 The host has more members, for Pi Pocket's built-in modules only. They are not in the types file, and they can change in any release without notice. Do not use them in a drop-in. [API stability](../policies/api-stability.md) tells you what this means.
 
 - `approvals`: the mutable approval service, for the guard and app only. For public, read-only snapshots and events, use [`pendingApprovals`](#pendingapprovals).
-- `guard`: Lancet Guard.
 - `schedules`: scheduled messages, for the schedule tool. `schedules.limits` holds the limits in force (`perSession`, `chars`, `repeatMinutes`, `aheadDays`); the schedules module copies the owner's settings into it, so a module should read it and not change it. A server from before 0.24.0 has no `limits`.
 - `background`: commands Pi runs in the background, for the background tool: `start`, `read`, `stop`, `list`, and `limits` (`running`, which the background module copies from the owner's setting). A server from before 0.24.0 has none.
 - `goals`: Done when, for the goals module.

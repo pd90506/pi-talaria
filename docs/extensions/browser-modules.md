@@ -158,7 +158,7 @@ The top bar's buttons, the status line's items, the places' tiles, the message b
 
 - **Where a module's item goes:** give a status item, a top bar button, a message box button, or an action under answers `before` or `after` an id: `pocket.status({ id: "watts", text, after: "core:context" })`.
 - **Arranging a slot:** `pocket.arrange("topbar", { hide: ["core:artifacts"], order: ["core:files", "core:browser"] })` hides and reorders items, the app's own too, in the tabs that load the module. This is for an owner who wants their own layout in a drop-in.
-- **Fixed items** always show, in their places: the menu, More under an answer, the connection's warning, and Lancet Guard. Send, Stop, the mic, and Steer, Queue and Interrupt are not in a slot.
+- **Fixed items** always show, in their places: the menu, More under an answer, and the connection's warning. Send, Stop, the mic, and Steer, Queue and Interrupt are not in a slot.
 
 [The pocket reference](reference/pocket.md#slots) lists the ids of each slot.
 

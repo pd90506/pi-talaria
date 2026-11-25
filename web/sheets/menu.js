@@ -33,7 +33,6 @@ import { copyText, html, item, Sheet, shortPath } from "../ui.js";
 // Key hints are for people with a keyboard: a touch screen has none.
 const touch = matchMedia("(pointer: coarse)").matches;
 
-/** The Extensions row's hint: that this tab loads none of their browser parts (safe mode), and Lancet Guard. */
 /** The menu's word on the session's schedules: how many go out, and how many are paused. */
 function schedulesHint(schedules) {
     const paused = schedules.filter((each) => each.paused !== undefined).length;
@@ -48,15 +47,9 @@ function schedulesHint(schedules) {
         .join(" · ");
 }
 
+/** The Extensions row's hint: that this tab loads none of their browser parts (safe mode). */
 function extensionsHint() {
-    const { guard } = store.state;
-
-    return [
-        safeMode() && "browser parts off here",
-        guard?.enabled ? "Lancet Guard on" : guard?.available ? "Lancet Guard off" : "",
-    ]
-        .filter(Boolean)
-        .join(" · ");
+    return safeMode() ? "browser parts off here" : "";
 }
 
 /**

@@ -13,7 +13,6 @@ import type {
 import type { Browsers } from "./browser.ts";
 import type { Role, User } from "./config.ts";
 import type { Goals } from "./goals.ts";
-import type { LancetGuard } from "./lancet.ts";
 import type { Memory } from "./memory.ts";
 import type { Pip } from "./pip.ts";
 import type { PipCompaction } from "./pip-compact.ts";
@@ -370,7 +369,7 @@ export interface BrowserPageHandle {
 }
 
 /**
- * Tool calls waiting for a human. In memory on purpose: the guard hook runs before a call's intent is stored, so after
+ * Tool calls waiting for a human. In memory on purpose: a hook that asks runs before a call's intent is stored, so after
  * a restart the hook runs again and asks again, unless its memo already holds the answer.
  */
 export class Approvals {
@@ -517,7 +516,6 @@ export interface WorkspaceProvider {
 
 /** What the app gives its extensions. Extensions are reloaded on edit; the host is not. */
 export interface PocketHost {
-    readonly guard: LancetGuard;
     readonly approvals: Approvals;
     /** Read-only approval snapshots and events, with source audience checks. @experimental @since 0.30.0 */
     readonly pendingApprovals: PendingApprovalsApi;

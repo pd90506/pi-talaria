@@ -2716,7 +2716,7 @@ export type SlotName = "topbar" | "status" | "composer" | "reply";
  */
 export interface Arrangement {
     /**
-     * Ids of items to hide. Fixed items (the menu, Lancet Guard, the connection's warning) always show.
+     * Ids of items to hide. Fixed items (the menu, the connection's warning) always show.
      * @since 0.19.0
      * @experimental
      */

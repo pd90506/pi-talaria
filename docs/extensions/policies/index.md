@@ -15,7 +15,7 @@ The guides tell how to do a thing. These policies tell what is permitted, and wh
 
 **[The public API and how it changes](api-stability.md).** Which interfaces are for extensions: `host`, `web`, `pocket`, a command's `ctx`, some CSS names, events, the names for stored data, and the gallery entry format. All other code is internal. The page tells what `pocketApi` means, what is a breaking change, how a member is deprecated and removed, and how the release notes tell authors.
 
-**[The security model for extension authors](security-model.md).** What a module can do, and who can reach it. A drop-in runs with the owner's rights, and a browser module with the rights of the person whose tab loads it. The page tells who reaches routes and commands, which input is untrusted, where secrets must not go, and what Lancet Guard does not see.
+**[The security model for extension authors](security-model.md).** What a module can do, and who can reach it. A drop-in runs with the owner's rights, and a browser module with the rights of the person whose tab loads it. The page tells who reaches routes and commands, which input is untrusted, where secrets must not go, and what policy hooks do not see.
 
 **Gallery entries and their review.** The rules for an entry in the gallery's index, what its checks and its maintainers check, and what gets refused. It also tells how updates are reviewed, and what happens to entries that are abandoned, revoked, or removed.
 
