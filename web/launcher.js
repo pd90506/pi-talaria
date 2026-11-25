@@ -19,7 +19,6 @@ import { openPip, pipAvailable } from "./pip.js";
 import { setArchived, toggleBoard } from "./sessions.js";
 import { branchAvailable, headLabel } from "./sheets/branch.js";
 import { recentLabels } from "./sheets/folder.js";
-import { piSessionsAvailable } from "./sheets/pi-sessions.js";
 import {
     actions,
     attempt,
@@ -138,12 +137,6 @@ function actionItems() {
                         navigate(created.id);
                     }),
             },
-        piSessionsAvailable() && {
-            label: "Continue a Pi session",
-            detail: "from Pi in the terminal",
-            icon: "terminal",
-            run: () => openSheet({ type: "pi-sessions" }),
-        },
         conversationId !== null && {
             label: "All sessions",
             detail: "home",
