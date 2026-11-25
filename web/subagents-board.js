@@ -568,11 +568,11 @@ export function SubagentsBoard() {
             return;
         }
 
-        // Keys in the sidebar are the sidebar's, but for the rail's button that opened the board.
+        // Keys in the sidebar are the sidebar's, but for its place that opened the board.
         const aside =
             target instanceof Element &&
             target.closest(".sidebar, .drawer") !== null &&
-            !target.classList.contains("rail-agents");
+            !target.classList.contains("nav-row");
 
         if (typing || aside || event.altKey || event.ctrlKey || event.metaKey) {
             return;

@@ -161,7 +161,10 @@ test("calls wait in Needs you, oldest first, and are answered in their rows", re
     const shortAnswer = ask(short, "npm publish --tag beta", 1_000);
     const longAnswer = ask(long, `echo ${"a very long command ".repeat(10)}`, 2_000);
 
-    await until(async () => (await text(".sidebar .rail-count.attn")) === "2", "the rail's count");
+    await until(
+        async () => (await text('.sidebar [data-tab="priority"] .tab-count')) === "2",
+        "the Priority tab's count",
+    );
     await click('.sidebar .session-tabs [data-tab="priority"]');
     await present(group("needs"), "Needs you");
     assert.deepEqual(await idsIn("needs"), [Number(short), Number(long)]);
@@ -200,7 +203,7 @@ test("calls wait in Needs you, oldest first, and are answered in their rows", re
 
     await present(".sidebar .priority-clear", "the empty line");
     assert.equal(await text(".sidebar .priority-clear"), "Nothing needs you");
-    await gone(".sidebar .rail-count.attn", "the rail's count");
+    await gone('.sidebar [data-tab="priority"] .tab-count', "the Priority tab's count");
 });
 
 test("a failed run is dismissed from its row, and goes quiet", real, async () => {

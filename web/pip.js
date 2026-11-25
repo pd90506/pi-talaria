@@ -42,7 +42,6 @@ import {
     Icon,
     Markdown,
     modelLabel,
-    railState,
     readable,
     Spinner,
     splitAttachments,
@@ -1550,28 +1549,4 @@ export function PipHost() {
             onClick=${closePip}
         ></div>
         <${PipPanel} leaving=${leaving} scrim=${scrim} />`;
-}
-
-/** PiP in the rail: the way to it that is always there, marked while it works or has something new. */
-export function PipRailButton() {
-    if (!pipAvailable()) {
-        return null;
-    }
-
-    const { pip } = store.state;
-    const pipOpen = pipShown();
-    const unread = pipUnread();
-
-    return html`<button
-        class=${`rail-button rail-pip ${pip?.busy ? "lit" : ""} ${pipOpen ? "open" : ""}`}
-        data-part="rail-button"
-        data-state=${railState(pipOpen, Boolean(pip?.busy))}
-        title="PiP, your assistant (Alt+A)"
-        aria-label=${["PiP", pip?.busy && "working", unread && "something new"].filter(Boolean).join(", ")}
-        aria-pressed=${pipOpen}
-        onClick=${togglePip}
-    >
-        <${Icon} name="pip" size=${18} />
-        ${unread && html`<span class="rail-news" aria-hidden="true"></span>`}
-    </button>`;
 }

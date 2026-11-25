@@ -43,7 +43,6 @@ import {
     Loader,
     Markdown,
     PlaceTile,
-    railState,
     Sheet,
     Spinner,
     Switch,
@@ -1925,38 +1924,33 @@ export function browserModuleState(module) {
 
 // ─── Where they show ─────────────────────────────────────────────────────────
 
-/**
- * The rail's buttons that extensions added, after the app's own tools. They take the room they need: a rail with more
- * buttons than room scrolls as a whole, and fades the edge where more is (`useScrollMore`).
- */
-export function ExtensionRailButtons() {
+/** The sidebar's places that extensions added (`pocket.rail`), after the app's own: a row each, with its badge. */
+export function ExtensionNavRows() {
     const buttons = added("rail");
 
     if (buttons.length === 0) {
         return null;
     }
 
-    return html`<div class="rail-exts">
-        ${buttons.map(({ record, spec }) => {
-            const open = opened(record, spec);
-            const toggles = spec.page !== undefined || spec.panel !== undefined;
-            const badge = badgeFor(spec);
+    return buttons.map(({ record, spec }) => {
+        const open = opened(record, spec);
+        const toggles = spec.page !== undefined || spec.panel !== undefined;
+        const badge = badgeFor(spec);
 
-            return html`<button
-                key=${`${record.module}:${spec.id}`}
-                class=${`rail-button rail-ext ${open ? "open" : ""}`}
-                data-part="rail-button"
-                data-state=${railState(open)}
-                title=${spec.title}
-                aria-label=${badge === "" ? spec.title : `${spec.title}, ${badge}`}
-                aria-pressed=${toggles ? open : undefined}
-                onClick=${() => (open ? closeOf(spec) : activate(record, spec))}
-            >
-                <${Icon} path=${pathOf(spec)} size=${18} />
-                ${badge !== "" && html`<span class="rail-count">${badge}</span>`}
-            </button>`;
-        })}
-    </div>`;
+        return html`<button
+            key=${`${record.module}:${spec.id}`}
+            class=${`nav-row nav-ext ${open ? "open" : ""}`}
+            data-part="nav-row"
+            title=${spec.title}
+            aria-label=${badge === "" ? spec.title : `${spec.title}, ${badge}`}
+            aria-pressed=${toggles ? open : undefined}
+            onClick=${() => (open ? closeOf(spec) : activate(record, spec))}
+        >
+            <${Icon} path=${pathOf(spec)} size=${17} />
+            <span class="nav-label">${spec.title}</span>
+            ${badge !== "" && html`<span class="nav-count">${badge}</span>`}
+        </button>`;
+    });
 }
 
 /** Close what a button opened: its page or its panel. */

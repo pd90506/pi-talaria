@@ -53,7 +53,7 @@ All the numbers that limit a module, in one place. Each group links to the guide
 - **Redraws in a hidden tab:** by a timer of 100 ms, which the browser can make slower.
 - **Notices from `pocket.notify`:** 5 every 5 s for a module, for all its versions together. The app drops the rest.
 - **The text of `pocket.pip.ask`:** 1 to 100,000 characters. Others throw. A send needs a tap just before it: it serves for 5 s and for one send.
-- **Rail buttons of modules:** no limit of their own. A rail with more buttons than room scrolls as a whole, and fades the edge where more is. The folded rail keeps up to a third of the window for its sessions first.
+- **Sidebar places of modules (`rail`):** no limit of their own: the sidebar's places take the room they need.
 - **A count on a rail button:** a count past 99, and `Infinity`, shows "99+".
 - **Text on a rail button:** past 24 characters, it is cut to 23 characters and "…". A panel's badge is the same.
 - **Text of a status item:** past 40 characters, `text` and `short` are cut to 39 characters and "…".

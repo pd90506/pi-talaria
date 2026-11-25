@@ -39,8 +39,7 @@ import {
     pipBoard,
     togglePip,
 } from "./pip.js";
-import { Drawer, RailNav, ResizeHandle, SessionList, toSessions } from "./sessions.js";
-import { SessionTabs } from "./session-tabs.js";
+import { Drawer, ResizeHandle, Sidebar, toSessions } from "./sessions.js";
 // Loaded for what it does: it gives replies' Markdown the component for pages, images, and diffs in code blocks.
 import "./rich.js";
 import { takeShare } from "./share.js";
@@ -527,7 +526,6 @@ function App() {
     }
 
     const inConversation = state.conversationId !== null;
-    const rail = prefs().sidebar === "rail";
     // The sidebar and the splash show only on wide screens (style.css): narrower, they are not drawn at all. A phone
     // drew the sidebar's session list beside its own, hidden, on each change and each Back.
     const sidebar = WIDE.matches;
@@ -555,22 +553,21 @@ function App() {
             ${
                 sidebar &&
                 html`<div class="sidebar-clip">
-                        <${RailNav} foldable=${true} folded=${rail} />
-                        ${!rail && html`<${SessionList} />`}
+                        <${Sidebar} />
                     </div>
-                    ${!rail && html`<${ResizeHandle} />`}`
+                    <${ResizeHandle} />`
             }
         </aside>
         <div class=${`pane window ${placed ? "boarded" : ""}`} data-part="pane">
             ${
                 board === "running"
-                    ? html`<${RunningBoard} />`
+                    ? html`<${RunningBoard} key=${state.boardFilter ?? "all"} />`
                     : board
                       ? html`<${SubagentsBoard} />`
                       : page
                         ? html`<${ExtensionPage} key=${`${state.page.module}:${state.page.id}`} />`
                         : inConversation
-                          ? html`${prefs().sessionTabs && html`<${SessionTabs} />`}<${Topbar} />
+                          ? html`<${Topbar} />
                     ${
                         peeking &&
                         tiles.length > 0 &&
@@ -587,8 +584,7 @@ function App() {
                             : html`<${Composer} key=${state.conversationId} />`)
                     }`
                           : html`<div class="home-list" data-part="home-list">
-                          <${RailNav} />
-                          <${SessionList} />
+                          <${Sidebar} />
                       </div>
                       ${sidebar && html`<${Splash} />`}`
             }
@@ -715,14 +711,10 @@ addEventListener("keydown", (event) => {
         return;
     }
 
-    if (mod && !event.altKey && !event.shiftKey && key === "b") {
+    // Narrower screens: the sidebar as a drawer, in and out.
+    if (mod && !event.altKey && !event.shiftKey && key === "b" && !wide()) {
         event.preventDefault();
-
-        if (wide()) {
-            setPrefs({ sidebar: prefs().sidebar === "rail" ? "open" : "rail" });
-        } else {
-            store.set({ drawer: !store.state.drawer });
-        }
+        store.set({ drawer: !store.state.drawer });
 
         return;
     }

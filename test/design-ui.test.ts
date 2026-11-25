@@ -94,11 +94,11 @@ const setBox = (text: string) =>
         return "null";
     `);
 
-/** The Design panel, open: the rail's button, once the module has loaded. */
+/** The Design panel, open: the sidebar's place, once the module has loaded. */
 async function openDesign(target = page) {
     await waitFor(
-        "the Design rail button",
-        `return JSON.stringify(Boolean(document.querySelector('nav[aria-label="Sessions and tools"] button[aria-label="Design"]')))`,
+        "the Design place in the sidebar",
+        `return JSON.stringify(Boolean(document.querySelector('.side-nav button[aria-label="Design"]')))`,
         target,
     );
 
@@ -108,11 +108,7 @@ async function openDesign(target = page) {
             `return JSON.stringify(Boolean(document.querySelector(".dsn")))`,
         ))
     ) {
-        await pressed(
-            'nav[aria-label="Sessions and tools"] button[aria-label="Design"]',
-            undefined,
-            target,
-        );
+        await pressed('.side-nav button[aria-label="Design"]', undefined, target);
     }
 
     await waitFor(

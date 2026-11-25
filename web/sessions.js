@@ -1,11 +1,12 @@
-// The sidebar: the rail (Pi, the tools, and you; folded, numbered sessions too) and the session list beside it, in the
-// sidebar, the drawer, and a phone's home screen; and the order and archiving of sessions.
+// The sidebar, after Claude's desktop app: its places (a new session, search, artifacts, schedules, what runs), the
+// session list (PiP, projects, and sessions people started), and you at its foot, in the sidebar, the drawer, and a
+// phone's home screen; and the order and archiving of sessions.
 import { Component } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
-import { folderColor, initials } from "./colors.js";
+import { folderColor } from "./colors.js";
 import { goHome, useBack } from "./back.js";
 import {
-    ExtensionRailButtons,
+    ExtensionNavRows,
     sessionActions,
     sessionChips,
     sessionFilters,
@@ -14,8 +15,7 @@ import {
     SidebarSections,
 } from "./extension-ui.js";
 import { useDragToClose } from "./gestures.js";
-import { PeeksRailButton, wholeOnTile } from "./peeks.js";
-import { PipRailButton } from "./pip.js";
+import { wholeOnTile } from "./peeks.js";
 import { sessionForest, unfolded } from "./session-tree.js";
 import {
     actions,
@@ -47,14 +47,12 @@ import {
     Icon,
     memo,
     NO_HOVER,
-    railState,
     scrimPress,
     shortPath,
     Slide,
     timeAgo,
     useMinute,
     usePresence,
-    useScrollMore,
     useSide,
     useSlide,
 } from "./ui.js";
@@ -402,7 +400,7 @@ function hitOf(session, needle, home) {
     return hit ?? sessionWords(session).find((word) => word.includes(needle));
 }
 
-/** Failed subagents nobody has dealt with (seen or dismissed), of a session's counts or the rail's totals. */
+/** Failed subagents nobody has dealt with (seen or dismissed), of a session's counts or the sidebar's totals. */
 const failing = (counts) => (counts.failed ?? 0) - (counts.dealt ?? 0);
 
 const failedRun = (session, state = store.state) =>
@@ -1334,7 +1332,6 @@ const ROW_KEYS = [
 function AllSessions({ compact = false }) {
     const { sessions, sessionsLoaded, server, pinned } = store.state;
     const team = teamOf(sessions);
-    const canStart = canSteer() && !scoped();
     const [query, setQueryState] = useState(() => (compact ? "" : listKept.query));
     const [tab, setTabState] = useState(() => tabOf(prefs().group));
     const [closed, setClosed] = useState(readClosed);
@@ -1482,8 +1479,10 @@ function AllSessions({ compact = false }) {
     const listFor = (needle) => {
         // Extensions' filters that are on (`pocket.sessionFilter`): a session shows only when each keeps it.
         const kept = sessionFilterTest();
+        // Threads and helpers that other sessions started show where they were started, not in the list.
         const shown = sessions.filter(
             (session) =>
+                session.linkedFrom === undefined &&
                 Boolean(session.archived) === archived &&
                 (needle === "" || haystackOf(session, home).includes(needle)) &&
                 (kept === null || kept(session)),
@@ -2140,7 +2139,12 @@ function AllSessions({ compact = false }) {
         () => needsYouCount(sessions),
         [sessions, unread, peekSeen, store.state.server],
     );
-    const count = useMemo(() => sessions.filter((session) => !session.archived).length, [sessions]);
+    const count = useMemo(
+        () =>
+            sessions.filter((session) => !session.archived && session.linkedFrom === undefined)
+                .length,
+        [sessions],
+    );
     const filters = sessionFilters();
     const steers = canSteer();
     // Made again only when extensions or this person's steering change: rows keep the same action while they do not.
@@ -2422,17 +2426,6 @@ function AllSessions({ compact = false }) {
         <div class="sessions-head">
             <span class="sessions-name" data-part="session-list-title">Sessions</span>
             <span class="sessions-count">${sessionsLoaded ? count : ""}</span>
-            ${
-                canStart &&
-                html`<button
-                    class="new-button"
-                    title="New session (Alt+N)"
-                    onClick=${() => openSheet({ type: "cwd", mode: "new", fromList: true })}
-                >
-                    <${Icon} name="plus" size=${14} />
-                    New
-                </button>`
-            }
         </div>
         <label class=${`search ${query ? "filled" : ""}`} data-part="session-search">
             <${Icon} name="search" size=${14} />
@@ -2640,7 +2633,7 @@ const LIST_KEYS = [
 export const SessionList = drawnFor(LIST_KEYS, AllSessions);
 
 /**
- * Subagents across the sessions, by state, as the rail counts them: archived sessions only while a subagent works
+ * Subagents across the sessions, by state, as the sidebar counts them: archived sessions only while a subagent works
  * there, as the subagents board shows them.
  */
 export function subagentTotals(sessions = store.state.sessions) {
@@ -2661,64 +2654,52 @@ export function subagentTotals(sessions = store.state.sessions) {
     return totals;
 }
 
-/** Open a board in the conversation's place (`"subagents"` or `"running"`), or close it when it already shows. */
-export const toggleBoard = (which = "subagents") =>
+/**
+ * Open a board in the conversation's place (`"subagents"` or `"running"`), the running board with a filter on
+ * (`"scheduled"`) or none; or close it when it already shows so.
+ */
+export const toggleBoard = (which = "subagents", filter = null) =>
     store.set((state) =>
-        state.board === which
-            ? { board: false, boardAgents: null }
-            : { board: which, boardAgents: null, drawer: false, page: null, sheet: null },
+        state.board === which && (state.boardFilter ?? null) === filter
+            ? { board: false, boardAgents: null, boardFilter: null }
+            : {
+                  board: which,
+                  boardAgents: null,
+                  boardFilter: filter,
+                  drawer: false,
+                  page: null,
+                  sheet: null,
+              },
     );
 
-/** Open the Running now board, or close it. */
-export const toggleRunning = () => toggleBoard("running");
+const openBoard = toggleBoard;
 
-/** The folded sidebar's sessions, numbered like Waybar's workspaces. */
-function RailTiles() {
-    const conversationId = markedOpen();
-    const items = useRef(null);
-    const order = workspaceOrder();
-    // The tiles are as tall as each other: the open session's place in the order says where its marker goes.
-    const at = order.findIndex((session) => session.id === conversationId);
-    const indicator = useSlide(items, ".ws.active", "y", at);
-    const more = useScrollMore();
-    // One ref for both: the marker's slide reads the element, and the fades follow its scrolling.
-    const [ref] = useState(() => (element) => {
-        items.current = element;
-        more(element);
-    });
-
-    return html`<div class="rail-items" ref=${ref} style=${`--tiles:${order.length}`}>
-        <${Slide} box=${indicator} />
-        ${order.map(
-            (session, index) => html`<button
-                key=${session.id}
-                class=${`ws ${session.id === conversationId ? "active" : ""} ${session.busy ? "busy" : ""} ${session.waiting ? "waiting" : ""} ${session.background > 0 ? "has-background" : ""}`}
-                style=${`--i:${index}`}
-                title=${`${session.title ?? "New session"}${index < 9 ? ` (Alt+${index + 1})` : ""}`}
-                aria-label=${`${session.title ?? "New session"}${session.waiting ? ", needs you" : session.busy ? ", working" : session.background > 0 ? ", running commands in the background" : ""}`}
-                aria-current=${session.id === conversationId ? "page" : undefined}
-                onClick=${() => navigate(session.id)}
-            >
-                ${index < 9 ? index + 1 : initials(session.title ?? "New session")}
-                ${
-                    isUnread(session.id) &&
-                    session.id !== conversationId &&
-                    html`<span class="unread-dot"></span>`
-                }
-            </button>`,
-        )}
-    </div>`;
+/** One of the sidebar's places: an icon and its name, a count when something is at work there. */
+function NavRow({ name, icon, label, keys, count, trouble, open, lit, onClick, onPointerDown }) {
+    return html`<button
+        class=${`nav-row nav-${name} ${open ? "open" : ""} ${lit ? "lit" : ""}`}
+        data-part="nav-row"
+        aria-label=${[label, count > 0 && String(count)].filter(Boolean).join(", ")}
+        aria-pressed=${open === undefined ? undefined : open}
+        title=${keys ? `${label} (${keys})` : label}
+        onPointerDown=${onPointerDown}
+        onClick=${onClick}
+    >
+        <${Icon} name=${icon} size=${17} />
+        <span class="nav-label">${label}</span>
+        ${trouble && html`<span class="nav-trouble" aria-hidden="true"></span>`}
+        ${count > 0 && html`<span class="nav-count">${count}</span>`}
+    </button>`;
 }
 
 /**
- * The rail beside the session list: Pi (home), the sessions (which fold the sidebar), then the tools (peek tiles, PiP,
- * running now, the subagents board, people, providers, the theme) and you. Folded, it holds the sessions too, numbered.
- * In the drawer and on a phone's home screen it does not fold, and Pi is a mark.
+ * The sidebar's places, as Claude's desktop app has them: a new session, search, extensions' own places (projects,
+ * the design canvas), the artifacts and schedules of every session, and what runs now and the subagents at work.
  */
-function Rail({ foldable = false, folded = false }) {
-    const { sessions, board, me } = store.state;
+function Nav() {
+    const { sessions, board, boardFilter } = store.state;
     const canStart = canSteer() && !scoped();
-    // Counted again only when the session list changes, not on each draw of the rail.
+    // Counted again only when the session list changes, not on each draw.
     const { busy, agents } = useMemo(
         () => ({
             // Commands Pi runs in the background are at work too, after its answer ended.
@@ -2728,187 +2709,139 @@ function Rail({ foldable = false, folded = false }) {
         [sessions],
     );
     const live = agents.working + agents.waiting;
-    const failed = failing(agents);
-    const { unread, peekSeen, server } = store.state;
-    const needs = useMemo(() => needsYouCount(sessions), [sessions, unread, peekSeen, server]);
-    const sessionsLabel =
-        needs > 0 ? `Sessions, ${needs} ${needs === 1 ? "needs" : "need"} you` : "Sessions";
-    const needsBadge =
-        needs > 0 && html`<span class="rail-count attn" data-part="rail-needs">${needs}</span>`;
-    const keys = APPLE ? "⌘B" : "Ctrl+B";
-    const fold = () => setPrefs({ sidebar: folded ? "open" : "rail" });
-    // A rail with more buttons than room scrolls as a whole, and fades the edge where more is.
-    const more = useScrollMore();
+    const running = board === "running" && boardFilter !== "scheduled";
+    const scheduled = board === "running" && boardFilter === "scheduled";
 
-    return html`<nav class="rail" data-part="rail" aria-label="Sessions and tools" ref=${more}>
+    return html`<nav class="side-nav" data-part="side-nav" aria-label="Places">
         ${
-            foldable
-                ? html`<button
-                    class="rail-brand"
-                    data-part="brand-mark"
-                    title="Home"
-                    aria-label="Home"
-                    onClick=${toSessions}
-                >
-                    π
-                </button>`
-                : html`<span class="rail-brand" data-part="brand-mark" aria-hidden="true">π</span>`
-        }
-        <span class="rail-gap"></span>
-        ${
-            foldable
-                ? html`<button
-                    class=${`rail-button ${folded ? "" : "on"}`}
-                    data-part="rail-button"
-                    data-state=${railState(!folded)}
-                    title=${`Sessions (${keys} ${folded ? "unfolds" : "folds"} the list)`}
-                    aria-label=${sessionsLabel}
-                    aria-expanded=${!folded}
-                    onClick=${fold}
-                >
-                    <${Icon} name="chat" size=${19} />
-                    ${needsBadge}
-                </button>`
-                : html`<span
-                    class="rail-button on"
-                    data-part="rail-button"
-                    data-state="open"
-                    title="Sessions"
-                    aria-current="page"
-                >
-                    <${Icon} name="chat" size=${19} />
-                    ${needsBadge}
-                </span>`
-        }
-        ${!folded && html`<span class="rail-fill"></span>`}
-        ${
-            folded &&
             canStart &&
-            html`<button
-                class="rail-button rail-new"
-                data-part="rail-button"
-                title="New session (Alt+N)"
-                aria-label="New session"
-                onClick=${() => openSheet({ type: "cwd", mode: "new" })}
-            >
-                <${Icon} name="plus" size=${19} />
-            </button>`
+            html`<${NavRow}
+                name="new"
+                icon="plus"
+                label="New session"
+                keys="Alt+N"
+                onClick=${() => openSheet({ type: "cwd", mode: "new", fromList: true })}
+            />`
         }
-        ${folded && html`<${RailTiles} />`}
-        ${foldable && html`<${PeeksRailButton} />`}
-        <${PipRailButton} />
-        <button
-            class=${`rail-button rail-running ${busy > 0 ? "lit" : ""} ${board === "running" ? "open" : ""}`}
-            data-part="rail-button"
-            data-state=${railState(board === "running", busy > 0)}
-            title="Running now"
-            aria-label=${busy > 0 ? `Running now, ${busy}` : "Running now"}
-            aria-pressed=${board === "running"}
-            onPointerDown=${() => board !== "running" && prefetchRunning().catch(() => undefined)}
-            onClick=${toggleRunning}
-        >
-            <${Icon} name="pulse" size=${19} />
-            ${busy > 0 && html`<span class="rail-count">${busy}</span>`}
-        </button>
-        <button
-            class=${`rail-button rail-agents ${live > 0 ? "lit" : ""} ${board === "subagents" ? "open" : ""}`}
-            data-part="rail-button"
-            data-state=${railState(board === "subagents", live > 0)}
-            title="Subagents in every session"
-            aria-label=${[
-                "Subagents",
-                live > 0 && `${live} at work`,
-                agents.waiting > 0 && `${agents.waiting} waiting for approval`,
-                failed > 0 && `${failed} failed`,
-            ]
-                .filter(Boolean)
-                .join(", ")}
-            aria-pressed=${board === "subagents"}
-            onClick=${() => toggleBoard("subagents")}
-        >
-            <${Icon} name="fork" size=${19} />
-            ${live > 0 && html`<span class="rail-count">${live}</span>`}
-            ${
-                (failed > 0 || agents.waiting > 0) &&
-                html`<span class="rail-trouble" aria-hidden="true"></span>`
-            }
-        </button>
-        <button
-            class="rail-button"
-            data-part="rail-button"
-            data-state=${railState(false, false)}
-            title="Artifacts in every session"
-            aria-label="All artifacts"
+        <${NavRow}
+            name="search"
+            icon="search"
+            label="Search"
+            keys=${APPLE ? "⌘K" : "Ctrl+K"}
+            onClick=${() => store.set({ launcher: true, drawer: false })}
+        />
+        <${ExtensionNavRows} />
+        <${NavRow}
+            name="artifacts"
+            icon="artifact"
+            label="Artifacts"
             onClick=${() => openSheet({ type: "all-artifacts" })}
-        >
-            <${Icon} name="artifact" size=${19} />
-        </button>
-        <${ExtensionRailButtons} />
+        />
+        <${NavRow}
+            name="scheduled"
+            icon="clock"
+            label="Scheduled"
+            open=${scheduled}
+            onPointerDown=${() => !scheduled && prefetchRunning().catch(() => undefined)}
+            onClick=${() => openBoard("running", "scheduled")}
+        />
+        <${NavRow}
+            name="running"
+            icon="pulse"
+            label="Running now"
+            count=${busy}
+            lit=${busy > 0}
+            open=${running}
+            onPointerDown=${() => !running && prefetchRunning().catch(() => undefined)}
+            onClick=${() => openBoard("running")}
+        />
+        <${NavRow}
+            name="agents"
+            icon="fork"
+            label="Subagents"
+            count=${live}
+            lit=${live > 0}
+            trouble=${failing(agents) > 0 || agents.waiting > 0}
+            open=${board === "subagents"}
+            onClick=${() => openBoard("subagents")}
+        />
+    </nav>`;
+}
+
+/** The sidebar's foot: who you are, then devices, model providers, and Appearance. */
+function Foot() {
+    const { me } = store.state;
+
+    return html`<div class="side-foot" data-part="side-foot">
+        <span class="side-me" title=${me?.name ?? ""}>
+            <span class="side-avatar" aria-hidden="true">
+                ${(me?.name ?? "You").trim().charAt(0).toUpperCase()}
+            </span>
+            <span class="side-name">${me?.name ?? "You"}</span>
+        </span>
         <button
-            class="rail-button"
-            data-part="rail-button"
+            class="icon-button"
             title="Sign in another device"
             aria-label="Devices"
             onClick=${() => openSheet({ type: "device" })}
         >
-            <${Icon} name="users" size=${19} />
+            <${Icon} name="phone" size=${17} />
         </button>
         ${
             me?.role === "owner" &&
             html`<button
-                class="rail-button"
-                data-part="rail-button"
+                class="icon-button"
                 title="Model providers"
                 aria-label="Providers"
                 onClick=${() => openSheet({ type: "providers" })}
             >
-                <${Icon} name="key" size=${19} />
+                <${Icon} name="key" size=${17} />
             </button>`
         }
         <button
-            class="rail-button"
-            data-part="rail-button"
-            title="Theme, tiling, motion"
-            aria-label="Theme"
+            class="icon-button"
+            title="Appearance"
+            aria-label="Appearance"
             onClick=${() => openSheet({ type: "appearance" })}
         >
-            <${Icon} name="palette" size=${19} />
+            <${Icon} name="palette" size=${17} />
         </button>
-    </nav>`;
+    </div>`;
 }
 
 /**
- * The store's keys the rail reads as it draws, itself and through its buttons: the session list's for its numbered
- * sessions (`RailTiles`), the board, PiP's (`pip`, `pipOpen`), peek tiles' (`appearance`), and extensions' buttons,
- * which show their page or panel as open (`page`, `extPanel`, `extensionsRev`).
+ * The store's keys the places and the foot read as they draw: the session list's counts, the boards, you, and
+ * extensions' places, which show their page or panel as open (`page`, `extPanel`, `extensionsRev`).
  */
-const RAIL_KEYS = [
+const NAV_KEYS = [
     "sessions",
     "server",
     "me",
-    "pinned",
-    "unread",
-    "peekSeen",
-    "conversationId",
-    "over",
-    "appearance",
     "board",
-    "pip",
-    "pipOpen",
+    "boardFilter",
     "page",
     "extPanel",
     "extensionsRev",
-    "foldedLinked",
 ];
 
-/** Drawn again only when what it reads changes (`RAIL_KEYS`): not as an answer streams. */
-export const RailNav = drawnFor(RAIL_KEYS, Rail);
+/** Drawn again only when what it reads changes (`NAV_KEYS`): not as an answer streams. */
+const NavDrawn = drawnFor(NAV_KEYS, Nav);
+const FootDrawn = drawnFor(NAV_KEYS, Foot);
 
-/** The sidebar's list is this wide at least and at most; the rail beside it stays 56px. */
+/** The sidebar's column: its places, the session list (PiP, projects, and sessions), and you at its foot. */
+export function Sidebar({ compact = false }) {
+    return html`<div class="side" data-part="side">
+        <${NavDrawn} />
+        <${SessionList} compact=${compact} />
+        <${FootDrawn} />
+    </div>`;
+}
+
+/** The sidebar's list is this wide at least and at most. */
 const LIST_MIN = 204;
 const LIST_MAX = 464;
 
-/** The sidebar's usual width, the rail and its list together: the one a new browser starts with (theme.js). */
+/** The sidebar's usual width: the one a new browser starts with (theme.js). */
 export const SIDEBAR_WIDTH = 312;
 
 /** Drag the sidebar's right edge to resize its list; a double click puts it back to its usual width. */
@@ -2925,7 +2858,7 @@ export function ResizeHandle() {
         event.preventDefault();
         const sidebar = event.currentTarget.parentElement;
         const box = sidebar.getBoundingClientRect();
-        // The rail and the borders, which keep their width.
+        // The borders and paddings, which keep their width.
         const rest = sidebar.offsetWidth - (sidebar.querySelector(".sessions")?.offsetWidth ?? 0);
         // No wider than the stylesheet lets it be: 40% of the screen.
         const max = Math.min(LIST_MAX + rest, Math.max(SIDEBAR_WIDTH, innerWidth * 0.4));
@@ -2955,7 +2888,7 @@ export function ResizeHandle() {
     ></div>`;
 }
 
-/** The rail and the session list, sliding in from the left on narrow screens. */
+/** The sidebar's column, sliding in from the left on narrow screens. */
 export function Drawer() {
     const [open, leaving] = usePresence(store.state.drawer || null, 200);
     const ref = useRef(null);
@@ -3010,8 +2943,7 @@ export function Drawer() {
                 data-state=${leaving ? "closing" : undefined}
                 ref=${ref}
             >
-                <${RailNav} />
-                <${SessionList} compact=${true} />
+                <${Sidebar} compact=${true} />
             </aside>
         </div>
     </div>`;

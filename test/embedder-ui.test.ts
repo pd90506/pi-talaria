@@ -328,7 +328,7 @@ test(
         await until(
             () =>
                 inPage<boolean>(
-                    `return JSON.stringify(document.querySelector(".topbar") !== null && document.querySelector(".sessions-head") !== null)`,
+                    `return JSON.stringify(document.querySelector(".topbar") !== null && document.querySelector(".side-nav") !== null)`,
                 ),
             "the top bar and the sidebar",
         );
@@ -338,12 +338,12 @@ test(
 
             return JSON.stringify({
                 topbar: region(".topbar"),
-                sessions: region(".sessions-head"),
+                sessions: region(".side-nav"),
                 title: region(".topbar > .title"),
                 titleFits: document.querySelector(".topbar > .title").getBoundingClientRect().right <
                     [...document.querySelectorAll(".topbar > .icon-button")]
                         .filter((each) => each.getBoundingClientRect().width > 0)[0].getBoundingClientRect().left - 12,
-                button: region(".sessions-head .new-button"),
+                button: region(".side-nav .nav-new"),
                 search: region(".search input"),
             });
         `;
