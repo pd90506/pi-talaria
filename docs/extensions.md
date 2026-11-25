@@ -54,7 +54,7 @@ This page is the map. Read all of it, then only the pages that your task needs.
 - It starts off. The owner turns it on in Menu → Extensions.
 - Drop-ins that other people wrote come from the gallery, and the owner can share their own there (Publishing to the gallery).
 
-A drop-in runs inside the server, with the owner's rights. It can read `config.json`, with the owner's token, and each session. Lancet Guard never sees what its code does. Its browser module, if it has one, runs in the app's own page, with the rights of the person whose tab loads it. Before you ask the owner to turn on a drop-in, show the owner the whole module, its browser files too, and say what it does.
+A drop-in runs inside the server, with the owner's rights. It can read `config.json`, with the owner's token, and each session. Its browser module, if it has one, runs in the app's own page, with the rights of the person whose tab loads it. Before you ask the owner to turn on a drop-in, show the owner the whole module, its browser files too, and say what it does.
 
 **A built-in** is a file in `src/server/extensions/`. It is a part of Pi Pocket for each person who uses this copy. Use a built-in only for a change to Pi Pocket itself, and read [self-editing.md](self-editing.md) first ([Making it built in](extensions/built-in.md)).
 

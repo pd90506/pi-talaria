@@ -11,6 +11,7 @@ import {
     scriptedModel,
     until,
     work,
+    writeAsker,
 } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -32,7 +33,7 @@ const real = {
     skip: chromium === undefined ? "no Chromium-based browser on this machine" : false,
 } as const;
 
-/** "risky please" calls a tool, which Lancet Guard asks about; everything else is echoed. */
+/** "risky please" calls a tool, which the asker drop-in asks about while it is on; everything else is echoed. */
 const route: FauxResponseStep = (request) => {
     const { text } = lastText(request as never);
 
@@ -769,7 +770,7 @@ test("a reconnect that brings the same data keeps it, and draws no session row",
             throw new Error("no session row drew for the baseline");
         }
 
-        const keys = ["me", "models", "guard", "server", "themeList", "folderFavorites", "sessions"];
+        const keys = ["me", "models", "server", "themeList", "folderFavorites", "sessions"];
         const before = Object.fromEntries(keys.map((key) => [key, store.state[key]]));
         const stream = store.state.streamId;
         const Source = window.EventSource;
@@ -1425,13 +1426,9 @@ test("the sanitizer still takes out what is unsafe, every time", real, async () 
 
 // Issue #140: the circle that says how a call went keeps its own size while it waits for an approval.
 test("a call's mark keeps its circle while it waits for an approval", real, async () => {
-    // Lancet Guard is off by default; turn it on, asking about every call.
-    await app.setExtensionEnabled(owner(app), "guard.ts", true);
-    app.guard.judge = async (_tool, args) =>
-        ({
-            subject: String(args.command),
-            decision: { action: "ask", reason: "risky", source: "test", terminate: false },
-        }) as never;
+    // A drop-in that asks about every bash call.
+    writeAsker(app.dataDir);
+    await app.setExtensionEnabled(owner(app), "asker.ts", true);
 
     const one = await newSession(app);
 
@@ -1458,8 +1455,8 @@ test("a call's mark keeps its circle while it waits for an approval", real, asyn
 });
 
 test("Pi's question shows its answers as buttons a thumb can tap", real, async () => {
-    // The test before fakes a guard that asks about every call.
-    await app.setExtensionEnabled(owner(app), "guard.ts", false);
+    // The test before turned on a drop-in that asks about every call.
+    await app.setExtensionEnabled(owner(app), "asker.ts", false);
     const id = await newSession(app);
     const heights = `return JSON.stringify([...document.querySelectorAll("button.ask-option")].map((b) => b.offsetHeight))`;
 

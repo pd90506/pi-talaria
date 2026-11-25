@@ -64,7 +64,7 @@ async function sayAs(user: User, id: ConversationId, text: string): Promise<void
 
 let calls = 0;
 
-/** Ask for approval of a bash call, as Lancet Guard does. Resolves with the answer. */
+/** Ask for approval of a bash call, as a policy hook does. Resolves with the answer. */
 function ask(id: ConversationId, subject: string) {
     const request = {
         id: `approval-${++calls}`,

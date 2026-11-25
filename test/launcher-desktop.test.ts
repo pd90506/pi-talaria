@@ -182,7 +182,6 @@ test("the desktop app's launcher: a ready file, a window that signs in once, no 
             env: {
                 ...process.env,
                 PI_CODING_AGENT_DIR: join(root, "desktop", "agent"),
-                PI_POCKET_GUARD: "off",
                 PI_POCKET_ACCESS: "",
             },
             stdio: ["pipe", "pipe", "pipe"],

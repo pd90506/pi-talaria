@@ -1,6 +1,5 @@
-// Extensions: the modules the owner can turn on and off, Lancet Guard, who may allow risky calls, and when PiP compacts
-// its context.
-import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
+// Extensions: the modules the owner can turn on and off, and when PiP compacts its context.
+import { useEffect, useState } from "preact/hooks";
 import { browserModuleState, leaveSafeMode, safeMode } from "../extension-ui.js";
 import { api, attempt, closeSheet, store } from "../store.js";
 import { html, Icon, Loader, Sheet, shortPath, Switch } from "../ui.js";
@@ -28,84 +27,6 @@ function Tile({ name, title, icon = null }) {
 
 /** The guide for people who write extensions: its first page, on the docs site, which describes the latest release. */
 const GUIDE = "https://tannermidd.github.io/pi-pocket/docs/extensions/first-extension/";
-
-/** What Lancet Guard does here, given the module's switch and Pi's own setting. */
-function guardNote(module, guard) {
-    if (!guard.available) {
-        return { warn: true, text: guard.detail };
-    }
-
-    if (!guard.enabled) {
-        return {
-            warn: true,
-            text: "Off in Pi's own settings (~/.pi/lancet-guard.json), so it does not run here either.",
-        };
-    }
-
-    if (!module.enabled) {
-        return {
-            warn: true,
-            text: "Off in Pi Pocket: bash, background, write, and edit calls run unchecked here. Pi itself still uses it.",
-        };
-    }
-
-    return {
-        warn: false,
-        text: "Checks bash, background, write, and edit calls. Risky ones wait for someone in the session to allow them.",
-    };
-}
-
-/** The LANCET model Lancet Guard scores commands with: a one-time download the owner starts here. */
-function GuardModel({ owner, model, onStart }) {
-    if (!model || model.state === "ready") {
-        return null;
-    }
-
-    const downloading = model.state === "downloading";
-
-    return html`<div class="setting">
-        <div class="grow">
-            <div class="small">LANCET model</div>
-            <div class=${`small ${model.state === "failed" ? "warn" : "muted"}`}>
-                ${
-                    model.state === "missing"
-                        ? "Not downloaded yet. The guard needs it to score commands. The download (about 109 MB) comes from the LANCET-model GitHub release, is checked against fixed checksums, and Pi uses it too."
-                        : model.detail
-                }
-            </div>
-        </div>
-        ${
-            downloading
-                ? html`<${Loader} label="Downloading" />`
-                : owner &&
-                  html`<button class="button small primary" onClick=${onStart}>
-                      ${model.state === "failed" ? "Try again" : "Download"}
-                  </button>`
-        }
-    </div>`;
-}
-
-/** Who may allow a risky call: anyone who can steer, or (for guests) someone other than whoever asked for it. */
-function ApprovalRule({ owner }) {
-    const others = store.state.server?.approvalRule === "others";
-    const change = () =>
-        attempt(() => api("settings", { approvalRule: others ? "anyone" : "others" }));
-
-    return html`<div class="setting">
-        <div class="grow">
-            <div class="small">Approvals need someone else</div>
-            <div class="muted small">
-                A guest cannot allow a call that their own message led to. You always can.
-            </div>
-        </div>
-        <${Switch}
-            on=${others}
-            disabled=${!owner}
-            label=${`Approvals need someone else: ${others ? "on" : "off"}`}
-            onChange=${change}
-        />
-    </div>`;
-}
 
 /**
  * A module's settings (`web.settings`), for the owner: each field as the module declared it, saved together. A secret
@@ -379,7 +300,6 @@ const ICONS = {
     "pip.ts": "pip",
     "triggers.ts": "pulse",
     "agent-teams.ts": "fork",
-    "guard.ts": "shield",
     "anthropic-subscription.ts": "key",
 };
 
@@ -398,13 +318,10 @@ export function ExtensionsContent({ query = "", onChanged = () => {} }) {
     const [data, setData] = useState(null);
     const [problem, setProblem] = useState(null);
     const [busy, setBusy] = useState(null);
-    const [confirmGuard, setConfirmGuard] = useState(false);
     // The drop-in waiting for the owner's word before it turns on, by file.
     const [confirmOn, setConfirmOn] = useState(null);
     // The rows opened to show their settings and details, by file.
     const [open, setOpen] = useState(new Set());
-    const guardCancel = useRef(null);
-    const guardSwitch = useRef(null);
     const load = () =>
         api("extensions").then(
             (result) => {
@@ -422,23 +339,6 @@ export function ExtensionsContent({ query = "", onChanged = () => {} }) {
     useEffect(() => {
         load();
     }, []);
-    // The model download changes the guard's status in every tab (the server pushes it): read the list again.
-    const modelState = store.state.guard?.model?.state;
-
-    useEffect(() => {
-        if (data) {
-            load();
-        }
-    }, [modelState]);
-    useLayoutEffect(() => {
-        if (confirmGuard) {
-            guardCancel.current?.focus();
-        } else if (busy === null) {
-            // Accepting disables switches until the request ends; restore focus only once it can take it.
-            guardSwitch.current?.focus({ preventScroll: true });
-            guardSwitch.current = null;
-        }
-    }, [confirmGuard, busy]);
 
     const change = (module, path, body) => {
         setBusy(module.file);
@@ -451,15 +351,7 @@ export function ExtensionsContent({ query = "", onChanged = () => {} }) {
         });
     };
 
-    const toggle = (module, button) => {
-        if (module.file === "guard.ts" && module.enabled) {
-            guardSwitch.current = button;
-            guardCancel.current?.focus();
-            setConfirmGuard(true);
-
-            return;
-        }
-
+    const toggle = (module) => {
         // A drop-in runs with the owner's rights, and Claude subscription billing has risks of its own: each asks first,
         // in its own row, not in a dialog over the app.
         if ((module.source === "drop-in" || module.file === CLAUDE_BILLING) && !module.enabled) {
@@ -468,7 +360,6 @@ export function ExtensionsContent({ query = "", onChanged = () => {} }) {
             return;
         }
 
-        setConfirmGuard(false);
         change(module, "", { enabled: !module.enabled });
     };
 
@@ -498,8 +389,6 @@ export function ExtensionsContent({ query = "", onChanged = () => {} }) {
 
     const row = (module) => {
         const tools = module.extensions.flatMap((extension) => extension.tools);
-        const guard = module.file === "guard.ts";
-        const note = guard ? guardNote(module, data.guard) : null;
         const isOpen = open.has(module.file);
         const id = `ext-more-${module.file.replace(/[^a-z0-9]/gi, "-")}`;
 
@@ -530,64 +419,14 @@ export function ExtensionsContent({ query = "", onChanged = () => {} }) {
                               on=${module.enabled}
                               disabled=${!owner || busy !== null}
                               label=${`${module.title}: ${module.enabled ? "on" : "off"}`}
-                              onChange=${(event) => toggle(module, event.currentTarget)}
+                              onChange=${() => toggle(module)}
                           />`
                 }
             </div>
-            ${note?.warn && html`<div class="ext-row-under small warn">${note.text}</div>`}
             ${
                 module.file === CLAUDE_BILLING &&
                 module.enabled &&
                 html`<div class="ext-row-under small warn">${CLAUDE_ON}</div>`
-            }
-            ${
-                guard &&
-                html`<div class="ext-row-under">
-                    <${GuardModel}
-                        owner=${owner}
-                        model=${store.state.guard?.model ?? data.guard.model}
-                        onStart=${() => attempt(async () => setData(await api("guard/model", {})))}
-                    />
-                </div>`
-            }
-            ${
-                guard &&
-                module.enabled &&
-                confirmGuard &&
-                html`<div
-                    class="guard-confirm ext-row-under"
-                    role="alertdialog"
-                    aria-label="Turn off Lancet Guard?"
-                    aria-describedby="guard-confirm-warning"
-                    onKeyDown=${(event) => {
-                        if (event.key === "Escape" && !event.isComposing && event.keyCode !== 229) {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            setConfirmGuard(false);
-                        }
-                    }}
-                >
-                    <span id="guard-confirm-warning">bash, background, write, and edit calls will run without checks in every session here. Pi's own setting stays as it is.</span>
-                    <div class="sheet-actions">
-                        <button
-                            class="button small"
-                            ref=${guardCancel}
-                            onClick=${() => setConfirmGuard(false)}
-                        >
-                            Keep it on
-                        </button>
-                        <button
-                            class="button small primary"
-                            disabled=${busy !== null}
-                            onClick=${() => {
-                                setConfirmGuard(false);
-                                change(module, "", { enabled: false });
-                            }}
-                        >
-                            Turn off
-                        </button>
-                    </div>
-                </div>`
             }
             ${
                 confirmOn === module.file &&
@@ -619,8 +458,6 @@ export function ExtensionsContent({ query = "", onChanged = () => {} }) {
             ${
                 isOpen &&
                 html`<div class="ext-row-more ext-row-under" id=${id}>
-                    ${note && !note.warn && html`<div class="small ok">${note.text}</div>`}
-                    ${guard && module.enabled && html`<${ApprovalRule} owner=${owner} />`}
                     ${module.file === "pip.ts" && module.enabled && html`<${PipCompactAt} owner=${owner} />`}
                     <${WebPart} module=${module} />
                     ${

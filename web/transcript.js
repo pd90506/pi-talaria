@@ -2296,7 +2296,7 @@ function ApprovalCard({ approval }) {
         <div class="approval-head">
             <span class="approval-shield" aria-hidden="true"><${Icon} name="shield" size=${16} /></span>
             <div class="approval-title">
-                <span class="approval-ask">Lancet Guard asks before this ${approval.tool} call</span>
+                <span class="approval-ask">Approve this ${approval.tool} call?</span>
                 <span class="approval-reason">${approval.reason}</span>
             </div>
         </div>

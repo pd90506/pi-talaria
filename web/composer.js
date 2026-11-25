@@ -2474,10 +2474,10 @@ function StopButton() {
 
 /**
  * The status line's shorter forms, in the order a narrow line takes them until it fits on one row: shorter words and
- * gaps, no "1 here" while you are alone, extensions' items' short forms, the guard's and the context's labels, then the
+ * gaps, no "1 here" while you are alone, extensions' items' short forms, the background and schedule pills' words, the context's label, then the
  * cache, then the wait for the first token.
  */
-const SHORTER = ["words", "here", "ext", "guard", "context", "cache", "wait"];
+const SHORTER = ["words", "here", "ext", "pills", "context", "cache", "wait"];
 /** What each status line was last fitted for: its text. Its width is the observer's to watch. */
 const fitted = new WeakMap();
 
@@ -2615,7 +2615,7 @@ function SpeedPart({ stats }) {
 }
 
 // The status line's items: the app's own items of the `status` slot (slots.js), with extensions' before the
-// spend. The connection's warning leads and Lancet Guard ends it, always.
+// spend. The connection's warning leads, always.
 defineItem("status", {
     id: "core:connection",
     label: "Connection",
@@ -2851,33 +2851,6 @@ defineItem("status", {
         return schedules.length > 0 && schedulesTitle(schedules);
     },
 });
-defineItem("status", {
-    id: "core:guard",
-    label: "Lancet Guard",
-    order: 700,
-    fixed: true,
-    render() {
-        const { guard } = store.state;
-        // On but not loaded: the guard blocks bash, background, write, and edit until it loads or is turned off.
-        const failed = guard?.enabled && guard.available === false;
-
-        if (!guard?.enabled && !guard?.available) {
-            return null;
-        }
-
-        const state = failed ? "failed" : guard.enabled ? "on" : "off";
-
-        return html`<button
-            class=${`guard ${guard.enabled && !failed ? "" : "off"}`}
-            aria-label=${`Lancet Guard ${state}`}
-            title=${guard.detail}
-            onClick=${() => openSheet({ type: "extensions", tab: "installed" })}
-        >
-            <${Icon} name="shield" size=${11} />
-            <span><span class="word">guard${" "}</span>${state}</span>
-        </button>`;
-    },
-});
 
 /** Under the message box: the `status` slot's items, on one row: a narrow one takes shorter forms (`SHORTER`). */
 export function StatusLine() {
@@ -2889,7 +2862,7 @@ export function StatusLine() {
 
     useStatusFit(line);
 
-    // A tap on the line says what it shows (the guard's pill has its own); with a mouse, the tooltips do.
+    // A tap on the line says what it shows; with a mouse, the tooltips do.
     const explain = (event) => {
         if (coarse && !event.target.closest("button")) {
             notify("info", details.join(" · "));

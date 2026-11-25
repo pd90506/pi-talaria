@@ -75,7 +75,6 @@ type Internal =
     | "watches"
     | "repoWatches"
     | "approvals"
-    | "guard"
     | "schedules"
     | "sessionCleanup"
     | "background"

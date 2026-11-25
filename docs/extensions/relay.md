@@ -470,7 +470,7 @@ The relay keeps two files in `<data folder>/x.pocket-relay/`, each with mode 060
 - `connectors.json`: the owner's connectors, with their secret values.
 - `state.json`: each connector's saved state, its queue, the ids it delivered lately, the replies it sent, its counts, and its last error.
 
-Lancet Guard blocks Pi's tools from every `x.*` folder in the data folder, so Pi cannot read these files. Do not keep a secret anywhere else. The owner's browser gets no secret value: only whether each secret is set.
+Secret values are hidden from what Pi and people read. Do not keep a secret anywhere else. The owner's browser gets no secret value: only whether each secret is set.
 
 ## Limits
 

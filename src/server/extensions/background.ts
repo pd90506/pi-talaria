@@ -1,6 +1,6 @@
 /**
  * Background tasks let Pi start a command and not wait for it (a dev server, a long build, a test run), read what it
- * printed later, and stop it; Pi gets a message when it ends. Its command passes Lancet Guard as bash's does, and shows
+ * printed later, and stop it; Pi gets a message when it ends. Its command passes the same hooks as bash's does, and shows
  * in Running now, where people can stop it too. While this is off, no task starts, and the ones running go on unwatched
  * until it is on again.
  */

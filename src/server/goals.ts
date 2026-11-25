@@ -38,10 +38,7 @@ export class Goals {
         return (await this.#app.harness.snapshot(GoalDoc, id, context))?.goal;
     }
 
-    /**
-     * Set a goal. With Lancet Guard on, it must allow the command outright: the check runs after every answer without
-     * asking anyone, so it may not be a command the guard would have asked about or blocked.
-     */
+    /** Set a goal: a command that has to pass, run after every answer. */
     async set(id: ConversationId, by: string, command: string): Promise<Goal> {
         const app = this.#app;
         const check = command.trim();
@@ -56,17 +53,6 @@ export class Goals {
 
         if (!app.loader.extensionNames().includes(GOALS_EXTENSION)) {
             throw new HttpError(409, "Goals are turned off in Extensions.");
-        }
-
-        if (app.guardOn()) {
-            const judged = await app.guard.judge("bash", { command: check }, app.cwdOf(id));
-
-            if (judged !== undefined && judged.decision.action !== "allow") {
-                throw new HttpError(
-                    403,
-                    `Lancet Guard does not allow this check to run unasked: ${judged.decision.reason}`,
-                );
-            }
         }
 
         const goal: Goal = {

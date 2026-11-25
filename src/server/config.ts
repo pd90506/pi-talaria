@@ -105,7 +105,7 @@ interface PocketConfig {
     themeDefault?: ThemeDefault;
     /** Extension modules (file names in `src/server/extensions/`) the owner turned off. */
     disabledExtensions?: string[];
-    /** Extension modules the owner turned on. Matters for modules that are off by default, like Lancet Guard. */
+    /** Extension modules the owner turned on. Matters for modules that are off by default, like Relay. */
     enabledExtensions?: string[];
     /** "others": a guest cannot allow a risky call that their own message led to. Absent: anyone who can steer may. */
     approvals?: ApprovalRule;

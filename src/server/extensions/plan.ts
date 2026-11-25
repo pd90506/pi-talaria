@@ -2,8 +2,7 @@
  * Plan mode lets Pi read and explore but change nothing, so it proposes a plan for people to approve first. While a
  * session is in plan mode, Pi may read files, run read-only shell commands, publish artifacts, look at pages in the
  * browser, run codemode scripts (whose calls get the same checks), and call tools their extension marks read-only;
- * everything else is blocked with a note saying why. This keeps Pi to planning; it is not a security boundary: Lancet
- * Guard is. Programs that people configured to run on their own, such as a git diff driver or file system monitor, run
+ * everything else is blocked with a note saying why. This keeps Pi to planning; it is not a security boundary. Programs that people configured to run on their own, such as a git diff driver or file system monitor, run
  * as they would for anyone.
  */
 import type { ToolAnnotations } from "@earendil-works/pi-coding-agent";

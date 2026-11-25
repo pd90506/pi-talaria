@@ -247,7 +247,6 @@ export const store = {
         models: [],
         /** This tab's shared model refresh state and last result (`model-refresh.js`). */
         modelRefresh: { loading: false, result: null, error: null },
-        guard: null,
         server: null,
         sessions: [],
         /** This person's favorite folders, in shortcut order, sent by the server to every signed-in device. */
@@ -1712,7 +1711,6 @@ const handlers = {
             users: keptEach(state.users, data.users),
             folderFavorites: kept(state.folderFavorites, data.folderFavorites ?? []),
             models: kept(state.models, data.models),
-            guard: kept(state.guard, data.guard),
             server: keptServer(state.server, data.server, asked),
             // This connection's id, which peek lists name (`on-screen.js`). `GET /api/me` answers without one.
             ...(data.connection === undefined ? {} : { streamId: data.connection }),
@@ -2602,7 +2600,6 @@ export async function start() {
             me: hello.user,
             users: hello.users,
             models: hello.models,
-            guard: hello.guard,
             server: keptServer(store.state.server, hello.server, asked),
         });
         store.set(layoutPatch(firstLayout()));

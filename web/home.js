@@ -20,7 +20,7 @@ const LOGO = [
 
 /** The home screen on wide screens: what fastfetch shows for a machine, for this Pi Pocket. */
 export function Splash() {
-    const { me, sessions, models, server, guard } = store.state;
+    const { me, sessions, models, server } = store.state;
     const busy = sessions.filter((session) => session.busy && !session.archived).length;
     const recent = workspaceOrder().slice(0, 5);
     const splash = useRef(null);
@@ -69,14 +69,6 @@ export function Splash() {
         ],
         ["models", String(models.length)],
         ["folder", shortPath(server?.defaultCwd, server?.home) || "~"],
-        [
-            "guard",
-            guard?.enabled
-                ? guard.available === false
-                    ? "failed to load"
-                    : "Lancet Guard on"
-                : "off",
-        ],
         ["you", `${me?.name ?? "?"} (${me?.role ?? "?"})`],
     ];
     const colors = [

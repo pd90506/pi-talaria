@@ -22,6 +22,7 @@ import {
     recordCost,
     root,
     until,
+    writeAsker,
 } from "./helpers.ts";
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -455,35 +456,11 @@ async function stage() {
     const alex = app.config.addUser("Alex", "guest").user;
     const sam = app.config.addUser("Sam", "guest").user;
 
-    // Lancet Guard is off in tests. Turn its module on, make it "on", and make it ask about a push.
-    await app.setExtensionEnabled(riley, "guard.ts", true);
+    // A drop-in that asks about a push.
+    writeAsker(app.dataDir, "^git push\\b");
+    await app.setExtensionEnabled(riley, "asker.ts", true);
     // PiP's panel would show a "Pending memories" row.
     await app.setExtensionEnabled(riley, "memory.ts", false);
-
-    app.guard.status = async () => ({
-        available: true,
-        enabled: true,
-        detail: "Lancet Guard is on.",
-        model: { state: "ready", detail: "The LANCET model is installed." },
-    });
-
-    app.guard.judge = async (tool, args) => {
-        const command = String((args as { command?: string }).command ?? "");
-
-        if (tool === "bash" && /^git push\b/.test(command)) {
-            return {
-                subject: command,
-                decision: {
-                    action: "ask",
-                    source: "classifier",
-                    reason: "git push sends commits to a remote",
-                    score: 0.62,
-                },
-            };
-        }
-
-        return undefined;
-    };
 
     SHOP = makeProject(
         "shop-web",
@@ -579,7 +556,7 @@ async function stage() {
         await recordCost(app, id, dollars);
     }
 
-    // Riley asks Pi to push. The guard asks, and the call waits for an answer.
+    // Riley asks Pi to push. The drop-in asks, and the call waits for an answer.
     void send(app, ids.login, riley, "Looks good. Push the branch, and I'll open the PR.", false);
     await until(() => app.approvals.forConversation(ids.login).length > 0, "the push to wait");
 
@@ -784,9 +761,12 @@ try {
     await tap("^Close", `document.querySelector(".pip-panel")`);
     await pause(600);
 
-    // The session, with Lancet Guard's card waiting.
+    // The session, with the approval card waiting.
     await frame(IPHONE, `/s/${ids.login}`);
-    await seen(`return /Lancet Guard asks/.test(document.body.textContent)`, "the approval card");
+    await seen(
+        `return /Approve this bash call/.test(document.body.textContent)`,
+        "the approval card",
+    );
     await toEnd();
     await shoot("session-phone");
 

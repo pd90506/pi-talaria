@@ -1,6 +1,6 @@
 // What the server tests share: an isolated Pi install and data folder, a scripted model, and small helpers. Import
 // this before anything from src/: it points Pi's config at a temporary folder first.
-import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
@@ -22,9 +22,8 @@ export const root = realpathSync(mkdtempSync(join(tmpdir(), "pi-pocket-test-")))
  * `127.0.0.1`: a listen on `127.0.0.2` fails there.
  */
 export const loopback = process.platform === "darwin" ? "127.0.0.1" : "127.0.0.2";
-// Isolate from the real Pi install: its auth, settings, skills, and Lancet Guard.
+// Isolate from the real Pi install: its auth, settings, and skills.
 process.env.PI_CODING_AGENT_DIR = join(root, "agent");
-process.env.PI_POCKET_GUARD = "off";
 // And from the real data folder, for code that reads its default rather than the app's own `dataDir`.
 process.env.PI_POCKET_DIR = join(root, "pocket");
 mkdirSync(process.env.PI_CODING_AGENT_DIR, { recursive: true });
@@ -232,4 +231,62 @@ export function cleanUp(): void {
     } catch (error) {
         console.warn(`Could not remove ${root}: ${(error as Error).message}`);
     }
+}
+
+/**
+ * A drop-in that asks a person about a tool call before it runs, as a policy hook would: `asker.ts` in the data folder's
+ * extensions. `match` is a regular expression's source, tested on a bash call's command ("" for every bash call); a
+ * call it matches waits for Allow or Deny, and the answer is kept in the call's memo, so a restart never asks twice.
+ */
+export function askerDropIn(match: string): string {
+    return `/** Asks before ${match === "" ? "every bash call" : `bash calls matching ${match}`}. */
+import { defineExtension, hook, ToolTask } from "@earendil-works/pi-durable";
+
+export default (host) =>
+	defineExtension({
+		name: "asker",
+		hooks: [
+			hook(ToolTask, {
+				beforeTool: async (call, api, context) => {
+					const command = typeof call.arguments?.command === "string" ? call.arguments.command : "";
+
+					if (call.name !== "bash" || !new RegExp(${JSON.stringify(match)}).test(command)) {
+						return undefined;
+					}
+
+					let answer = await api.memo("pocket.approval", context);
+
+					if (answer === undefined) {
+						const createdAt =
+							(await api.memo("pocket.approval.created-at", context)) ??
+							(await api.memo("pocket.approval.created-at", Date.now(), context));
+						const asked = await host.approvals.request(
+							{
+								id: \`\${api.taskId}:\${call.id}\`,
+								conversationId: api.conversationId,
+								taskId: api.taskId,
+								callId: call.id,
+								tool: call.name,
+								subject: command,
+								reason: "risky",
+								createdAt,
+							},
+							context,
+						);
+
+						answer = await api.memo("pocket.approval", asked, context);
+					}
+
+					return answer.allow ? undefined : { block: \`\${answer.by} denied this bash call.\` };
+				},
+			}),
+		],
+	});
+`;
+}
+
+/** Put the asker drop-in (`askerDropIn`) in an app's data folder, ready for `setExtensionEnabled(…, "asker.ts", …)`. */
+export function writeAsker(dataDir: string, match = ""): void {
+    mkdirSync(join(dataDir, "extensions"), { recursive: true });
+    writeFileSync(join(dataDir, "extensions", "asker.ts"), askerDropIn(match));
 }

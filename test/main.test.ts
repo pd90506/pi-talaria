@@ -59,7 +59,6 @@ function server(
             env: {
                 ...process.env,
                 PI_CODING_AGENT_DIR: join(root, name, "agent"),
-                PI_POCKET_GUARD: "off",
                 PI_POCKET_LAUNCHER: "",
                 PI_POCKET_SUPERVISED: "",
                 ...env,

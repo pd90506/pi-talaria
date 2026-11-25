@@ -231,10 +231,7 @@ export class Shell {
         await conversation.submit({ type: "write", entry, requestId }, context);
     }
 
-    /**
-     * Run a command someone typed. With Lancet Guard on, a command from anyone but the owner must be one the guard
-     * allows outright: nobody is asked about it, as nobody would be asked about Pi's own call without the guard.
-     */
+    /** Run a command someone typed. */
     async start(
         id: ConversationId,
         user: User,
@@ -262,17 +259,6 @@ export class Shell {
                 400,
                 "This command holds a hidden value, which would be stored and shown. Use the variable that carries it instead, such as $NAME.",
             );
-        }
-
-        if (user.role !== "owner" && app.guardOn()) {
-            const judged = await app.guard.judge("bash", { command }, app.cwdOf(id));
-
-            if (judged !== undefined && judged.decision.action !== "allow") {
-                throw new HttpError(
-                    403,
-                    `Lancet Guard does not allow this command to run unasked: ${judged.decision.reason}. Ask Pi to run it instead.`,
-                );
-            }
         }
 
         const input: ShellInput = {

@@ -2,8 +2,8 @@
  * Codemode lets the agent write JavaScript that calls its other tools, to batch independent calls, chain them, or
  * filter large output before it reaches the model. Scripts run in a QuickJS sandbox without Node, files, network, or
  * timers; their only capability is calling tools. Every call a script makes goes through the same steps as a direct
- * call (argument checks, then every `beforeTool` and `afterTool` hook), so Lancet Guard judges each one and can ask
- * for approval. Only the script's output reaches the model. `store()` values are kept per conversation.
+ * call (argument checks, then every `beforeTool` and `afterTool` hook), so a hook that blocks or asks for approval sees
+ * each one. Only the script's output reaches the model. `store()` values are kept per conversation.
  */
 import { randomBytes } from "node:crypto";
 import { writeFile } from "node:fs/promises";
@@ -59,7 +59,7 @@ const ONLY_GUIDE = `Your other tools are not declared. Call them only from a cod
 
 const DESCRIPTION = `Run JavaScript that calls your other tools: raw JavaScript (not JSON, no code fence), run as an async function body in a QuickJS sandbox, where top-level \`await\` and \`return\` work. No Node, file system, network, or timers.
 - \`await tools.<name>({ ...args })\` takes a tool's usual arguments and resolves to its text output; it rejects with an Error when the call fails or is blocked. Calls still running at the end are cancelled.
-- Each call is checked like a direct call: Lancet Guard may block it or ask a person.
+- Each call is checked like a direct call: a hook may block it or ask a person.
 - Optional first line: \`// @options: {"max_output_tokens": 10000, "timeout_ms": 60000}\`
 Globals: \`text(value)\`, \`image(dataUrlOrImageBlock)\`, \`console.log(...)\`, and \`return\` add output; \`exit()\` ends the script; \`store(key, value)\` and \`load(key)\` keep JSON across codemode calls in this conversation; \`ALL_TOOLS\` lists the tools a script can call.`;
 

@@ -16,8 +16,6 @@ git clone https://github.com/TannerMidd/pi-pocket.git
 cd pi-pocket && npm install --ignore-scripts && termux-wake-lock && npm start
 ```
 
-Lancet Guard may not load on Android. If it is on but fails, start with `PI_POCKET_GUARD=off`.
-
 ## Remote access
 
 Choose a mode in the launcher, or pass `--access`:

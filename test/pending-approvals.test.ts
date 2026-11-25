@@ -10,6 +10,7 @@ import {
     root,
     scriptedModel,
     until,
+    writeAsker,
 } from "./helpers.ts";
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -56,18 +57,16 @@ before(async () => {
     mkdirSync(join(data, "extensions"), { recursive: true });
     writeFileSync(
         join(data, "extensions", "monitor.ts"),
-        `/** Test the public host surface and reconstruct guard waits on every server start. */
+        `/** Test the public host surface. */
 export default (host, web) => {
-    host.guard.judge = async (tool, args) => tool === "bash" && args.command === "printf approval-api-safe"
-        ? { subject: args.command, decision: { action: "ask", reason: "test guard" } }
-        : undefined;
     web.route("GET", "facade", () => host.pendingApprovals);
 };
 `,
     );
+    writeAsker(data, "^printf approval-api-safe$");
     app = await openApp(model, data);
     await app.setExtensionEnabled(owner(app), "monitor.ts", true);
-    await app.setExtensionEnabled(owner(app), "guard.ts", true);
+    await app.setExtensionEnabled(owner(app), "asker.ts", true);
 });
 
 after(async () => {
@@ -371,22 +370,16 @@ test("a subagent's approval belongs to its top-level session and follows that se
     }
 });
 
-test("a pending guard wait returns after a server restart with the same id and creation time", async () => {
+test("a pending approval wait returns after a server restart with the same id and creation time", async () => {
     const initial = await approvalApi();
     const id = await source();
 
     await loadTools(app, id, "bash");
-    assert.equal(app.guardOn(), true);
-    assert.equal(
-        (await app.guard.judge("bash", { command: "printf approval-api-safe" }, "/tmp"))?.decision
-            .action,
-        "ask",
-    );
     await app.commands.submit(id, owner(app), {
         text: "guard a call",
         requestId: crypto.randomUUID(),
     });
-    await until(() => app.approvals.forConversation(id).length === 1, "guard approval");
+    await until(() => app.approvals.forConversation(id).length === 1, "the approval");
     const before = initial.list(id).find((value) => value.conversationId === id)!;
 
     assert.ok(before);

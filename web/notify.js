@@ -110,7 +110,7 @@ const KINDS = [
     [
         "approval",
         "Approvals",
-        "when Lancet Guard asks before a command; allow or deny it from the notification",
+        "when a call waits for your approval; allow or deny it from the notification",
     ],
     ["limit", "Waiting to retry", "when a model request waits ten minutes or more to retry"],
     [
