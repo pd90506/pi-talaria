@@ -415,25 +415,6 @@ test("an open session's view starts again at a new context, as Pi's context does
     }
 });
 
-test("instructions for Pi go into every request of a session and can be cleared", async () => {
-    const id = await newSession(app);
-
-    await app.commands.setInstructions(id, owner(app), "Always answer in French.");
-    assert.equal((await app.agentState(id))?.instructions, "Always answer in French.");
-    // With several people on the server, messages start with who sent them: match the end.
-    const sentWith = (text: string) => requests.findLast((each) => each.text.endsWith(text));
-
-    await say(app, id, "asked under the rules");
-    assert.match(
-        sentWith("asked under the rules")!.sections.instructions ?? "",
-        /Always answer in French\./,
-    );
-    await app.commands.setInstructions(id, owner(app), "  ");
-    assert.equal((await app.agentState(id))?.instructions, undefined);
-    await say(app, id, "asked after clearing them");
-    assert.equal(sentWith("asked after clearing them")!.sections.instructions, undefined);
-});
-
 test("a session exports as Markdown with its whole history, inherited messages included", async () => {
     const id = await newSession(app);
 

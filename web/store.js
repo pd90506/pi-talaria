@@ -2716,7 +2716,6 @@ export const actions = {
     setDefaultModel: (choice) => api("settings", { defaultModel: choice }),
     compact: (instructions) => api(`c/${current()}/compact`, { instructions }),
     reset: (note) => api(`c/${current()}/reset`, { note }),
-    setInstructions: (text) => api(`c/${current()}/instructions`, { text }),
     /** A new session with this one's history through `entryId`. */
     fork: (entryId, { worktree = false } = {}) =>
         api(`c/${current()}/fork`, { entryId, ...(worktree ? { worktree } : {}) }),

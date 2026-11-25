@@ -1,6 +1,6 @@
 /**
  * What people ask of Pi: start and rename sessions, send messages (steer or queue), stop, withdraw, and change the
- * model, thinking level, or folder of a conversation; compact or reset its context and set its instructions; fork it,
+ * model, thinking level, or folder of a conversation; compact or reset its context; fork it,
  * or send a message again; set plan mode, a goal, or scheduled messages; and remove a session's worktree. Every
  * command checks who may do it, and changes others should know about become activity lines in the session's chat.
  */
@@ -190,9 +190,8 @@ type Dismissal = { dismissed: boolean; newer?: true };
 const PLAN_EXTENSION = "pocket-plan";
 /** What Pi is told when someone approves its plan. */
 const PLAN_APPROVED = "The plan is approved. Go ahead and carry it out.";
-/** Longest handoff note for a new context, and longest instructions for Pi. */
+/** Longest handoff note for a new context. */
 const MAX_HANDOFF = 20_000;
-const MAX_INSTRUCTIONS = 8000;
 
 /** Where a new session works: a folder, and the worktree it is in when the session has one of its own. */
 type Place = { cwd: string; worktree?: Worktree; skipped: string[] };
@@ -2067,37 +2066,6 @@ export class Commands {
         }
 
         await (await app.conversation(id)).reset(handoff, context);
-    }
-
-    /**
-     * Set what Pi is told in every request of a session, after its own system prompt: ground rules everyone here shares.
-     * Empty text clears them. Subagents keep theirs: they say who the subagent is.
-     */
-    async setInstructions(id: ConversationId, user: User, text: unknown): Promise<void> {
-        const app = this.#app;
-
-        app.requireSee(user, id);
-        app.requireSteer(user);
-
-        if (app.sessionMeta(id) === undefined) {
-            throw new HttpError(400, "Only sessions have instructions for Pi");
-        }
-
-        const instructions = (optionalText(text, "instructions") ?? "").trim();
-
-        if (instructions.length > MAX_INSTRUCTIONS) {
-            throw new HttpError(413, `Instructions are limited to ${MAX_INSTRUCTIONS} characters`);
-        }
-
-        const before = (await app.agentState(id))?.instructions ?? "";
-
-        if (instructions === before) {
-            return;
-        }
-
-        await (
-            await app.conversation(id)
-        ).configure({ instructions: instructions === "" ? null : instructions }, context);
     }
 
     /** Turn plan mode on or off: while it is on, Pi reads and proposes a plan, and anything that changes something is blocked. */

@@ -295,14 +295,6 @@ function actionItems() {
                 icon: "shield",
                 run: () => openSheet({ type: "trust" }),
             },
-        session &&
-            steer && {
-                label: "Instructions for Pi",
-                detail: view.agent?.instructions ? "on" : "none",
-                keywords: "prompt system",
-                icon: "sparkle",
-                run: () => openSheet({ type: "instructions" }),
-            },
         conversation &&
             steer && {
                 label: "Compact context",

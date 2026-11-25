@@ -19,7 +19,6 @@ Each step goes further than the step before it, and needs more care. Use the fir
 
 | To change                                                          | Use                                                                             | Read                                   |
 | ------------------------------------------------------------------ | ------------------------------------------------------------------------------- | -------------------------------------- |
-| How Pi works in one session                                        | The session's instructions (Menu → Instructions for Pi)                         | [customizing.md](customizing.md)       |
 | How Pi works in a project, or everywhere                           | An `AGENTS.md` in the project, or Pi's own in `~/.pi/agent/`                    | [customizing.md](customizing.md)       |
 | A procedure that Pi follows on request                             | A skill, or a prompt template: both become slash commands                       | [customizing.md](customizing.md)       |
 | What Pi can do: a new tool, a rule in its prompt, a check on calls | A drop-in extension in `~/.pi-pocket/extensions/`, which the owner turns on     | [extensions.md](extensions.md)         |

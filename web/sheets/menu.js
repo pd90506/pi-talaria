@@ -251,7 +251,6 @@ export function MenuSheet() {
     const conversation = view.conversation;
     const steer = canSteer();
     const session = conversation?.kind === "session";
-    const instructions = view.agent?.instructions;
     const memory = useMemory();
 
     // The embedder this page runs in adds its own group at the end, below App, under its own title (`embedder.js`).
@@ -315,7 +314,6 @@ export function MenuSheet() {
             }
             ${conversation && trustAvailable() && item("Project trust", () => openSheet({ type: "trust" }), trustHint())}
             ${session && extensionMenuItems("session").map((each) => item(each.label, each.run, each.hint))}
-            ${session && steer && item("Instructions for Pi", () => openSheet({ type: "instructions" }), instructions ? "on" : "none")}
             ${conversation && steer && item("Compact context", () => openSheet({ type: "compact" }), "summarize older messages")}
             ${conversation && steer && item("New context", () => openSheet({ type: "reset" }), "Pi starts fresh; history stays")}
             ${conversation && memoryAvailable() && item("Memory", () => openSheet({ type: "memory" }), memoryHint(memory))}
