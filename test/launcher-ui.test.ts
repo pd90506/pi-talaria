@@ -228,20 +228,6 @@ test(
     },
 );
 
-test("Peeks finds the action by its feature name", real, async () => {
-    await home();
-    await open();
-    await search("Peeks");
-    assert.equal(
-        await inPage<boolean>(
-            `return JSON.stringify([...document.querySelectorAll('.launcher-item')].some((row) => /peek tiles/i.test(row.textContent)))`,
-        ),
-        true,
-    );
-    await page.press("Escape");
-    await closed();
-});
-
 test("on a phone the launcher is a bottom sheet that a swipe down closes", real, async () => {
     await home(VIEWPORTS.mobile, true);
     await page.evaluate(`document.querySelector('.composer textarea').focus()`);

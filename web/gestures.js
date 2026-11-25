@@ -1,6 +1,6 @@
 // Touch gestures for phones, for one hand. A sheet follows a finger dragging it down and closes when let go far or fast
 // enough, as the drawer does dragged to the left. On the conversation, a swipe right goes back and a swipe left opens
-// the Files tile; a swipe up from the message box opens the places. On an iPhone's home screen app, which has no back
+// the Files tile. On an iPhone's home screen app, which has no back
 // gesture of its own, a swipe in from the left edge goes back (back.js). Each swipe shows a mark that follows the finger.
 
 import { useEffect, useRef } from "preact/hooks";
@@ -407,8 +407,6 @@ const NARROW = matchMedia("(max-width: 959px)");
 const PHONE = matchMedia("(max-width: 699px)");
 /** Swipes start this far from the screen's sides, which belong to the system's back gesture (and `startEdgeBack`). */
 const SIDES = 24;
-/** How far up from the message box a swipe goes before it opens what it opens. */
-const UP = 44;
 /** How far a sideways swipe may drift up or down before it counts as scrolling after all. */
 const DRIFT = 56;
 
@@ -430,11 +428,10 @@ function scrollsSideways(target, root) {
 /**
  * One-handed swipes on a phone, with passive listeners so scrolling never waits on them. On the conversation, sideways:
  * right goes back, left opens a place (the Files tile), each with a mark that follows the finger and lights when
- * letting go would act; the conversation leans a little the same way. In the Files tile, right goes back too. Up from
- * the message box (not its text, nor the queue and bars above it) opens the places; on the subagents board, right goes
- * back, and on an extension's page too (`"board"` as well), both at a phone's width only. `swipes(where)` says, when a
+ * letting go would act; the conversation leans a little the same way. In the Files tile, right goes back too. On the
+ * subagents board, right goes back, and on an extension's page too (`"board"` as well), both at a phone's width only. `swipes(where)` says, when a
  * touch starts on `"conversation"`, `"files"`, or `"board"`, what each does now: `{ right, left }` as
- * `{ path, label, run }`, and `up` as a function, or none. No swipe starts in a field, nor in anything marked
+ * `{ path, label, run }`, or none. No swipe starts in a field, nor in anything marked
  * `data-no-swipe` (what an extension's page keeps its sideways swipes for, or the whole page).
  */
 export function startSwipes(swipes) {
@@ -517,13 +514,6 @@ export function startSwipes(swipes) {
                 !getSelection()?.toString()
             ) {
                 swipe = { ...at, root };
-            } else if (
-                acts.up &&
-                target.closest?.(".composer-wrap") &&
-                // Above the box, the queue and the subagents list scroll: a finger there scrolls them.
-                !target.closest(".dock")
-            ) {
-                swipe = { ...at, root: null, up: true };
             }
         },
         { passive: true },
@@ -545,34 +535,15 @@ export function startSwipes(swipes) {
                     return;
                 }
 
-                const dir = swipe.up
-                    ? dy < 0 && -dy > Math.abs(dx)
-                        ? "up"
-                        : null
-                    : Math.abs(dx) > Math.abs(dy) * 1.5
-                      ? dx < 0
-                          ? "left"
-                          : "right"
-                      : null;
+                const dir = Math.abs(dx) > Math.abs(dy) * 1.5 ? (dx < 0 ? "left" : "right") : null;
 
-                if (dir === null || (dir !== "up" && !swipe.acts[dir])) {
+                if (dir === null || !swipe.acts[dir]) {
                     swipe = null;
 
                     return;
                 }
 
                 swipe.dir = dir;
-            }
-
-            if (swipe.dir === "up") {
-                if (-dy >= UP) {
-                    const open = swipe.acts.up;
-
-                    swipe = null;
-                    open();
-                }
-
-                return;
             }
 
             // Drifted into a scroll after all.

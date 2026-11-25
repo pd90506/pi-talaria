@@ -206,10 +206,6 @@ One of the app's components that `pocket` gives: `Icon`, `Loader`, `Spinner`, `M
 
 The object that you give to `pocket.rail`, `pocket.page`, and the others. Its types are `RailSpec`, `PageSpec`, and so on.
 
-### peek tiles
-
-Small cards beside a session that show the live work of other sessions.
-
 ### safe mode
 
 A tab opened with `?noext=1` at the end of the app's address loads no browser modules.

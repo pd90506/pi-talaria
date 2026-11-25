@@ -12,7 +12,7 @@ import { FileSheet } from "./sheets/file.js";
 import { FindSheet } from "./sheets/find.js";
 import { CwdSheet } from "./sheets/folder.js";
 import { MemorySheet } from "./sheets/memory.js";
-import { MenuSheet, PlacesSheet } from "./sheets/menu.js";
+import { MenuSheet } from "./sheets/menu.js";
 import { MessageSheet } from "./sheets/message.js";
 import { ModelPicker } from "./sheets/model.js";
 import { DeviceSheet } from "./sheets/device.js";
@@ -221,15 +221,12 @@ function sheetBody(sheet) {
             body = html`<${NotificationsSheet} />`;
             break;
         case "menu":
-            body = html`<${MenuSheet} places=${!sheet.fromPlaces} />`;
+            body = html`<${MenuSheet} />`;
             break;
         case "session":
             body = store.state.sessions.some((each) => each.id === sheet.id)
                 ? html`<${SessionSheet} id=${sheet.id} at=${sheet.at ?? null} />`
                 : null;
-            break;
-        case "places":
-            body = view.conversation ? html`<${PlacesSheet} />` : null;
             break;
 
         case "rename": {

@@ -1,6 +1,6 @@
 // One subagent at work, as a sub-tile: the state square in its session's folder color, its name and state, and what it
-// does this moment, from its own peek (or, until that arrives, what it was asked). Peek tiles nest these in a session's
-// tile; the subagents board shows them under a session's row.
+// does this moment, from its own peek (or, until that arrives, what it was asked). The subagents board shows them
+// under a session's row.
 import { useRef } from "preact/hooks";
 import { nowDoing } from "./agent-now.js";
 import { store } from "./store.js";
@@ -10,7 +10,7 @@ import { html } from "./ui.js";
 /** Two clicks (or taps) this close together open the subagent, where `onOpen` is given: the board's. */
 const DOUBLE_MS = 350;
 
-/** Whether it waits for an approval: the board knows at once; a peek tile, from the subagent's own peek. */
+/** Whether it waits for an approval: the board knows at once, else the subagent's own peek says. */
 function waitingOf(agent, peek) {
     return agent.waiting === true || (peek?.approvals?.length ?? 0) > 0;
 }
@@ -33,7 +33,7 @@ function doingOf(agent, peek) {
 
 /**
  * A subagent's sub-tile. `folder` is its session's folder color; `selected` marks it as the one the board shows.
- * `onActivate` takes a click (a peek tile opens it; the board picks it), and `onOpen` a double click or tap.
+ * `onActivate` takes a click (the board picks it), and `onOpen` a double click or tap.
  */
 export function AgentTile({ agent, folder, selected = false, onActivate, onOpen }) {
     const peek = agent.peek ?? store.state.peeks?.[agent.conversationId];

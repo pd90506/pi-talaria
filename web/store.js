@@ -1714,7 +1714,7 @@ const handlers = {
             models: kept(state.models, data.models),
             guard: kept(state.guard, data.guard),
             server: keptServer(state.server, data.server, asked),
-            // This connection's id, which peek lists name (`peeks.js`). `GET /api/me` answers without one.
+            // This connection's id, which peek lists name (`on-screen.js`). `GET /api/me` answers without one.
             ...(data.connection === undefined ? {} : { streamId: data.connection }),
         });
         // The sessions used last, from the device into memory, once the page settles: after a reload they open at once.
@@ -1760,7 +1760,7 @@ const handlers = {
     pipview: applyPipView,
     browser: (data) =>
         data.conversationId === store.state.conversationId && store.set({ browser: data }),
-    // Another session as its peek tile shows it (`peeks.js`): kept after it scrolls away, as the tile's last look.
+    // A session or subagent as its live row shows it (`on-screen.js`): kept after it scrolls away, as its last look.
     peek: (data) =>
         store.set((state) => ({ peeks: { ...state.peeks, [data.conversationId]: data } })),
     users: (users) => setChanged({ users: keptEach(store.state.users, users) }),

@@ -15,7 +15,7 @@ import {
     SidebarSections,
 } from "./extension-ui.js";
 import { useDragToClose } from "./gestures.js";
-import { wholeOnTile } from "./peeks.js";
+import { wholeOnTile } from "./on-screen.js";
 import { sessionForest, unfolded } from "./session-tree.js";
 import {
     actions,
@@ -2750,20 +2750,11 @@ function Nav() {
             icon="pulse"
             label="Running now"
             count=${busy}
-            lit=${busy > 0}
-            open=${running}
-            onPointerDown=${() => !running && prefetchRunning().catch(() => undefined)}
-            onClick=${() => openBoard("running")}
-        />
-        <${NavRow}
-            name="agents"
-            icon="fork"
-            label="Subagents"
-            count=${live}
-            lit=${live > 0}
+            lit=${busy > 0 || live > 0}
             trouble=${failing(agents) > 0 || agents.waiting > 0}
-            open=${board === "subagents"}
-            onClick=${() => openBoard("subagents")}
+            open=${running || board === "subagents"}
+            onPointerDown=${() => !running && prefetchRunning().catch(() => undefined)}
+            onClick=${() => openBoard(board === "subagents" ? "subagents" : "running")}
         />
     </nav>`;
 }

@@ -108,7 +108,7 @@ const DEFAULTS = {
 
 /**
  * What the one look fixes, which code elsewhere still reads: no tiled windows, the system's motion, the usual spacing
- * and widths, no session tabs, no peek tiles, and every slot in the app's own order.
+ * and widths, no session tabs, and every slot in the app's own order.
  */
 const FIXED = {
     tiling: false,
@@ -116,7 +116,6 @@ const FIXED = {
     density: "comfortable",
     width: "comfortable",
     sessionTabs: false,
-    peeks: false,
     layout: {},
 };
 

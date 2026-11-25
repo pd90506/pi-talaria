@@ -1,5 +1,5 @@
 // What this browser has seen: when it last looked at each session, by the server's clock, so a run that ended since
-// is new. Peek tiles show those sessions, and the session list's squares turn solid for them. Opening a session is
+// is new. The session list's squares turn solid for them. Opening a session is
 // looking at it, and so is having it open in sight when its run ends.
 //
 // Kept per browser, in localStorage, like pins and marks. To share it between someone's devices, the server would keep

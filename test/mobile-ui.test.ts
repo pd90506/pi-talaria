@@ -122,11 +122,11 @@ const tap = async (selector: string) => {
 
 const row = (id: ConversationId) => `.home-list .session-row[data-id="${id}"] .session`;
 
-/** Open the Files tile from the menu's tiles, where the top bar keeps it while it is closed. */
+/** Open the Files tile from the menu's rows, where the top bar keeps it while it is closed. */
 async function openFiles(): Promise<void> {
     await tap('.topbar [aria-label="Menu"]');
     await reach({ sheet: "menu" }, "the menu");
-    await tap('.place[data-place="files"]');
+    await tap(".menu-beside .list-item");
 }
 
 /** The session list, freshly loaded at phone size with no panel open: each test starts from here. */

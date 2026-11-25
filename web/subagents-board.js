@@ -1,4 +1,5 @@
-// The subagents board: every subagent in every session, in the conversation's place while it is open. One square per
+// Running now's subagents: every subagent in every session, in the conversation's place while it is open, with the
+// sessions a switch away (`board-tabs.js`). One square per
 // subagent and one row per session, the sessions that need you first, and under a row a sub-tile for each subagent at
 // work there, saying what it does now; a bar that says how many are in each state and filters by it; what needs you
 // (approvals, and failures nobody has dealt with) in a queue; and the one selected, with Open, Stop, and Dismiss. The
@@ -6,9 +7,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { nowDoing } from "./agent-now.js";
 import { AgentTile } from "./agent-tile.js";
+import { BoardTabs } from "./board-tabs.js";
 import { folderColor } from "./colors.js";
 import { useBack } from "./back.js";
-import { useOnScreen } from "./peeks.js";
+import { useOnScreen } from "./on-screen.js";
 import { fromServer } from "./seen.js";
 import { api, attempt, canSteer, navigate, notify, store } from "./store.js";
 import {
@@ -449,7 +451,7 @@ export function SubagentsBoard() {
     const [unfolded, setUnfolded] = useState(() => new Set());
     const [, tick] = useState(0);
     const box = useRef(null);
-    // A subagent to bring into view once its square is drawn: one a peek tile's "N more" asked for.
+    // A subagent to bring into view once its square is drawn: the one the board was opened at (`boardFocus`).
     const reveal = useRef(null);
     const { boardFocus } = store.state;
     const agents = boardAgents ?? [];
@@ -514,7 +516,7 @@ export function SubagentsBoard() {
         }
     }, [grid.length > 0]);
 
-    // A peek tile's "N more" opens the board at the first it left out: selected, and in view once the board has it.
+    // The board opened at one subagent (`boardFocus`): selected, and in view once the board has it.
     useEffect(() => {
         if (boardFocus === undefined || boardFocus === null) {
             return;
@@ -790,11 +792,12 @@ export function SubagentsBoard() {
     >
         <header class="board-head">
             <div class="board-title">
-                <h2>Subagents</h2>
+                <h2>Running now</h2>
                 <div class="board-sub">
                     ${total} in ${sessionCount} session${sessionCount === 1 ? "" : "s"}
                 </div>
             </div>
+            <${BoardTabs} />
             ${!phone && html`<${Search} query=${query} setQuery=${setQuery} />`}
             <button
                 class="icon-button"

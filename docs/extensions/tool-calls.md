@@ -1,6 +1,6 @@
 # How tool calls show
 
-A browser module can say how the calls of its own tools show in transcripts and peek tiles. Without this, a call shows as the name of the tool, and its arguments as JSON.
+A browser module can say how the calls of its own tools show in transcripts. Without this, a call shows as the name of the tool, and its arguments as JSON.
 
 ## Describe a tool's calls
 
@@ -20,7 +20,7 @@ pocket.toolCall({
 - `label(args)` gives the words of the call's line, for example `"start session"`. It is required.
 - `subject(args)` gives what the call acts on. It is optional, as `summary` and the icon are.
 - `summary(args)` tells how a group of calls counts this call, as `{ verb, noun, by }`. See below.
-- `icon` or `iconPath` is its icon in peek tiles, as for a rail button ([Browser modules](browser-modules.md)).
+- `icon` or `iconPath` is its icon, as for a sidebar row ([Browser modules](browser-modules.md)).
 
 It returns `{ remove() }`. It goes with the version of the module that added it.
 

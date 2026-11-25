@@ -5,10 +5,9 @@ import { schedulesAvailable, triggersOn, watchAvailable, watchPr } from "../comm
 import { extensionMenuItems, safeMode } from "../extension-ui.js";
 import { hostMenu } from "../embedder.js";
 import { useChanges } from "../diff.js";
-import { filesAvailable, setFilesOpen } from "../files-panel.js";
-import { peeksOn, togglePeeks } from "../peeks.js";
+import { filesAvailable } from "../files-panel.js";
+import { dockTabs } from "../side-dock.js";
 import { modelRefreshAvailable, refreshModels } from "../model-refresh.js";
-import { openPip, pipAvailable, pipUnread } from "../pip.js";
 import { setArchived } from "../sessions.js";
 import { openSubagent } from "../subagents.js";
 import {
@@ -25,13 +24,11 @@ import {
     signOut,
     store,
 } from "../store.js";
-import { defineItem, slotItems } from "../slots.js";
 import { isPinned, lookLabel, togglePin } from "../theme.js";
 import { currentTrust, trustAvailable } from "../trust.js";
-import { branchAvailable } from "./branch.js";
 import { memoryAvailable, memoryHint, useMemory } from "./memory.js";
 import { defaultLabel, defaultsKept } from "./model.js";
-import { copyText, html, item, PlaceTile, Sheet, shortPath } from "../ui.js";
+import { copyText, html, item, Sheet, shortPath } from "../ui.js";
 
 // Key hints are for people with a keyboard: a touch screen has none.
 const touch = matchMedia("(pointer: coarse)").matches;
@@ -63,181 +60,50 @@ function extensionsHint() {
 }
 
 /**
- * The session's places as big tiles at the top of the menu: Files, Changes, the browser, artifacts, the chat, find,
- * the branch, and peek tiles. The top bar keeps only the buttons with something to say; these are always here, a
- * thumb's width each.
+ * What opens beside the conversation, as rows at the top of the menu: Files, Changes, the browser, and extensions'
+ * panels, the side dock's tabs (`side-dock.js`). On a phone, where the top bar keeps few buttons, this is where they are.
  */
-function Places() {
+function Beside() {
     if (!store.state.view.conversation) {
         return null;
     }
 
-    return filesAvailable() ? html`<${PlacesWithChanges} />` : html`<${PlacesGrid} />`;
+    return filesAvailable() ? html`<${BesideWithChanges} />` : html`<${BesideRows} />`;
 }
 
 /** Only people who can open Files request its shared changes data, just as the top bar does. */
-function PlacesWithChanges() {
+function BesideWithChanges() {
     const { changes } = useChanges();
 
-    return html`<${PlacesGrid} changes=${changes} />`;
+    return html`<${BesideRows} changes=${changes} />`;
 }
 
-/**
- * The app's own places, items of the `places` slot (slots.js), which a person can hide and reorder in Appearance, with
- * extensions' panels after them. Each gets `{ changes }`: the folder's changes, for the count on Changes.
- */
-const PLACES = [
-    {
-        id: "core:files",
-        label: "Files",
-        place: () =>
-            filesAvailable() && {
-                icon: "folder",
-                on: store.state.filesOpen && store.state.filesTab === "files",
-                run: () => setFilesOpen(true, "files"),
-            },
-    },
-    {
-        id: "core:changes",
-        label: "Changes",
-        place({ changes }) {
-            // Match the top bar: uncommitted files in a repository, Pi's edits elsewhere, plus any unlisted files.
-            const count = changes
-                ? changes.files.length +
-                  (changes.repo ? 0 : changes.piOnly.length) +
-                  (changes.more ?? 0)
-                : 0;
+function BesideRows({ changes = null }) {
+    // Match the top bar: uncommitted files in a repository, Pi's edits elsewhere, plus any unlisted files.
+    const count = changes
+        ? changes.files.length + (changes.repo ? 0 : changes.piOnly.length) + (changes.more ?? 0)
+        : 0;
+    const counts = { changes: count };
+    const tabs = dockTabs();
 
-            return (
-                filesAvailable() && {
-                    icon: "diff",
-                    count,
-                    counted: count === 1 ? "changed file" : "changed files",
-                    on: store.state.filesOpen && store.state.filesTab === "changes",
-                    run: () => setFilesOpen(true, "changes"),
-                }
-            );
-        },
-    },
-    {
-        id: "core:browser",
-        label: "Browser",
-        place() {
-            const { browser, browserOpen } = store.state;
+    if (tabs.length === 0) {
+        return null;
+    }
 
-            return (
-                browserAvailable() && {
-                    icon: "globe",
-                    on: browserOpen,
-                    dot: browser?.open && browser.url !== "" && browser.url !== "about:blank",
-                    run: () => {
-                        setBrowserOpen(true);
-                        closeSheet();
-                    },
-                }
-            );
-        },
-    },
-    {
-        id: "core:artifacts",
-        label: "Artifacts",
-        place: () => ({
-            icon: "artifact",
-            count: store.state.view.artifacts.length,
-            run: () => openSheet({ type: "artifacts" }),
-        }),
-    },
-    {
-        id: "core:find",
-        label: "Find",
-        place: () => ({ icon: "search", run: () => openSheet({ type: "find" }) }),
-    },
-    {
-        // Ctrl K's launcher, for touch screens that have no keyboard to open it.
-        id: "core:launcher",
-        label: "Launcher",
-        place: () =>
-            touch && {
-                icon: "command",
-                run: () => {
-                    closeSheet();
-                    store.set({ launcher: true });
-                },
-            },
-    },
-    {
-        id: "core:branch",
-        label: "Branch",
-        place: () =>
-            branchAvailable() && { icon: "fork", run: () => openSheet({ type: "branch" }) },
-    },
-    {
-        id: "core:pip",
-        label: "PiP",
-        place: () =>
-            pipAvailable() && {
-                icon: "pip",
-                dot: pipUnread(),
-                dotLabel: "something new",
-                run: () => {
-                    openPip();
+    return html`<div class="group menu-beside" aria-label="Beside the conversation">
+        ${tabs.map((tab) =>
+            item(
+                tab.label,
+                () => {
+                    tab.open();
                     closeSheet();
                 },
-            },
-    },
-    {
-        id: "core:peeks",
-        label: "Peeks",
-        place: () =>
-            store.state.server?.peeks === true && {
-                icon: "tiles",
-                on: peeksOn(),
-                run: () => {
-                    togglePeeks();
-                    closeSheet();
-                },
-            },
-    },
-];
-
-PLACES.forEach(({ id, label, place }, index) =>
-    defineItem("places", {
-        id,
-        label,
-        order: (index + 1) * 100,
-        render(context) {
-            const shown = place(context);
-
-            // As before slots: `data-place="files"`, which tests and themes may select.
-            return (
-                shown &&
-                html`<${PlaceTile} place=${{ id: id.replace(/^core:/, ""), label, ...shown }} />`
-            );
-        },
-    }),
-);
-
-function PlacesGrid({ changes = null }) {
-    return html`<nav class="places" aria-label="Places">
-        ${slotItems("places", { changes }).map(({ node }) => node)}
-    </nav>`;
-}
-
-/**
- * The places alone, in a short sheet that stays near the bottom edge: what the button beside the message box and a
- * swipe up from it open on a phone, a thumb's reach away. The rest of the menu is a row below.
- */
-export function PlacesSheet() {
-    const conversation = store.state.view.conversation;
-
-    return html`<${Sheet}
-        title=${conversation?.title ?? "Open"}
-        onClose=${closeSheet}
-        className="places-sheet"
-    >
-        <${Places} />
-        ${item("Session menu", () => openSheet({ type: "menu", fromPlaces: true }), "rename, context, settings")}
-    <//>`;
+                [tab.on && "open", counts[tab.key] > 0 && `${counts[tab.key]} changed`]
+                    .filter(Boolean)
+                    .join(" · "),
+            ),
+        )}
+    </div>`;
 }
 
 /** Keep Sheet's Esc, drag, and focus handling; the sheet trail already owns its back-stack layer. */
@@ -316,7 +182,7 @@ function MenuFrame({ title, children }) {
             return;
         }
 
-        const items = [...host.current.querySelectorAll(".place, .list-item")];
+        const items = [...host.current.querySelectorAll(".list-item")];
         const active = document.activeElement;
         const index = items.indexOf(active);
         let target;
@@ -337,17 +203,9 @@ function MenuFrame({ title, children }) {
             target = items[0];
         } else if (event.key === "End") {
             target = items.at(-1);
-        } else if (["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft"].includes(event.key)) {
-            const down = event.key === "ArrowDown" || event.key === "ArrowRight";
-            const vertical = event.key === "ArrowDown" || event.key === "ArrowUp";
-            const tiles = host.current.querySelectorAll(".place").length;
-            const step = vertical && index >= 0 && index < tiles ? 3 : 1;
-            let next = index < 0 ? (down ? 0 : items.length - 1) : index + (down ? step : -step);
-
-            // Down from the grid's last row enters the first text row; Up from its first row wraps to the last item.
-            if (vertical && index >= 0 && index < tiles) {
-                next = next < 0 ? items.length - 1 : Math.min(next, tiles);
-            }
+        } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            const down = event.key === "ArrowDown";
+            const next = index < 0 ? (down ? 0 : items.length - 1) : index + (down ? 1 : -1);
 
             target = items[(next + items.length) % items.length];
         }
@@ -394,8 +252,8 @@ function trustHint() {
     return info.trusted ? "trusted" : "not trusted";
 }
 
-/** The menu; `places` is false when it opens from the places sheet, which just showed the tiles. */
-export function MenuSheet({ places = true }) {
+/** The menu. */
+export function MenuSheet() {
     const { view, me, server } = store.state;
     const conversation = view.conversation;
     const steer = canSteer();
@@ -407,7 +265,7 @@ export function MenuSheet({ places = true }) {
     const embedder = hostMenu();
 
     return html`<${MenuFrame} title=${conversation?.title ?? "Menu"}>
-        ${places && html`<${Places} />`}
+        <${Beside} />
         <div class="menu-session">
             ${session && steer && item("Rename", () => openSheet({ type: "rename" }))}
             ${

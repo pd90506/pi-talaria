@@ -658,7 +658,7 @@ toolCall<A = Record<string, unknown>>(spec: ToolCallSpec<A>): { remove(): void }
 
 Since 0.14.0 · Stable
 
-Sets how the calls of one of the module's own tools show in transcripts and peek tiles. Without it, a call shows as the tool's name, with its arguments as JSON. It goes with the version that added it. See [`ToolCallSpec`](#toolcallspec). [How tool calls show](../tool-calls.md) tells you more.
+Sets how the calls of one of the module's own tools show in transcripts. Without it, a call shows as the tool's name, with its arguments as JSON. It goes with the version that added it. See [`ToolCallSpec`](#toolcallspec). [How tool calls show](../tool-calls.md) tells you more.
 
 ## Opening and closing
 
@@ -1263,12 +1263,12 @@ Since 0.20.0 · Experimental
 ### `SlotName`
 
 ```ts
-type SlotName = "topbar" | "status" | "places" | "composer" | "reply";
+type SlotName = "topbar" | "status" | "composer" | "reply";
 ```
 
 Since 0.19.0 · Experimental
 
-A slot: `"topbar"`, the buttons after the session's title; `"status"`, the status line under the message box; `"places"`, the tiles in the places and at the top of the menu; `"composer"`, the buttons on the left of the message box's row; or `"reply"`, the actions under Pi's answers.
+A slot: `"topbar"`, the buttons after the session's title; `"status"`, the status line under the message box; `"composer"`, the buttons on the left of the message box's row; or `"reply"`, the actions under Pi's answers.
 
 ### `Arrangement`
 
@@ -1292,13 +1292,12 @@ A slot is a place in the app that is a list of named items: the app's own items 
 
 What shows comes in layers, the last one wins: each item's default place, then the `before` or `after` of a module's own item, then each module's `arrange`.
 
-| Slot       | Ids, in their default order                                                                                                                                        | Fixed                                                                          | Modules' items go           |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | --------------------------- |
-| `topbar`   | `core:subagents`, `core:changes`, `core:peeks`, `core:files`, `core:browser`, `core:artifacts`, `core:people`, `core:menu`                                         | `core:menu`, last                                                              | after `core:browser`        |
-| `status`   | `core:connection`, `core:schedules`, `core:speed`, `core:context`, `core:cache`, `core:spend`, `core:background`, `core:guard`                                     | `core:connection`, `core:guard`                                                | after `core:cache`          |
-| `places`   | `core:files`, `core:changes`, `core:browser`, `core:artifacts`, `core:chat`, `core:find`, `core:launcher` (touch screens), `core:branch`, `core:pip`, `core:peeks` | none                                                                           | last: a tile for each panel |
-| `composer` | `core:places`, `core:attach`, `core:model`, `core:plan`                                                                                                            | none (Send, Stop, the mic, and Steer, Queue and Interrupt are not in the slot) | after `core:plan`           |
-| `reply`    | `core:time`, `core:react`, `core:discuss`, `core:pin`, `core:copy`, `core:more`                                                                                    | `core:more`, last                                                              | before `core:more`          |
+| Slot       | Ids, in their default order                                                                                                    | Fixed                                                                          | Modules' items go    |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | -------------------- |
+| `topbar`   | `core:subagents`, `core:changes`, `core:files`, `core:browser`, `core:artifacts`, `core:menu`                                  | `core:menu`, last                                                              | after `core:browser` |
+| `status`   | `core:connection`, `core:schedules`, `core:speed`, `core:context`, `core:cache`, `core:spend`, `core:background`, `core:guard` | `core:connection`, `core:guard`                                                | after `core:cache`   |
+| `composer` | `core:attach`, `core:model`, `core:plan`                                                                                       | none (Send, Stop, the mic, and Steer, Queue and Interrupt are not in the slot) | after `core:plan`    |
+| `reply`    | `core:time`, `core:react`, `core:discuss`, `core:pin`, `core:copy`, `core:more`                                                | `core:more`, last                                                              | before `core:more`   |
 
 The `core:time` item shows a completed reply's stored message time.
 
@@ -1378,7 +1377,7 @@ How the calls of one tool show, from their arguments.
 - `label`: the words of the call's line, such as `"start session"`.
 - `subject`: what the call acts on.
 - `summary`: how a group of calls counts this call. See [`CallSummary`](#callsummary).
-- `icon`, `iconPath`: the call's icon in peek tiles, as for a rail button.
+- `icon`, `iconPath`: the call's icon, as for a sidebar row.
 
 Each function gets a copy of the call's arguments. What it returns shows as one line of text, never as HTML. When a function throws, or returns something that is not text, the call shows the default way. The browser's console has the error.
 

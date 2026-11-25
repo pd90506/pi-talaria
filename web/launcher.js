@@ -14,7 +14,6 @@ import {
 import { extensionLauncherItems, sessionWords } from "./extension-ui.js";
 import { filesAvailable, toggleFiles } from "./files-panel.js";
 import { useDragToClose } from "./gestures.js";
-import { togglePeeks } from "./peeks.js";
 import { modelRefreshAvailable, refreshModels } from "./model-refresh.js";
 import { openPip, pipAvailable } from "./pip.js";
 import { setArchived, toggleBoard } from "./sessions.js";
@@ -163,13 +162,6 @@ function actionItems() {
             detail: "gaps and window borders",
             icon: "swatch",
             run: () => setPrefs({ tiling: !prefs().tiling }),
-        },
-        {
-            label: prefs().peeks ? "Hide peek tiles" : "Show peek tiles",
-            detail: "Peeks: other sessions' live work beside this one",
-            icon: "tiles",
-            keys: "Alt P",
-            run: togglePeeks,
         },
         {
             label: prefs().showThinking ? "Hide thinking" : "Show thinking",

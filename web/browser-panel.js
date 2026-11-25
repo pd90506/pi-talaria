@@ -1076,8 +1076,8 @@ export function BrowserButton() {
 
     const live = state?.open && state.url !== "" && state.url !== "about:blank";
 
-    // Quiet with no page open: the menu has the browser. On a phone a page open is a dot on the places button (by the
-    // message box) instead, so the top bar keeps room.
+    // Quiet with no page open: the menu has the browser. On a phone it shows only while a page is open, so the top
+    // bar keeps room.
     return html`<button
         class=${`icon-button badge-host ${browserOpen ? "on" : live ? "quiet-phone" : "quiet"}`}
         aria-label="Browser"

@@ -3,7 +3,6 @@ import { browserAvailable, openInBrowser, toggleBrowser } from "./browser.js";
 import { filesAvailable, toggleFiles } from "./files-panel.js";
 import { branchAvailable } from "./sheets/branch.js";
 import { memoryAvailable, remember } from "./sheets/memory.js";
-import { togglePeeks } from "./peeks.js";
 import { askPip, openPip, pipAvailable } from "./pip.js";
 import { actions, navigate, notify, openSheet, scoped, store } from "./store.js";
 import { setPrefs } from "./theme.js";
@@ -395,12 +394,6 @@ const COMMANDS = [
         description: "Open PiP, your assistant over every session, or ask it something",
         available: pipAvailable,
         run: (arg) => (arg === "" ? openPip() : askPip(arg)),
-    },
-    {
-        name: "peek",
-        description: "Show or hide peek tiles: other sessions' live work beside this one",
-        available: () => store.state.server?.peeks === true,
-        run: () => togglePeeks(),
     },
     {
         name: "artifacts",
