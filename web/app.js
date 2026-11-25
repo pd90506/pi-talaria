@@ -23,15 +23,6 @@ import "./embedder.js";
 import "./window-controls.js";
 import { registerWorker, updateBadge } from "./notify.js";
 import {
-    PEEK_WIDE,
-    PeekHost,
-    PeeksButton,
-    PeekStrip,
-    peekTiles,
-    peeksWanted,
-    togglePeeks,
-} from "./peeks.js";
-import {
     closePip,
     openPip,
     PipBoardBox,
@@ -143,12 +134,6 @@ defineItem("topbar", {
     label: "Changes",
     order: 200,
     render: () => filesAvailable() && html`<${ChangesButton} key=${store.state.conversationId} />`,
-});
-defineItem("topbar", {
-    id: "core:peeks",
-    label: "Peek tiles",
-    order: 300,
-    render: () => html`<${PeeksButton} />`,
 });
 defineItem("topbar", {
     id: "core:files",
@@ -557,11 +542,6 @@ function App() {
     const filing = !placed && filesShown(state);
     // An extension's panel, in the same place: one panel at a time, so opening one closes the others.
     const paneling = !placed && !browsing && !filing && extPanelShown(state);
-    const peeking = !placed && peeksWanted(state);
-    const tiles = peeking ? peekTiles(state) : [];
-    // The column takes the place beside the conversation when the panels leave it free; otherwise a strip,
-    // which only shows when there are tiles.
-    const peekColumn = peeking && PEEK_WIDE.matches && !browsing && !filing && !paneling;
 
     return html`<div
         class=${`layout ${inConversation || placed ? "" : "home"} ${browsing ? "browsing" : ""} ${filing ? "filing" : ""} ${paneling ? "paneling" : ""}`}
@@ -586,12 +566,6 @@ function App() {
                         ? html`<${ExtensionPage} key=${`${state.page.module}:${state.page.id}`} />`
                         : inConversation
                           ? html`<${Topbar} />
-                    ${
-                        peeking &&
-                        tiles.length > 0 &&
-                        !peekColumn &&
-                        html`<${PeekStrip} tiles=${tiles} />`
-                    }
                     <${Transcript} key=${state.conversationId} />
                     ${
                         state.view.conversation &&
@@ -607,14 +581,6 @@ function App() {
                       ${sidebar && html`<${Splash} />`}`
             }
         </div>
-        ${
-            inConversation &&
-            html`<${PeekHost}
-                shown=${peekColumn}
-                tiles=${tiles}
-                replaced=${browsing || filing || paneling}
-            />`
-        }
         <${PanelHost}
             key=${`browser:${state.conversationId}`}
             shown=${browsing}
@@ -649,10 +615,10 @@ function focusWindow(event) {
         return;
     }
 
-    // By the window's part name, as themes know it: `sidebar`, `peeks`, `browser-panel`, `files-panel`,
+    // By the window's part name, as themes know it: `sidebar`, `browser-panel`, `files-panel`,
     // `extension-panel`.
     const name =
-        ["sidebar", "peeks", "browser-panel", "files-panel", "extension-panel"].find((each) =>
+        ["sidebar", "browser-panel", "files-panel", "extension-panel"].find((each) =>
             win.matches(`[data-part~="${each}"]`),
         ) ?? "pane";
 
@@ -766,13 +732,6 @@ addEventListener("keydown", (event) => {
         if (event.code === "KeyN" && canSteer() && !scoped()) {
             event.preventDefault();
             openSheet({ type: "cwd", mode: "new" });
-
-            return;
-        }
-
-        if (event.code === "KeyP" && store.state.server?.peeks === true) {
-            event.preventDefault();
-            togglePeeks();
 
             return;
         }
@@ -924,8 +883,7 @@ startTheme();
 // goes to the list rather than out of the app.
 startHistory({ home: !wide() });
 startEdgeBack();
-// One hand on a phone: on the conversation, swipe right to go back and left for the Files tile; swipe up from the
-// message box for the places.
+// One hand on a phone: on the conversation, swipe right to go back and left for the Files tile.
 startSwipes((where) => {
     const { conversationId, view, missing } = store.state;
 
@@ -955,7 +913,6 @@ startSwipes((where) => {
         left: filesAvailable()
             ? { path: iconPath("folder"), label: "Files", run: () => setFilesOpen(true) }
             : null,
-        up: () => openSheet({ type: "places" }),
     };
 });
 const root = document.getElementById("app");

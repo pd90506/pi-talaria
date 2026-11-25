@@ -1,4 +1,4 @@
-// A tool call in one line, as transcripts and peek tiles show it.
+// A tool call in one line, as transcripts show it.
 
 const short = (text, max = 90) => {
     const flat = String(text ?? "")
@@ -27,7 +27,7 @@ export function describersChanged() {
 export const describersRevision = () => ownRevision;
 
 /**
- * A tool call in one line: an icon, a label, and what it acts on. Peek tiles describe calls this way too. `own` marks a
+ * A tool call in one line: an icon, a label, and what it acts on. `own` marks a
  * call an extension described.
  */
 export function describeCall(call) {

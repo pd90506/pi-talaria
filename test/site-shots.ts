@@ -800,28 +800,11 @@ try {
     await frame(PIXEL, "/", ".session-row");
     await seen(`return document.querySelectorAll(".session-row").length >= 8`, "the session list");
     await shoot("sessions-phone");
-    // Looking at it again would clear what is new; the desktop shot shows no tile for it.
-    await page(
-        `localStorage.setItem("pocket.peekSeen." + ${ids.dark}, String(Date.now() + 60000))`,
-    );
-
-    // The desktop: a session where Pi edited a test, and the other sessions' peek tiles.
+    // The desktop: a session where Pi edited a test.
     await frame(DESKTOP, `/s/${ids.tests}`);
     await seen(`return /4 passed/.test(document.body.textContent)`, "the test result");
     await pause(1000);
 
-    // The People sheet from before stays open as a panel on a wide screen: close it.
-    if (await page(`return document.querySelector('[data-part="people-panel"]') !== null`)) {
-        await tap("^Close", `document.querySelector('[data-part="people-panel"]')`);
-        await pause(800);
-    }
-
-    // They may be on already: Alt+P and the header's button switch them.
-    if (!(await page(`return document.querySelector(".peek") !== null`))) {
-        await tap("^Peek tiles", `document.querySelector("header")`);
-    }
-
-    await seen(`return document.querySelectorAll(".peek").length >= 2`, "the peek tiles");
     await tap("Read 1 file");
     await tap("edit\\s*test/session\\.test\\.ts");
     await page(`document.activeElement?.blur()`);

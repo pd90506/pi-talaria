@@ -1,9 +1,10 @@
-// The Running now board: everything Pi is doing, and everything it will do, in the conversation's place, as the
-// subagents board shows. A timeline at the top puts each session's scheduled messages on one lane, with how long it has
+// The Running now board's sessions: everything Pi is doing, and everything it will do, in the conversation's place,
+// with its subagents a switch away (`board-tabs.js`). A timeline at the top puts each session's scheduled messages on one lane, with how long it has
 // been at work; under it, one row per session with what runs there now beside what is scheduled; and at the side, what
 // needs you, what goes out next, and the schedule selected. Phones get one column, a timeline that pans, and a bar at
 // the bottom for the schedule selected.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
+import { BoardTabs } from "./board-tabs.js";
 import { folderColor } from "./colors.js";
 import { useBack } from "./back.js";
 import { api, attempt, canSteer, navigate, notify, store } from "./store.js";
@@ -539,6 +540,7 @@ export function RunningBoard() {
                     }
                 </div>
             </div>
+            <${BoardTabs} />
             ${!phone && html`<${Search} query=${query} setQuery=${setQuery} />`}
             <button
                 class="icon-button"

@@ -241,7 +241,7 @@
     /*
      * Corners, from small to large: state squares; inline code, keys, and small tags; a segment in its track; small
      * buttons and list rows; icon buttons, fields, and segmented tracks; cards and primary buttons; windows, approval
-     * cards, and peek tiles; the message box, sheets, and the launcher; PiP. Pills and avatars are round (999px).
+     * cards; the message box, sheets, and the launcher; PiP. Pills and avatars are round (999px).
      */
     --r-mark: 2px;
     --r-tag: 4px;
@@ -1088,16 +1088,16 @@ kbd {
 }
 
 /*
- * The top bar keeps only the buttons with something to say (a page open, artifacts made, people here): the menu's
- * tiles open the rest. The peek and Files toggles always show where there is room (`top-toggle`, below).
+ * The top bar keeps only the buttons with something to say (a page open, artifacts made): the menu's rows open the
+ * rest. The Files toggle always shows where there is room (`top-toggle`, below).
  */
 .topbar .quiet {
     display: none;
 }
 
 /*
- * On a phone a few more go to the places by the message box, which show the same (artifacts made, a page open): the
- * top bar's buttons are a thumb wide each and must leave room for the title and the menu.
+ * On a phone a few more go to the menu, whose rows open the same: the top bar's buttons are a thumb wide each and must
+ * leave room for the title and the menu.
  */
 @media (max-width: 699px) {
     .topbar .quiet-phone {
@@ -13017,253 +13017,6 @@ textarea.notes {
     }
 }
 
-/* ─── Peek tiles ───────────────────────────────────────────── */
-
-/* Other sessions beside the conversation, one tile each: a column on wide screens, scrolling, and a strip under the
- * top bar on narrow ones. With tiling, the column is bare and each tile a card of its own; the column takes the focus
- * ring. Turned on or off, the column slides like the People panel; the tiles in it then change without motion: only
- * the conversation moves. */
-.peeks {
-    flex: 0 0 var(--peeks-w, clamp(260px, 21vw, 340px));
-    height: 100dvh;
-    min-height: 0;
-    border-left: 1px solid var(--hair);
-    background: var(--panel);
-}
-
-:root .layout > .peeks.window {
-    animation: people-in var(--t-in) var(--ease-out) backwards;
-}
-
-:root .layout > .peeks.window.leaving {
-    animation: people-out var(--t-out) linear forwards;
-}
-
-/* Turned on with nothing to show yet: what will show here. */
-.peeks-empty {
-    margin: auto 0;
-    padding: 24px 16px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.6rem;
-    text-align: center;
-    color: var(--muted);
-    font-size: 13px;
-}
-
-.peeks-empty p {
-    margin: 0;
-}
-
-.peeks-empty .icon {
-    color: var(--faint);
-}
-
-/* The top bar's switch, while off: another session waits for you. */
-.peek-dot {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--warn);
-    box-shadow: 0 0 0 2px var(--bg);
-}
-
-.peeks-list {
-    position: relative;
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 8px;
-    scroll-snap-type: y proximity;
-    scrollbar-width: thin;
-}
-
-.peek {
-    position: relative;
-    flex: none;
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    overflow: hidden;
-    border: 1px solid var(--hair);
-    border-radius: var(--r-window);
-    background: var(--card);
-    scroll-snap-align: start;
-    transition: border-color var(--t-hover) var(--ease-out);
-}
-
-.peek.waiting {
-    border-color: var(--warn-line);
-}
-
-/* Its header opens the session: its folder's square and title, and its path. */
-.peek-head {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-    padding: 12px 14px 8px;
-    /* The tile's corners, inside its border: the hover fill and the focus ring follow them. */
-    border-radius: calc(var(--r-window) - 1px) calc(var(--r-window) - 1px) 0 0;
-    text-align: left;
-    transition: background-color var(--t-hover) var(--ease-out);
-}
-
-@media (hover: hover) {
-    .peek-head:hover {
-        background: var(--hover);
-    }
-}
-
-/* Inside the tile, which cuts off what is past its rounded edge. */
-.peek-head:focus-visible {
-    outline-offset: -2px;
-}
-
-.peek-name {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-}
-
-.peek-title,
-.peek-cwd {
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-}
-
-.peek-title {
-    flex: 1;
-    min-width: 0;
-    color: var(--text);
-    font-size: 13.5px;
-    font-weight: 500;
-}
-
-.peek-cwd {
-    padding-left: 16px;
-    color: var(--faint);
-    font-size: 11px;
-}
-
-/* The last few lines: a mark for who or what, then the words, two lines at most. */
-.peek-lines {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    padding: 2px 14px 10px;
-    cursor: pointer;
-}
-
-.peek-line {
-    display: flex;
-    gap: 7px;
-    min-width: 0;
-    font-size: 12.5px;
-    line-height: 1.5;
-    color: var(--body);
-}
-
-.peek-mark {
-    flex: none;
-    width: 14px;
-    font: 600 11px / 18px var(--mono);
-    color: var(--faint);
-}
-
-.peek-line.user .peek-mark {
-    color: var(--accent);
-}
-
-/* Pi's own words: its mark in Georgia, as everywhere. */
-.peek-mark.pi {
-    color: var(--brand);
-    font:
-        13px / 1.5 Georgia,
-        serif;
-}
-
-.peek-text {
-    min-width: 0;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    overflow: hidden;
-    overflow-wrap: anywhere;
-}
-
-.peek-line.user .peek-text {
-    color: var(--muted);
-}
-
-.peek-line.user b {
-    color: var(--o-cyan);
-    font-weight: 600;
-}
-
-.peek-line.presented .peek-text {
-    color: var(--muted);
-}
-
-.peek-line.presented b {
-    color: var(--body);
-    font-weight: 600;
-}
-
-.peek-line.cmd .peek-text {
-    font: 12px / 1.5 var(--mono);
-}
-
-.peek-line.err,
-.peek-line .err {
-    color: var(--err);
-}
-
-.peek-line.faint {
-    color: var(--faint);
-}
-
-.peek-run {
-    color: var(--accent);
-}
-
-.peek-skeleton i {
-    display: block;
-    height: 0.45rem;
-    margin: 0.3rem 0;
-    border-radius: var(--r-mark);
-    background: var(--card-2);
-}
-
-.peek-skeleton i:nth-child(2) {
-    width: 80%;
-}
-
-.peek-skeleton i:nth-child(3) {
-    width: 60%;
-}
-
-/* The subagents at work in a peek tile: a row each, those waiting first, then how many more. */
-.agent-tiles {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    margin: 0 8px 8px;
-    padding-top: 6px;
-    border-top: 1px solid var(--hair);
-}
-
 .agent-tile {
     display: flex;
     flex-direction: column;
@@ -13364,306 +13117,6 @@ textarea.notes {
     overflow-wrap: anywhere;
     color: var(--muted);
     font: 11.5px / 1.45 var(--mono);
-}
-
-/* In a peek tile, one line each: the square and the name, then what it does, cut short. */
-.agent-tiles .agent-tile {
-    flex-direction: row;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 6px;
-    border-color: transparent;
-    background: transparent;
-}
-
-.agent-tiles .agent-tile-head {
-    flex: 0 1 auto;
-    max-width: 45%;
-}
-
-.agent-tiles .agent-tile-name {
-    flex: 0 1 auto;
-}
-
-/* The square's shape and the row's color say its state; the words are its label's. */
-.agent-tiles .agent-tile-state {
-    display: none;
-}
-
-.agent-tiles .agent-tile-now {
-    display: block;
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-}
-
-.agent-tiles .agent-tile.waiting {
-    border-color: var(--warn-line);
-    background: var(--warn-soft);
-}
-
-/* The rest, counted: the board shows them all. */
-.agent-more {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-height: 26px;
-    padding: 3px 6px;
-    border: 0;
-    border-radius: var(--r-control);
-    background: transparent;
-    color: var(--muted);
-    font: 500 11.5px / 1.4 var(--sans);
-    text-align: left;
-    cursor: pointer;
-    transition:
-        background-color var(--t-hover) var(--ease-out),
-        color var(--t-hover) var(--ease-out);
-}
-
-.agent-more svg:last-child {
-    margin-left: auto;
-    color: var(--faint);
-}
-
-.agent-more-wait {
-    color: var(--warn);
-}
-
-@media (hover: hover) {
-    .agent-more:hover {
-        background: var(--hover);
-        color: var(--text);
-    }
-}
-
-.agent-more:focus-visible {
-    outline-offset: -2px;
-}
-
-/* The call a session waits on: the whole command when it is short enough to allow from here, and the guard's reason. */
-.peek-ask {
-    flex: none;
-    margin: 0 10px 10px;
-    padding: 10px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    border: 1px solid var(--warn-line);
-    border-radius: var(--r-control);
-    background: var(--warn-soft);
-}
-
-.peek-ask-tool {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--warn);
-}
-
-/* Which subagent asks, where the session's tile shows a subagent's call. */
-.peek-ask-who {
-    margin-left: auto;
-    overflow: hidden;
-    color: var(--muted);
-    font: 500 11.5px / 1.4 var(--sans);
-    white-space: nowrap;
-    text-overflow: ellipsis;
-}
-
-.peek-ask-what {
-    font-size: 12px;
-    line-height: 1.45;
-    color: var(--text);
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 4;
-    line-clamp: 4;
-    overflow: hidden;
-}
-
-/* A command short enough to allow from here shows whole, never clamped. */
-.peek-ask-what.whole {
-    display: block;
-    -webkit-line-clamp: unset;
-    line-clamp: none;
-    overflow: visible;
-}
-
-.peek-ask-why {
-    font-size: 12px;
-    color: var(--muted);
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    overflow: hidden;
-}
-
-/* The state in words (needs you, working, done, new), and Deny and Allow where a call waits. */
-.peek-foot {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 44px;
-    padding: 0 10px 0 14px;
-    border-top: 1px solid var(--hair);
-}
-
-.peek-status {
-    flex: 1;
-    min-width: 0;
-    color: var(--faint);
-    font-size: 12.5px;
-    font-weight: 500;
-    white-space: nowrap;
-}
-
-.peek-status::first-letter {
-    text-transform: uppercase;
-}
-
-.peek.working .peek-status {
-    color: var(--accent);
-}
-
-.peek.waiting .peek-status {
-    color: var(--warn);
-}
-
-.peek.done .peek-status {
-    color: var(--ok);
-}
-
-/* The command a tile asks about opens its session too, as the rest of the tile does: there it shows whole. */
-.peek-ask-host {
-    display: contents;
-    cursor: pointer;
-}
-
-.peek-actions {
-    display: inline-flex;
-    gap: 8px;
-}
-
-.peek-actions .button.small {
-    min-height: 30px;
-    padding: 0 12px;
-    border: 0;
-    border-radius: calc(var(--r-row) - 1px);
-    background: var(--card-2);
-    color: var(--text);
-    font-size: 12.5px;
-    font-weight: 500;
-}
-
-@media (hover: hover) {
-    .peek-actions .button.small:hover:not(:disabled) {
-        color: var(--err);
-    }
-}
-
-.peek-actions .button.small.primary {
-    padding: 0 14px;
-    background: var(--accent-fill);
-    color: var(--accent-ink);
-    font-weight: 600;
-}
-
-@media (hover: hover) {
-    .peek-actions .button.small.primary:hover:not(:disabled) {
-        background: color-mix(in oklab, var(--accent-fill) 85%, var(--text));
-        color: var(--accent-ink);
-    }
-}
-
-.peek-seen {
-    width: 30px;
-    height: 30px;
-    color: var(--ok);
-}
-
-/* Calls waiting for approval out of view: a way to them, at the column's edge. */
-.peeks-jump {
-    position: absolute;
-    left: 50%;
-    z-index: 2;
-    transform: translateX(-50%);
-    padding: 5px 12px;
-    border-radius: var(--r-pill);
-    background: var(--warn);
-    box-shadow: var(--pop);
-    color: var(--accent-ink);
-    font-size: 12px;
-    font-weight: 600;
-    white-space: nowrap;
-}
-
-.peeks-jump.up {
-    top: 8px;
-}
-
-.peeks-jump.down {
-    bottom: 8px;
-}
-
-.peek-strip {
-    flex: none;
-    animation: peek-strip-in var(--t-in) var(--ease-out) backwards;
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    padding: 8px calc(12px + var(--inset-r)) 8px calc(12px + var(--inset-l));
-    border-bottom: 1px solid var(--hair);
-    scroll-snap-type: x proximity;
-    scrollbar-width: none;
-}
-
-.peek-strip::-webkit-scrollbar {
-    display: none;
-}
-
-@keyframes peek-strip-in {
-    from {
-        opacity: 0;
-        transform: translateY(-8px);
-    }
-}
-
-.peek-strip .peek {
-    width: 240px;
-    border-radius: var(--r-card);
-}
-
-.peek-strip .peek-head {
-    padding: 8px 12px 2px;
-    border-radius: calc(var(--r-card) - 1px) calc(var(--r-card) - 1px) 0 0;
-}
-
-.peek-strip .peek-cwd {
-    display: none;
-}
-
-.peek-strip .peek-lines {
-    padding: 0 12px 8px;
-}
-
-.peek-strip .peek-ask {
-    margin: 0 8px 8px;
-    padding: 8px 10px;
-}
-
-.peek-strip .peek-foot {
-    min-height: 0;
-    padding: 0 8px 8px 12px;
-    border-top: 0;
 }
 
 /* ─── Diff viewer ──────────────────────────────────────────── */
@@ -15824,16 +15277,7 @@ textarea.notes {
     display: contents;
 }
 
-/* The menu and the phone's places share a three-column grid of soft tiles. */
-.places {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 6px;
-    padding: 8px 12px 12px;
-}
-
-.nav-menu .sheet-body,
-.places-sheet .sheet-body {
+.nav-menu .sheet-body {
     padding: 0;
     gap: 0;
 }
@@ -15858,8 +15302,7 @@ textarea.notes {
     letter-spacing: normal;
 }
 
-.nav-menu .list-item,
-.places-sheet .list-item {
+.nav-menu .list-item {
     display: flex;
     align-items: baseline;
     gap: 10px;
@@ -15874,27 +15317,23 @@ textarea.notes {
 }
 
 @media (hover: hover) {
-    .nav-menu .list-item:hover,
-    .places-sheet .list-item:hover {
+    .nav-menu .list-item:hover {
         background: var(--hover);
     }
 }
 
 @media (hover: hover) {
-    .nav-menu .list-item:hover > span:first-child,
-    .places-sheet .list-item:hover > span:first-child {
+    .nav-menu .list-item:hover > span:first-child {
         color: var(--text);
     }
 }
 
-.nav-menu .list-item > :first-child,
-.places-sheet .list-item > :first-child {
+.nav-menu .list-item > :first-child {
     flex: none;
     white-space: nowrap;
 }
 
-.nav-menu .list-item > :last-child:not(:first-child),
-.places-sheet .list-item > :last-child:not(:first-child) {
+.nav-menu .list-item > :last-child:not(:first-child) {
     flex: 1;
     min-width: 0;
     text-align: right;
@@ -15903,11 +15342,6 @@ textarea.notes {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-}
-
-.places-sheet .list-item {
-    width: auto;
-    margin: 0 6px 8px;
 }
 
 .nav-menu .menu-signout {
@@ -15952,84 +15386,9 @@ textarea.notes {
 }
 
 @media (pointer: coarse) {
-    .nav-menu .list-item,
-    .places-sheet .list-item {
+    .nav-menu .list-item {
         min-height: 44px;
     }
-}
-
-.place {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-    gap: 5px;
-    height: 66px;
-    padding: 8px 4px;
-    border-radius: var(--r-card);
-    background: var(--card);
-    border: 1px solid var(--hair);
-    color: var(--body);
-    transition:
-        background-color var(--t-hover) var(--ease-out),
-        border-color var(--t-hover) var(--ease-out),
-        color var(--t-hover) var(--ease-out),
-        transform 90ms var(--ease-out);
-}
-
-@media (hover: hover) {
-    .place:hover {
-        border-color: var(--hair-2);
-        background: var(--card-2);
-        color: var(--text);
-    }
-}
-
-.place:active {
-    background: var(--pressed);
-    transform: scale(0.96);
-}
-
-.place.on {
-    color: var(--accent);
-    background: var(--accent-soft);
-    border-color: var(--accent-line);
-}
-
-.place-icon {
-    display: grid;
-    place-items: center;
-    width: 20px;
-    height: 20px;
-    position: static;
-}
-
-.place-icon .badge {
-    top: 7px;
-    right: 8px;
-    min-width: 16px;
-    height: 16px;
-    padding: 0 4px;
-    border-radius: var(--r-pill);
-    background: var(--accent-fill);
-    color: var(--accent-ink);
-    font: 600 9.5px/1 var(--mono);
-    box-shadow: none;
-}
-
-.place-icon .browser-dot {
-    top: 10px;
-    right: 10px;
-}
-
-.place-label {
-    max-width: 100%;
-    font-size: 12px;
-    font-weight: 500;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
 /*
@@ -16070,25 +15429,7 @@ textarea.notes {
     display: none !important;
 }
 
-/* Phones: the places, beside the message box where a thumb reaches (composer.js). Elsewhere the menu has them. */
-.composer-row .places-button {
-    display: none;
-}
-
 @media (max-width: 699px) {
-    .composer-row .places-button {
-        display: inline-grid;
-        width: 32px;
-        height: 36px;
-        color: var(--muted);
-    }
-    .composer-row .places-button .browser-dot {
-        top: 6px;
-        right: 5px;
-        width: 7px;
-        height: 7px;
-        box-shadow: 0 0 0 2px var(--card);
-    }
     /* Room for it: the model's name gives way first. */
     .composer-row .model-chip {
         flex: 0 1 auto;
@@ -16406,7 +15747,6 @@ textarea.notes {
     /* Kept small to fit one line on a phone; a layer past each takes a tap about 40px wide and tall. */
     .composer-row
         :is(
-            .places-button,
             .attach-button,
             .model-chip,
             .plan-chip,
@@ -16419,7 +15759,6 @@ textarea.notes {
     }
     .composer-row
         :is(
-            .places-button,
             .attach-button,
             .model-chip,
             .plan-chip,
@@ -16442,7 +15781,7 @@ textarea.notes {
     }
     /* Where the row has room, the icon buttons are as wide as a thumb's tap (their look is the icon alone). */
     @container composer (min-width: 360px) {
-        .composer-row :is(.places-button, .attach-button, .composer-mic) {
+        .composer-row :is(.attach-button, .composer-mic) {
             width: 36px;
         }
     }
@@ -16580,17 +15919,7 @@ textarea.notes {
     .artifact-link {
         min-height: 42px;
     }
-    /* A peek tile's header opens its session; Allow, Deny, and Open answer from the tile. */
-    .peek-strip .peek-head {
-        min-height: 40px;
-    }
-    .peek-actions .button.small {
-        min-height: 38px;
-    }
-    .peek-seen {
-        width: 38px;
-        height: 38px;
-    }
+
     .pop-menu-link {
         padding-block: 11px;
         margin-block: -11px;
@@ -17202,6 +16531,12 @@ textarea.notes {
 .board-sub {
     font-size: 12px;
     color: var(--muted);
+}
+
+/* Running now's two views, Sessions and Subagents (`board-tabs.js`). */
+.board-tabs {
+    flex: none;
+    align-self: center;
 }
 
 .board-search {

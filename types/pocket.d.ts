@@ -2702,12 +2702,11 @@ export interface ComposerKeySpec {
 
 /**
  * A place in the app built from named items: `"topbar"` (the buttons after the session's title), `"status"` (the
- * status line under the message box), `"places"` (the tiles of the places and the menu), `"composer"` (the buttons on
- * the left of the message box's row), or `"reply"` (the actions under Pi's answers).
+ * status line under the message box), `"composer"` (the buttons on the left of the message box's row), or `"reply"` (the actions under Pi's answers).
  * @since 0.19.0
  * @experimental
  */
-export type SlotName = "topbar" | "status" | "places" | "composer" | "reply";
+export type SlotName = "topbar" | "status" | "composer" | "reply";
 
 /**
  * How a module arranges a slot: items to hide, and an order for some of them. The named items take the places those
@@ -2779,7 +2778,7 @@ export interface MathInlineSpec {
 }
 
 /**
- * How the calls of one of the module's tools show in transcripts and peek tiles. Each function gets a copy of the
+ * How the calls of one of the module's tools show in transcripts. Each function gets a copy of the
  * call's arguments.
  * @since 0.14.0
  */
@@ -2790,12 +2789,12 @@ export interface ToolCallSpec<A = Record<string, unknown>> {
      */
     tool: string;
     /**
-     * The name of one of the app's icons, for peek tiles.
+     * The name of one of the app's icons, for the call's line.
      * @since 0.14.0
      */
     icon?: string;
     /**
-     * An icon of your own, for peek tiles: a stroked path in a 24 × 24 box.
+     * An icon of your own, for the call's line: a stroked path in a 24 × 24 box.
      * @since 0.14.0
      */
     iconPath?: string;

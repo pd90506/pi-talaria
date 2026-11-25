@@ -43,7 +43,6 @@ import {
     iconPath,
     Loader,
     Markdown,
-    PlaceTile,
     Sheet,
     Spinner,
     Switch,
@@ -1350,7 +1349,7 @@ function pocketFor(record) {
                 },
             });
         },
-        /** How calls of one of its tools show: in a line in transcripts and peek tiles, and in a group's summary. */
+        /** How calls of one of its tools show: in a line in transcripts, and in a group's summary. */
         toolCall(spec) {
             tick(record);
 
@@ -2344,7 +2343,7 @@ function statusNode(record, spec) {
 
 /**
  * The top bar's items that extensions added: a button for each panel, which toggles it, and each `pocket.topbar`
- * action. On a phone, and in a narrow pane, they go, as the Files button does: the places open the panels there.
+ * action. On a phone, and in a narrow pane, they go, as the Files button does: the menu's rows open the panels there.
  */
 function topbarItems() {
     const panels = added("panel").map(({ record, spec }) => ({
@@ -2381,26 +2380,6 @@ function topbarButton(record, spec, action) {
         <${Icon} path=${pathOf(spec)} size=${18} />
         ${badge !== "" && html`<span class="badge">${badge}</span>`}
     </button>`;
-}
-
-/** The places that extensions added: a tile for each panel. */
-function placeItems() {
-    return added("panel").map(({ record, spec }) => ({
-        id: itemId(record, spec),
-        label: spec.title,
-        module: record.title,
-        render: () =>
-            html`<${PlaceTile}
-                place=${{
-                    id: itemId(record, spec),
-                    label: spec.title,
-                    iconPath: pathOf(spec),
-                    badge: badgeFor(spec),
-                    on: opened(record, { panel: spec.id }),
-                    run: () => openExtPanel(record.module, spec.id),
-                }}
-            />`,
-    }));
 }
 
 /** The buttons that extensions added to the message box's row, after the app's own on its left. */
@@ -2471,7 +2450,6 @@ function replyItems() {
 const sources = {
     status: statusItems,
     topbar: topbarItems,
-    places: placeItems,
     composer: composerItems,
     reply: replyItems,
 };

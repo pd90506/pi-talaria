@@ -1,4 +1,4 @@
-// Agent Teams' browser module: how calls of its team tool show, in a line in transcripts and peek tiles, and in
+// Agent Teams' browser module: how calls of its team tool show, in a line in transcripts, and in
 // the summary of a group of calls. It only describes; it adds no routes.
 export const pocketApi = 1;
 

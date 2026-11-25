@@ -4,7 +4,7 @@
 // as tiles have), for how long, whether its report is on its way, Stop, and a tap to open it.
 import { useEffect, useRef, useState } from "preact/hooks";
 import { nowDoing } from "./agent-now.js";
-import { useOnScreen } from "./peeks.js";
+import { useOnScreen } from "./on-screen.js";
 import { fromServer } from "./seen.js";
 import { api, attempt, canSteer, navigate, openSheet, store } from "./store.js";
 import { html, Icon, shortModelName, Spinner, timeAgo } from "./ui.js";

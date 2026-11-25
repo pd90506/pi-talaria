@@ -9,7 +9,6 @@ import { Fragment, h } from "preact";
 export const SLOTS = {
     topbar: { label: "Top bar buttons", extensions: 550 },
     status: { label: "Status line items", extensions: 500 },
-    places: { label: "Places", extensions: 1000 },
     composer: { label: "Message box buttons", extensions: 500 },
     reply: { label: "Under Pi's answers", extensions: 500 },
 };

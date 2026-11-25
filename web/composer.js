@@ -2389,12 +2389,6 @@ export function Composer() {
 // picker, the model and thinking level, and the session's view. Send, Stop, the mic, and Steer and Queue stay on the
 // right, always.
 defineItem("composer", {
-    id: "core:places",
-    label: "Places (phones)",
-    order: 100,
-    render: () => html`<${PlacesButton} />`,
-});
-defineItem("composer", {
     id: "core:attach",
     label: "Attach files",
     order: 200,
@@ -2475,26 +2469,6 @@ function StopButton() {
         onClick=${() => attempt(actions.abort)}
     >
         <span class="stop-square" aria-hidden="true"></span>
-    </button>`;
-}
-
-/**
- * Phones: the session's places (Files, Changes, the browser…) from beside the message box, where a thumb reaches; the
- * top bar's buttons are a stretch with one hand. A dot when a page is open.
- */
-function PlacesButton() {
-    const { browser } = store.state;
-    const news = browser?.open && browser.url !== "" && browser.url !== "about:blank";
-
-    return html`<button
-        class="icon-button places-button badge-host"
-        data-part="composer-button"
-        aria-label="Places: Files, Changes, Browser, and more"
-        title="Places (or swipe up here)"
-        onClick=${() => openSheet({ type: "places" })}
-    >
-        <${Icon} name="grid" />
-        ${news && html`<span class="browser-dot" aria-hidden="true"></span>`}
     </button>`;
 }
 

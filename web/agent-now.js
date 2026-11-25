@@ -1,5 +1,5 @@
 // What a working subagent does this moment, from its peek: the call it waits on, the call it runs, or its words. The
-// subagents bar and the peek tiles both say it, for a row each.
+// subagents bar and the board both say it, for a row each.
 import { describeCall } from "./calls.js";
 import { store } from "./store.js";
 

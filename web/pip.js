@@ -1,6 +1,6 @@
 // PiP, "Pi in Pocket": the owner's assistant, opened by default as a conversation in the session's place (a board),
 // with its top bar, menu, and every step; or (Appearance → PiP → Floating) in a small window over whatever is open. It
-// stays out of the way until called: Alt+A, the rail's PiP button, the places, the launcher, or `/pip`; and a small
+// stays out of the way until called: Alt+A, the sidebar's PiP row, the launcher, or `/pip`; and a small
 // mark in the corner shows only while PiP works, or has something new. The panel watches PiP's conversation through a
 // view of its own (`pipview` events), so the session behind it stays as it was.
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";

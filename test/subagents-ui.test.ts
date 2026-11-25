@@ -188,7 +188,12 @@ test("the board shows a sub-tile for each subagent at work, with what it does", 
     await started(0);
     await page.setViewport(VIEWPORTS.desktop);
     await settled();
-    await page.click({ selector: ".nav-agents" });
+    await page.click({ selector: ".nav-running" });
+    await see(
+        `return JSON.stringify(document.querySelector('.board-tabs [data-board="subagents"]') !== null)`,
+        "Running now's switch",
+    );
+    await page.evaluate(`document.querySelector('.board-tabs [data-board="subagents"]').click()`);
     await see(
         `return JSON.stringify((await import("/store.js")).store.state.board === "subagents")`,
         "the board",
