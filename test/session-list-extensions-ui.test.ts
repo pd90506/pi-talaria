@@ -1,5 +1,5 @@
 // The session list's extension points in a real Chromium (`pocket.sessionChips`, `sessionSearch`, `sessionFilter`, and
-// `sessionAction`), through a drop-in that uses them all; and Session tags, the built-in module that uses them.
+// `sessionAction`), through a drop-in that uses them all.
 import {
     type App,
     cleanUp,
@@ -452,35 +452,3 @@ test("chips that throw stop their module, and the list draws without them", real
     );
     assert.equal((await rows()).length, 3, "the list still shows every session");
 });
-
-test(
-    "Session tags: tags show as chips, and a tap on one filters the list by it",
-    real,
-    async () => {
-        await app.setExtensionEnabled(owner(app), "labels.ts", false);
-        await app.setExtensionEnabled(owner(app), "session-tags.ts", true);
-        await until(
-            () =>
-                inPage<boolean>(
-                    `return JSON.stringify(document.querySelector('.sidebar [data-part="session-filter"][title="Filter by tag"]') !== null)`,
-                ),
-            "the tag filter",
-        );
-
-        const tagged = await inPage<number>(`
-        const answer = await fetch("/api/x/session-tags/tags", {
-            method: "POST",
-            headers: { "content-type": "application/json", "x-pocket": "1" },
-            body: JSON.stringify({ ids: [${first}], add: ["Review"] }),
-        });
-        return JSON.stringify(answer.status);
-    `);
-
-        assert.equal(tagged, 200);
-        await until(async () => (await chipsOf(first)).join() === "review", "the tag on its row");
-        assert.deepEqual(await chipsOf(second), []);
-        await page.click({ selector: `.sidebar .session-row[data-id="${first}"] .session-chip` });
-        await until(async () => (await rows()).join() === String(first), "only the tagged session");
-        await inPage(`sessionStorage.removeItem("pocket.session-tags.filter"); return "null"`);
-    },
-);

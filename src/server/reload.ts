@@ -60,7 +60,6 @@ const ORDER = [
     "triggers.ts",
     "pocket-relay.ts",
     "session-cleanup.ts",
-    "session-tags.ts",
     "ask.ts",
     "react.ts",
     "design.ts",
@@ -75,7 +74,7 @@ export const BUILT_IN_MODULES: ReadonlySet<string> = new Set(
 /** Modules the app cannot work without: always on. */
 const REQUIRED = new Set(["prompt.ts"]);
 /** Built-in modules that stay off until the owner turns them on. Drop-ins all do. */
-const OFF_BY_DEFAULT = new Set(["anthropic-subscription.ts", "session-tags.ts", "pocket-relay.ts"]);
+const OFF_BY_DEFAULT = new Set(["anthropic-subscription.ts", "pocket-relay.ts"]);
 const TITLES: Record<string, string> = {
     "prompt.ts": "System prompt",
     "artifacts.ts": "Artifacts",
@@ -95,7 +94,6 @@ const TITLES: Record<string, string> = {
     "pip.ts": "PiP",
     "triggers.ts": "Triggers",
     "pocket-relay.ts": "Relay",
-    "session-tags.ts": "Session tags",
     "session-cleanup.ts": "Session cleanup",
     "ask.ts": "Ask",
     "design.ts": "Design",

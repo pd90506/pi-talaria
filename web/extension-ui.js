@@ -2205,7 +2205,7 @@ export function sessionFilters() {
 
 /**
  * A person started a session with New in the session list: the filters that are on and have `started` get its id, so
- * that it meets them (Session tags gives it the chosen tags). One that fails says so in a notice.
+ * that it meets them (a tag filter, say, gives it the chosen tags). One that fails says so in a notice.
  */
 export function sessionStarted(id) {
     for (const { record, spec } of added("sessionFilter").slice(0, FILTERS_MAX)) {
