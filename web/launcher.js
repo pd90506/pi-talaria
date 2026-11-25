@@ -20,7 +20,6 @@ import { openPip, pipAvailable } from "./pip.js";
 import { setArchived, toggleBoard } from "./sessions.js";
 import { branchAvailable, headLabel } from "./sheets/branch.js";
 import { recentLabels } from "./sheets/folder.js";
-import { galleryAvailable } from "./sheets/gallery.js";
 import { memoryAvailable } from "./sheets/memory.js";
 import { piSessionsAvailable } from "./sheets/pi-sessions.js";
 import {
@@ -39,21 +38,7 @@ import {
     store,
     workspaceOrder,
 } from "./store.js";
-import {
-    BASE_LOOK,
-    chooseLook,
-    folderPaletteIds,
-    isPinned,
-    lookIds,
-    paletteOf,
-    prefs,
-    preview,
-    setPrefs,
-    themeIds,
-    themeVars,
-    togglePin,
-    varsStyle,
-} from "./theme.js";
+import { isPinned, PALETTES, prefs, setPrefs, themeVars, togglePin, varsStyle } from "./theme.js";
 import { trustAvailable } from "./trust.js";
 import {
     APPLE,
@@ -451,13 +436,6 @@ function actionItems() {
             run: refreshModels,
         },
         { label: "Extensions", icon: "shield", run: () => openSheet({ type: "extensions" }) },
-        galleryAvailable() && {
-            label: "Find extensions",
-            detail: "browse and install drop-ins",
-            keywords: "gallery",
-            icon: "search",
-            run: () => openSheet({ type: "gallery" }),
-        },
         { label: "Spend", icon: "pulse", run: () => openSheet({ type: "spend" }) },
         {
             label: "Sign in another device",
@@ -545,54 +523,29 @@ function sessionItems() {
     });
 }
 
-/** Theme folders that change the look, as launcher items: no preview (their stylesheets load when chosen). */
-function lookItems() {
-    const vars = themeVars(paletteOf());
-
-    return lookIds()
-        .map(
-            (id) =>
-                store.state.themeList?.find((each) => each.id === id && each.usable) ??
-                (id === BASE_LOOK ? { id, name: "Pocket", builtIn: true } : null),
-        )
-        .filter(Boolean)
-        .map((look) => ({
-            kind: "theme",
-            key: `look:${look.id}`,
-            label: look.name,
-            detail: look.builtIn ? "theme, built in" : "theme",
-            text: `theme ${look.name} ${look.id}`,
-            look: look.id,
-            vars,
-        }));
-}
-
+/** Light, dark, and the system's, as launcher items. */
 function themeItems() {
-    const desktop = store.state.desktopTheme;
-    const ids = [...(desktop ? ["desktop"] : []), ...themeIds(), ...folderPaletteIds()];
-
     return [
-        ...lookItems(),
-        ...ids.map((id) => {
-            const palette = paletteOf(id);
-            const name = id === "desktop" ? `Desktop · ${palette.name}` : palette.name;
-
-            return {
-                kind: "theme",
-                key: `theme:${id}`,
-                label: name,
-                detail:
-                    id === "desktop"
-                        ? "follows your Omarchy theme"
-                        : palette.colors.mode === "light"
-                          ? "light"
-                          : "dark",
-                text: `theme ${name} ${id}`,
-                theme: id,
-                vars: themeVars(palette),
-            };
+        ["system", "System", "light or dark, as your system is"],
+        ["light", "Light", "warm paper"],
+        ["dark", "Dark", "warm charcoal"],
+    ].map(([mode, label, detail]) => ({
+        kind: "theme",
+        key: `mode:${mode}`,
+        label,
+        detail,
+        text: `theme mode ${label} ${mode}`,
+        mode,
+        vars: themeVars({
+            colors: PALETTES[
+                mode === "system"
+                    ? matchMedia("(prefers-color-scheme: light)").matches
+                        ? "light"
+                        : "dark"
+                    : mode
+            ],
         }),
-    ];
+    }));
 }
 
 const GROUP_NAMES = { session: "Sessions", action: "Actions", theme: "Themes" };
@@ -635,7 +588,6 @@ export function Launcher({ leaving, returnTo }) {
     const input = useRef(null);
     const list = useRef(null);
     const dialog = useRef(null);
-    const chosen = useRef(false);
 
     // Phones: a sheet from the bottom edge, which drags back down to close, as the app's other sheets do.
     useDragToClose(dialog, {
@@ -732,7 +684,6 @@ export function Launcher({ leaving, returnTo }) {
         store.state.browserOpen,
         store.state.filesOpen,
         store.state.filesTab,
-        store.state.desktopTheme,
         store.state.appearance,
         store.state.me,
         store.state.server,
@@ -848,10 +799,6 @@ export function Launcher({ leaving, returnTo }) {
     }, [leaving]);
     useEffect(
         () => () => {
-            if (!chosen.current) {
-                preview(null);
-            }
-
             const active = document.activeElement;
             const lost =
                 active === null ||
@@ -873,17 +820,6 @@ export function Launcher({ leaving, returnTo }) {
         },
         [],
     );
-    useEffect(() => {
-        if (leaving) {
-            if (!chosen.current) {
-                preview(null);
-            }
-
-            return;
-        }
-
-        preview(selected?.kind === "theme" && selected.theme ? selected.theme : null);
-    }, [selected?.key, leaving]);
     useLayoutEffect(() => {
         if (!leaving) {
             list.current?.querySelector(".launcher-item.on")?.scrollIntoView({ block: "nearest" });
@@ -923,21 +859,10 @@ export function Launcher({ leaving, returnTo }) {
             return;
         }
 
-        chosen.current = item.kind === "theme";
         close();
 
         if (item.kind === "theme") {
-            preview(null);
-
-            if (item.look) {
-                chooseLook(item.look, event);
-
-                return;
-            }
-
-            if (item.theme !== prefs().theme) {
-                setPrefs({ theme: item.theme });
-            }
+            setPrefs({ mode: item.mode });
 
             return;
         }
@@ -1221,9 +1146,7 @@ export function Launcher({ leaving, returnTo }) {
                                     }
                                     ${
                                         item.kind === "theme" &&
-                                        (item.look
-                                            ? item.look === prefs().look
-                                            : item.theme === prefs().theme) &&
+                                        item.mode === prefs().mode &&
                                         html`<span class="hint">current</span>`
                                     }
                                     ${

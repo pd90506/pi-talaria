@@ -1,10 +1,9 @@
-// Slots: places in the app built from named items, the app's own and extensions' alike, in one order that a person and
-// extensions can change. The app's items have `core:` names (`core:files`, `core:cache`), extensions' `ext:<module>:<id>`.
-// What shows, and where, comes in layers: each item's default place, then where an extension asked to put its own item
-// (`before`, `after`), then what extensions arranged (`pocket.arrange`), then this browser's person's own choices
-// (Appearance → Layout), which win. Fixed items (the menu, Lancet Guard) always show, in their own place.
+// Slots: places in the app built from named items, the app's own and extensions' alike, in one order that extensions can
+// change. The app's items have `core:` names (`core:files`, `core:cache`), extensions' `ext:<module>:<id>`. What shows,
+// and where, comes in layers: each item's default place, then where an extension asked to put its own item (`before`,
+// `after`), then what extensions arranged (`pocket.arrange`). Fixed items (the menu, Lancet Guard) always show, in their
+// own place.
 import { Fragment, h } from "preact";
-import { prefs, setPrefs } from "./theme.js";
 
 /** The slots, with their names for people and where extensions' items go by default. */
 export const SLOTS = {
@@ -27,7 +26,7 @@ let extensionItems = () => [];
 let extensionArrangements = () => [];
 /** Counts changes to the items and arrangements above: each slot's order (`arranged`) is kept until the next. */
 let version = 0;
-/** Each slot's order as it was last worked out: `{ version, layout, list, key }`. */
+/** Each slot's order as it was last worked out: `{ version, list, key }`. */
 const kept = new Map();
 
 /** Add one of the app's own items to a slot. */
@@ -78,27 +77,24 @@ function place(list, item, target, after) {
 }
 
 /**
- * Every item of a slot, in the order it shows: `{ item, hidden, hiddenBy }`, `hiddenBy` naming the extension that hid it
- * when the person made no choice of their own. Items that show nothing now (no artifacts yet, say) are here too: the
- * Layout settings list them all. Worked out again only when the items, what extensions arranged, or the person's
- * layout changed: the top bar, the message box, the status line, and each of Pi's answers ask on every draw.
+ * Every item of a slot, in the order it shows: `{ item, hidden, hiddenBy }`, `hiddenBy` naming the extension that hid it.
+ * Items that show nothing now (no artifacts yet, say) are here too. Worked out again only when the items or what
+ * extensions arranged changed: the top bar, the message box, the status line, and each of Pi's answers ask on every draw.
  */
 export function arranged(slot) {
     return keptFor(slot).list;
 }
 
 function keptFor(slot) {
-    const layout = prefs().layout;
     const last = kept.get(slot);
 
-    if (last?.version === version && last.layout === layout) {
+    if (last?.version === version) {
         return last;
     }
 
     const list = arrange(slot);
     const next = {
         version,
-        layout,
         list,
         key: list
             .map(({ item, hidden }) => `${item.id}${item.revision ?? ""}${hidden ? "-" : "+"}`)
@@ -124,7 +120,6 @@ function arrange(slot) {
     // Fixed items keep their places: the rest move around them.
     const fixed = list.map((item, index) => [item, index]).filter(([item]) => item.fixed);
     const arrangements = extensionArrangements(slot);
-    const mine = prefs().layout?.[slot] ?? {};
 
     list = list.filter((item) => !item.fixed);
 
@@ -132,20 +127,17 @@ function arrange(slot) {
         list = reorder(list, arrangement.order ?? []);
     }
 
-    list = reorder(list, mine.order ?? []);
-
     for (const [item, index] of fixed) {
         list.splice(index, 0, item);
     }
 
     return list.map((item) => {
         const by = arrangements.find((each) => each.hide?.includes(item.id));
-        const choice = mine.hidden?.[item.id];
 
         return {
             item,
-            hidden: !item.fixed && (choice ?? by !== undefined),
-            hiddenBy: !item.fixed && choice === undefined && by ? by.title : null,
+            hidden: !item.fixed && by !== undefined,
+            hiddenBy: !item.fixed && by ? by.title : null,
         };
     });
 }
@@ -171,38 +163,3 @@ export function slotItems(slot, context = {}) {
  * (the transcript's answers), so a change to the slot draws it again.
  */
 export const slotKey = (slot) => keptFor(slot).key;
-
-// ─── This browser's person's own choices ─────────────────────────────────────
-
-function saveMine(slot, change) {
-    const layout = prefs().layout ?? {};
-    const mine = change(layout[slot] ?? {});
-
-    setPrefs({ layout: { ...layout, [slot]: mine } });
-}
-
-/** Show or hide an item, over what any extension asked. */
-export function setShown(slot, id, shown) {
-    saveMine(slot, (mine) => ({ ...mine, hidden: { ...mine.hidden, [id]: !shown } }));
-}
-
-/** Move an item one place up (`-1`) or down (`1`) among the items that can move. */
-export function move(slot, id, by) {
-    const ids = arranged(slot)
-        .filter(({ item }) => !item.fixed)
-        .map(({ item }) => item.id);
-    const at = ids.indexOf(id);
-    const to = at + by;
-
-    if (at === -1 || to < 0 || to >= ids.length) {
-        return;
-    }
-
-    [ids[at], ids[to]] = [ids[to], ids[at]];
-    saveMine(slot, (mine) => ({ ...mine, order: ids }));
-}
-
-/** Back to the defaults and what extensions arranged. */
-export function resetSlot(slot) {
-    saveMine(slot, () => ({}));
-}

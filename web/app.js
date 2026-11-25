@@ -115,8 +115,8 @@ function ChangesButton() {
     </button>`;
 }
 
-// The top bar's buttons after the title: the app's own items of the `topbar` slot (slots.js), which a person can hide
-// and reorder in Appearance, with extensions' between them. The menu stays last.
+// The top bar's buttons after the title: the app's own items of the `topbar` slot (slots.js), with extensions' between
+// them. The menu stays last.
 defineItem("topbar", {
     id: "core:subagents",
     label: "Subagents working",

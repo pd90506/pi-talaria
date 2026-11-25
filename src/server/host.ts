@@ -11,7 +11,6 @@ import type {
     Tx,
 } from "@earendil-works/pi-durable";
 import type { Browsers } from "./browser.ts";
-import type { Gallery } from "./gallery.ts";
 import type { Role, User } from "./config.ts";
 import type { Goals } from "./goals.ts";
 import type { LancetGuard } from "./lancet.ts";
@@ -21,7 +20,6 @@ import type { PipCompaction } from "./pip-compact.ts";
 import type { Schedules } from "./schedules.ts";
 import type { SessionCleanup } from "./session-cleanup.ts";
 import type { BackgroundTasks } from "./background.ts";
-import type { Updates } from "./updates.ts";
 import type { RepoWatches } from "./repo-watches.ts";
 import type { Watches } from "./watches.ts";
 import type { FetchPublic } from "./public-fetch.ts";
@@ -743,29 +741,6 @@ export interface PocketHost {
     readonly text: { quoted(text: string, max?: number): string; defang(text: string): string };
     /** The thinking levels, lowest first, as a model and a session name them. */
     readonly thinkingLevels: readonly ModelThinkingLevel[];
-    /** The extension gallery (`gallery.ts`): its extension's routes are the owner's way to it. */
-    readonly gallery: Pick<
-        Gallery,
-        | "settings"
-        | "setIndex"
-        | "listing"
-        | "installed"
-        | "check"
-        | "source"
-        | "install"
-        | "updatePreview"
-        | "update"
-        | "uninstall"
-        | "review"
-        | "share"
-        | "shareTheme"
-        | "reach"
-    >;
-    /** Updates of Pi Pocket itself (`updates.ts`): its extension's routes are the owner's way to them. */
-    readonly updates: Pick<
-        Updates,
-        "status" | "check" | "apply" | "subscribe" | "setBeta" | "beta"
-    >;
     /** The names of the tools that the modules that are on install now, built-in and drop-in. */
     toolNames(): string[];
 }

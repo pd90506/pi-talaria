@@ -277,9 +277,4 @@ test("a drop-in for API 2, 1, or none loads; one for a newer API is refused with
         app.setExtensionEnabled(owner(app), "api-half.ts", true),
         /needs version 1\.5 of Pi Pocket's extension API/,
     );
-
-    // A draft for the gallery says the version that the module was written for, not this Pi Pocket's.
-    assert.equal((await app.gallery.share("api-none.ts")).entry.pocketApi, 1);
-    assert.equal((await app.gallery.share("api-one.ts")).entry.pocketApi, 1);
-    assert.equal((await app.gallery.share("api-two.ts")).entry.pocketApi, 2);
 });

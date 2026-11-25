@@ -394,64 +394,6 @@ test("completed replies show stored message times across providers", real, async
             "timestamps remain visible without hovering and fit the viewport",
         );
     }
-
-    await page.evaluate(`(await import("/store.js")).openSheet({ type: "appearance" })`);
-    await until(
-        () =>
-            inPage<boolean>(`
-                return JSON.stringify(document.querySelector('.slot-layout[data-slot="reply"]') !== null);
-            `),
-        "reply layout controls",
-    );
-
-    try {
-        assert.equal(
-            await inPage<boolean>(`
-                return JSON.stringify(document.querySelector('[aria-label="Show Message time"]') !== null);
-            `),
-            true,
-            "message time is a configurable reply-slot item",
-        );
-        await tap('[aria-label="Show Message time"]');
-        await until(
-            () =>
-                inPage<boolean>(`
-                    return JSON.stringify(document.querySelectorAll(".reply time").length === 0);
-                `),
-            "message times hidden without hiding the reply actions",
-        );
-        assert.equal(
-            await inPage<boolean>(`
-                return JSON.stringify(document.querySelector('.reply [data-part="reply-actions"] button') !== null);
-            `),
-            true,
-        );
-        await tap('[aria-label="Show Message time"]');
-        await until(
-            () =>
-                inPage<boolean>(`
-                    return JSON.stringify(document.querySelectorAll(".reply time").length === 3);
-                `),
-            "message times restored",
-        );
-        await tap('[aria-label="Move Message time later"]');
-        await until(
-            () =>
-                inPage<boolean>(`
-                    const actions = document.querySelector(".answer-actions");
-
-                    return JSON.stringify(actions.firstElementChild.textContent.trim() === "Copy" &&
-                        actions.children[1].tagName === "TIME" &&
-                        actions.lastElementChild.textContent.trim() === "More");
-                `),
-            "message time moved after Copy, with More still last",
-        );
-    } finally {
-        await page.evaluate(`
-            (await import("/slots.js")).resetSlot("reply");
-            (await import("/store.js")).closeSheet();
-        `);
-    }
 });
 
 /** A compacted view can keep recent entries whose ids also occur before its summary. */

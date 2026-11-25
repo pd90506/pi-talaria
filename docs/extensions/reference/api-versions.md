@@ -60,7 +60,7 @@ A Pi Pocket before 0.14.0 knows neither `pocketApi` nor `web`. There, a module t
 
 ### Gallery entries
 
-A gallery entry gives `pocketApi` and `minPocket`: the API version and the oldest Pi Pocket that the extension needs. The gallery hides an entry that needs a newer API or a newer Pi Pocket. See [Gallery entry](gallery-entry.md#pocketapi).
+A gallery entry gives `pocketApi` and `minPocket`: the API version and the oldest Pi Pocket that the extension needs. The gallery hides an entry that needs a newer API or a newer Pi Pocket. See Gallery entry.
 
 ## When each part came
 

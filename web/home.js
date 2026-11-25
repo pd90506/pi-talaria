@@ -65,10 +65,6 @@ export function Splash() {
     const rows = [
         ["theme", lookLabel()],
         [
-            "layout",
-            `${p.tiling ? "tiled windows" : "flat"}, sidebar ${p.sidebar === "rail" ? "folded" : "open"}`,
-        ],
-        [
             "sessions",
             `${sessions.filter((session) => !session.archived).length}${busy > 0 ? `, ${busy} running` : ""}`,
         ],

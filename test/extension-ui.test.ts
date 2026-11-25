@@ -363,7 +363,7 @@ test(
         await page.navigate(`${base}/s/${session}`);
         await until(() => has('[data-part="status-item"]'), "the meter's status item");
         assert.equal(await text('[data-part="status-item"] .long'), "46W · 74° · 95%");
-        // The module put its item first and hid the spend; the person's own choice brings the spend back.
+        // The module put its item first and hid the spend.
         const line = () =>
             inPage<string>(
                 `return JSON.stringify(document.querySelector(".status-line").innerText.replace(/\\s+/g, " ").trim())`,
@@ -371,11 +371,6 @@ test(
 
         assert.match(await line(), /^46W · 74° · 95%/);
         assert.doesNotMatch(await line(), /\$0\.00/);
-        await inPage(
-            `(await import("/slots.js")).setShown("status", "core:spend", true); return "null";`,
-        );
-        await until(async () => /\$0\.00/.test(await line()), "the spend shown again");
-        await inPage(`(await import("/slots.js")).resetSlot("status"); return "null";`);
         await settled();
         await page.click({ selector: '[data-part="status-item"]' });
         await until(
@@ -695,13 +690,6 @@ test("Lancet Guard stays on until its inline confirmation is accepted", real, as
         `(await import("/store.js")).openSheet({ type: "extensions", tab: "installed" }); return "null";`,
     );
     await until(() => has('.switch[aria-label="Lancet Guard: on"]'), "the guard switch");
-    // Built in is the first section, open: its switches show without a tap.
-    assert.equal(
-        await inPage<boolean>(
-            `return JSON.stringify(document.querySelector(".extension-management.hub > .ext-section")?.matches("section.ext-builtins") === true)`,
-        ),
-        true,
-    );
     await settled();
     await inPage(
         `document.querySelector('.switch[aria-label="Lancet Guard: on"]').focus(); return "null";`,

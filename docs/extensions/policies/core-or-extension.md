@@ -7,7 +7,7 @@ This page tells where a change goes: into Pi Pocket's core, or into an extension
 - **Core** is the code that Pi Pocket keeps for all people and all extensions. It is the server (`src/server/`, but not `src/server/extensions/`), the app (`web/`), and the interfaces that extensions use: `host`, `web`, and `pocket`.
 - An **extension** is a module that Pi Pocket loads through its extension loader. The owner can turn each one off in **Menu → Extensions**, except the system prompt (`prompt.ts`). There are three types:
     - A **built-in extension** is a module in `src/server/extensions/`. It comes with Pi Pocket.
-    - A **gallery extension** is a drop-in that its author keeps in their own repository. The gallery lists it ([gallery-review.md](gallery-review.md)).
+    - A **gallery extension** is a drop-in that its author keeps in their own repository. The gallery lists it (gallery-review.md).
     - A **drop-in** is a module in the owner's `~/.pi-pocket/extensions/` folder.
 - An **extension point** is a part of the public API that lets an extension add to Pi Pocket or change it. [api-stability.md](api-stability.md) lists them.
 
@@ -74,7 +74,7 @@ Ask these questions in this order. The first "yes" gives the answer.
 
 - **Gallery extension: `subscription-usage`** ([TannerMidd/pocket-subscription-usage](https://github.com/TannerMidd/pocket-subscription-usage)). A page that shows how much of the owner's Claude, ChatGPT, and OpenCode Go plans is used.
 - **Core: nothing new.** It uses only `web.route` and `web.client`.
-- **Why:** it is an integration with outside services, and only some owners have them (C6, C12). It reads the owner's sign-ins, so the gallery review checks that its description says so ([gallery-review.md](gallery-review.md#what-gets-refused)).
+- **Why:** it is an integration with outside services, and only some owners have them (C6, C12). It reads the owner's sign-ins, so the gallery review checks that its description says so (gallery-review.md).
 
 ### Interface languages (#64, proposed)
 

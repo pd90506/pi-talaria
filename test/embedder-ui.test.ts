@@ -230,67 +230,6 @@ test(
 );
 
 test(
-    "session tabs make room for window controls on either side and release it when hidden",
-    real,
-    async () => {
-        await page.evaluate(`
-        localStorage.setItem("pocket.appearance", JSON.stringify({ sessionTabs: true, sidebar: "rail" }));
-    `);
-        await page.navigate(`${base}/s/${session}`);
-        await until(
-            () =>
-                inPage<boolean>(
-                    `return JSON.stringify(document.querySelector(".tabstrip") !== null)`,
-                ),
-            "the session tabs",
-        );
-
-        for (const [side, height] of [
-            ["right", 32],
-            ["left", 32],
-            ["right", 60],
-            ["left", 60],
-        ] as const) {
-            await page.evaluate(`
-            overlayTest.visible = true;
-            overlayTest.side = ${JSON.stringify(side)};
-            overlayTest.height = ${height};
-            overlayTest.dispatchEvent(new Event("geometrychange"));
-        `);
-            await until(
-                () =>
-                    inPage<boolean>(`
-                    const strip = document.querySelector(".tabstrip");
-                    const box = strip.getBoundingClientRect();
-                    const room = ${side === "left" ? "140 - box.left" : "box.right - (innerWidth - 140)"};
-                    const bar = document.querySelector(".topbar");
-                    const touchesBar = bar.getBoundingClientRect().top <= ${height + 1};
-
-                    return JSON.stringify(document.documentElement.dataset.windowControls === ${JSON.stringify(side)} &&
-                        strip.dataset.underControls === "bar" &&
-                        parseFloat(getComputedStyle(strip).${side === "left" ? "paddingLeft" : "paddingRight"}) >= Math.round(room) &&
-                        (bar.dataset.underControls === "bar") === touchesBar);
-                `),
-                `${side} window controls (${height}px) beside each bar they cover`,
-            );
-        }
-
-        await page.evaluate(`
-        overlayTest.visible = false;
-        overlayTest.dispatchEvent(new Event("geometrychange"));
-    `);
-        await until(
-            () =>
-                inPage<boolean>(`
-                return JSON.stringify(document.documentElement.dataset.windowControls === "none" &&
-                    document.querySelector("[data-under-controls]") === null);
-            `),
-            "no room without window controls",
-        );
-    },
-);
-
-test(
     "a tiled window is cut around window controls, and a window that opens has its room in its first frame",
     real,
     async () => {

@@ -2331,8 +2331,8 @@ function ApprovalCard({ approval }) {
 
 // ─── Pi's words ───────────────────────────────────────────────────────────────────────
 
-// The actions under Pi's answers: the app's own items of the `reply` slot (slots.js), which a person can hide and
-// reorder in Appearance, with extensions' before More, which stays last. Each gets the answer (`entry`, its `text`).
+// The actions under Pi's answers: the app's own items of the `reply` slot (slots.js), with extensions' before
+// More, which stays last. Each gets the answer (`entry`, its `text`).
 defineItem("reply", {
     id: "core:time",
     label: "Message time",

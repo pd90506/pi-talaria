@@ -104,6 +104,6 @@ To stop the module, turn it off in Menu → **Extensions**. To remove it, delete
 - Read [the rules that are easy to break](../extensions.md#rules-that-are-easy-to-break) before you share a module.
 - Test the module: see [Testing](testing.md).
 - Add a page or a button to the app: see [Adding to the app](app.md).
-- Share the module with other people: see [Publishing to the gallery](publishing.md).
+- Share the module with other people: see Publishing to the gallery.
 
 The tests of Pi Pocket load this module, and use its tool: [examples/my-words.ts](../examples/my-words.ts).

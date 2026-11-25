@@ -169,7 +169,7 @@ Rules:
 ## Report a problem
 
 - **A problem in Pi Pocket:** read [SECURITY.md](../../../SECURITY.md). Report it in private. Do not open a public issue.
-- **A problem in a gallery extension:** report it in private in the index, [TannerMidd/pi-pocket-extensions](https://github.com/TannerMidd/pi-pocket-extensions): **Security → Report a vulnerability**. Tell its author too. Do not open a public issue. The maintainers then act as [gallery-review.md](gallery-review.md#revoke-withdraw-and-remove) says.
+- **A problem in a gallery extension:** report it in private in the index, [TannerMidd/pi-pocket-extensions](https://github.com/TannerMidd/pi-pocket-extensions): **Security → Report a vulnerability**. Tell its author too. Do not open a public issue. The maintainers then act as gallery-review.md says.
 
 ## Before you share a module
 

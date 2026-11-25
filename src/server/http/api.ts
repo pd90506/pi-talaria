@@ -19,9 +19,7 @@ import {
 } from "../auth.ts";
 import type { User } from "../config.ts";
 import { HttpError } from "../errors.ts";
-import { desktopTheme, wallpaperFile } from "../omarchy.ts";
 import { runningBoard, runningNow } from "../running.ts";
-import { serveImage } from "./assets.ts";
 import { browserRoutes } from "./browser-routes.ts";
 import { conversationRoutes } from "./conversation-routes.ts";
 import { createEventStreams, keptPart } from "./events.ts";
@@ -300,21 +298,6 @@ export function createApi(options: HttpOptions, auth: Auth) {
             return pushRoutes(route, second);
         }
 
-        // The Omarchy desktop's theme, for the app's "Follow desktop" look: colors say nothing about the sessions here, so
-        // everyone signed in gets them. The wallpaper may be a personal photo: only the owner gets that.
-        if (first === "theme" && second === undefined && method === "GET") {
-            const theme = await desktopTheme();
-
-            return json(response, 200, {
-                theme:
-                    theme === null
-                        ? null
-                        : { ...theme, wallpaper: theme.wallpaper && user.role === "owner" },
-            });
-        }
-
-        // Theme folders (`themes.ts`): everyone signed in lists them, as everyone chooses one for their own browsers;
-        // only the owner adds, edits, and removes them.
         // The app icon's colors, which the owner's browser reports for the requests that carry no cookie (`icon-store.ts`).
         if (first === "app-icon" && second === undefined && method === "PUT") {
             requireOwner(user);
@@ -328,76 +311,6 @@ export function createApi(options: HttpOptions, auth: Auth) {
             storeIconColors(app.dataDir, colors);
 
             return json(response, 200, { ok: true });
-        }
-
-        if (first === "themes" && second === undefined && method === "GET") {
-            return json(response, 200, { themes: app.themes.list(user.role === "owner") });
-        }
-
-        if (first === "themes" && second === "default" && method === "PUT") {
-            await app.setThemeDefault(
-                user,
-                (await readJson<{ default?: unknown }>(request)).default,
-            );
-
-            return json(response, 200, { ok: true });
-        }
-
-        if (first === "themes" && second === "duplicate" && method === "POST") {
-            requireOwner(user);
-            const body = await readJson<{ from?: unknown; name?: unknown; colors?: unknown }>(
-                request,
-            );
-
-            if (typeof body.from !== "string") {
-                throw new HttpError(400, "Say which theme or colors to copy");
-            }
-
-            return json(response, 200, {
-                id: await app.themes.duplicate(body.from, body.name, body.colors === true),
-            });
-        }
-
-        if (first === "themes" && second !== undefined && third === "fonts" && method === "PUT") {
-            requireOwner(user);
-            app.themes.setFonts(
-                second,
-                await readJson<{ sans?: unknown; mono?: unknown; ligatures?: unknown }>(request),
-            );
-
-            return json(response, 200, { ok: true });
-        }
-
-        if (first === "themes" && second !== undefined && third === "edit" && method === "GET") {
-            requireOwner(user);
-
-            return json(response, 200, app.themes.edit(second));
-        }
-
-        if (
-            first === "themes" &&
-            second !== undefined &&
-            third === undefined &&
-            method === "DELETE"
-        ) {
-            requireOwner(user);
-            app.themes.remove(second);
-
-            return json(response, 200, { ok: true });
-        }
-
-        if (first === "theme" && second === "wallpaper" && method === "GET") {
-            if (user.role !== "owner") {
-                throw new HttpError(403, "Only the owner sees the desktop's wallpaper");
-            }
-
-            const file = await wallpaperFile();
-
-            if (file === undefined) {
-                throw new HttpError(404, "No wallpaper");
-            }
-
-            return serveImage(request, response, file);
         }
 
         if (first === "running" && second === "board" && method === "GET") {

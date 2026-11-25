@@ -248,7 +248,7 @@ The list of drop-ins that other people wrote: Menu → Extensions → **Find ext
 
 ### index
 
-The JSON file that the gallery reads. See [Gallery entry](gallery-entry.md).
+The JSON file that the gallery reads. See Gallery entry.
 
 ### entry
 

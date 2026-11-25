@@ -6,15 +6,7 @@ import { memoryAvailable, remember } from "./sheets/memory.js";
 import { togglePeeks } from "./peeks.js";
 import { askPip, openPip, pipAvailable } from "./pip.js";
 import { actions, navigate, notify, openSheet, scoped, store } from "./store.js";
-import {
-    BASE_LOOK,
-    chooseLook,
-    chooseTheme,
-    folderPaletteIds,
-    lookIds,
-    paletteOf,
-    THEMES,
-} from "./theme.js";
+import { setPrefs } from "./theme.js";
 import { trustAvailable } from "./trust.js";
 import { copyText, formatTokens, formatWhen, modelLabel, replyText, shortPath } from "./ui.js";
 
@@ -429,72 +421,26 @@ const COMMANDS = [
     },
     {
         name: "theme",
-        args: "[name]",
-        description:
-            "Change the theme or the colors: a theme, an Omarchy palette, or desktop to follow yours",
+        args: "[light|dark|system]",
+        description: "Light or dark, or follow the system; without one, Appearance",
         run: setTheme,
     },
 ];
 
-/**
- * `/theme lantern` (a theme folder), `/theme gruvbox`, `/theme rose`, `/theme desktop` (colors); without a name, the
- * Appearance sheet. A theme's name wins over colors' of the same name.
- */
+/** `/theme light`, `/theme dark`, or `/theme system`; without one, the Appearance sheet. */
 function setTheme(arg) {
-    if (arg === "") {
+    const mode = arg.trim().toLowerCase();
+
+    if (mode === "") {
         return openSheet({ type: "appearance" });
     }
 
-    const needle = arg.toLowerCase().replace(/\s+/g, "-");
-    const words = arg.toLowerCase();
-    // Themes that work: one broken, which Appearance shows greyed out, would leave the app on Pocket.
-    const looks = lookIds().flatMap((id) => {
-        const listed = store.state.themeList?.find((each) => each.id === id);
-
-        return id === BASE_LOOK || listed?.usable
-            ? [{ id, name: id === BASE_LOOK ? "Pocket" : (listed?.name ?? id) }]
-            : [];
-    });
-    // The desktop's colors only where the server has a desktop: elsewhere "desktop" would show Tokyo Night.
-    const desktop = paletteOf("desktop").desktop === true;
-    const palettes = [
-        ...(desktop ? ["desktop"] : []),
-        ...Object.keys(THEMES),
-        ...folderPaletteIds(),
-    ].map((id) => ({
-        id,
-        name: id === "desktop" ? "desktop" : paletteOf(id).name,
-    }));
-    const find = (list) =>
-        list.find((each) => each.id === needle) ??
-        list.find(
-            (each) => each.id.startsWith(needle) || each.name.toLowerCase().startsWith(words),
-        );
-    const look = find(looks);
-
-    if (look) {
-        chooseLook(look.id);
-        notify("info", `Theme: ${look.name}.`);
-
-        return;
+    if (!["light", "dark", "system"].includes(mode)) {
+        throw new Error(`No mode called “${arg}”. Try light, dark, or system.`);
     }
 
-    const palette = find(palettes);
-
-    if (!palette) {
-        const some = [
-            "pocket",
-            ...Object.keys(THEMES).slice(0, 3),
-            ...(desktop ? ["desktop"] : []),
-        ];
-
-        throw new Error(
-            `No theme or colors called “${arg}”. Try ${some.slice(0, -1).join(", ")}, or ${some.at(-1)}.`,
-        );
-    }
-
-    chooseTheme(palette.id);
-    notify("info", `Colors: ${palette.id === "desktop" ? "follow your desktop" : palette.name}.`);
+    setPrefs({ mode });
+    notify("info", mode === "system" ? "Mode: follow the system." : `Mode: ${mode}.`);
 }
 
 /** Extensions' commands this person may run (`hello` lists them). A prompt template of the same name keeps it. */
