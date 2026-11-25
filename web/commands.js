@@ -233,14 +233,6 @@ const COMMANDS = [
         description: "Start a new context: Pi starts fresh, history stays",
         run: (arg) => actions.reset(arg || undefined),
     },
-    {
-        name: "instructions",
-        args: "[text]",
-        description: "Set what Pi is told with every message here",
-        available: isSession,
-        run: (arg) =>
-            arg === "" ? openSheet({ type: "instructions" }) : actions.setInstructions(arg),
-    },
     { name: "model", args: "[name]", description: "Switch the model", run: switchModel },
     { name: "thinking", args: "[level]", description: "Set the thinking level", run: setThinking },
     {

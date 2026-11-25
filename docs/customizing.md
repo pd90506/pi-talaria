@@ -2,16 +2,6 @@
 
 Most changes that people ask for need no code: "always use pnpm", "review the way we do it here", "never touch the migrations". Pi Pocket reads the same files as Pi, except Pi's extensions ([below](#pis-extensions-and-packages)). So what you write for Pi works here too, and the other way round. Pi's own documentation tells all about each file; the system prompt gives its path.
 
-## Instructions for one session
-
-Use Menu → **Instructions for Pi**, or `/instructions use pnpm, not npm`.
-
-- Pi gets the instructions with each message in that session, after the rest of the system prompt.
-- All the people in the session see them.
-- Pi Pocket stores them with the session, so they stay after restarts. A fork starts with its parent's instructions.
-
-Use them for rules that belong to one piece of work. A tool cannot set them: tell the person what to put there.
-
 ## AGENTS.md: rules for a project, or for all sessions
 
 Pi Pocket loads context files as Pi does:

@@ -317,17 +317,6 @@ function sheetBody(sheet) {
                 submit=${(value) => actions.reset(value)}
             />`;
             break;
-        case "instructions":
-            body = html`<${TextSheet}
-                title="Instructions for Pi"
-                hint="Pi gets these with every message in this session, after its own instructions. Everyone here can see them. Leave empty for none."
-                label="Instructions"
-                initial=${view.agent?.instructions ?? ""}
-                placeholder="e.g. Use pnpm, not npm. Ask before adding dependencies."
-                multiline=${true}
-                submit=${(value) => actions.setInstructions(value)}
-            />`;
-            break;
         case "compact":
             body = html`<${TextSheet}
                 title="Compact context"

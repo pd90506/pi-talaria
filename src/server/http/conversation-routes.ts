@@ -179,14 +179,6 @@ export async function conversationRoutes(
         return json(response, 200, { ok: true });
     }
 
-    if (third === "instructions" && method === "POST") {
-        const body = await readJson<{ text?: unknown }>(request);
-
-        await app.commands.setInstructions(id, user, body.text);
-
-        return json(response, 200, { ok: true });
-    }
-
     if (third === "plan" && method === "POST") {
         const body = await readJson<{ on?: unknown; approve?: unknown }>(request);
 
