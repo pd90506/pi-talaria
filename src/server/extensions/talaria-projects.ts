@@ -651,6 +651,17 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
                     .map((each) => {
                         const { state, note } = stateOf({ ...each, session: each.id }, reports);
 
+                        // Its helpers (Agent Teams): sessions it started, reached from the thread's ⋯ menu.
+                        const helpers = [...sessions.values()]
+                            .filter((other) => other.linkedFrom === each.id)
+                            .sort((x, y) => y.updatedAt - x.updatedAt)
+                            .map((other) => ({
+                                id: other.id,
+                                title: other.title,
+                                busy: other.busy === true,
+                                resolved: other.archived,
+                            }));
+
                         return {
                             id: each.id,
                             title: each.title,
@@ -659,6 +670,7 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
                             state,
                             ...(note === undefined ? {} : { note }),
                             lastActive: each.updatedAt,
+                            helpers,
                         };
                     });
 

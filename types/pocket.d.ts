@@ -2176,6 +2176,12 @@ export interface PanelSpec {
      * @experimental
      */
     wide?: boolean;
+    /**
+     * While it returns true, the panel is a tab of the dock beside the conversation, before Files, Changes, and Browser.
+     * @since 0.31.0
+     * @experimental
+     */
+    tab?: () => boolean;
 }
 
 /**
@@ -3064,6 +3070,13 @@ export interface Pocket {
      * @since 0.16.0
      */
     openConversation(id: number | string, options?: { artifact?: string; version?: number }): void;
+    /**
+     * Archives a session, or brings it back with `archived` false, as the session list's Archive does. The server
+     * checks that the person may. Rejects with the server's words.
+     * @since 0.31.0
+     * @experimental
+     */
+    archiveConversation(id: number | string, archived?: boolean): Promise<void>;
     /**
      * Hears which session the tab shows: the listener gets its id, or null, now and on each change. Returns how to stop.
      * @since 0.20.0

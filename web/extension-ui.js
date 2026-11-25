@@ -34,6 +34,7 @@ import {
     store,
 } from "./store.js";
 import { askPipFrom, openPip } from "./pip.js";
+import { DockHead, isDockTab } from "./side-dock.js";
 import { fromExtensions, SLOTS, slotsChanged } from "./slots.js";
 import { setCallSummary } from "./turns.js";
 import {
@@ -794,6 +795,10 @@ function check(kind, spec) {
         }
     }
 
+    if (kind === "panel" && spec.tab !== undefined && typeof spec.tab !== "function") {
+        throw new Error(`${name} ${spec.id}: tab is a function that says when the panel is a tab`);
+    }
+
     if (kind === "page" || kind === "sheet" || kind === "panel" || kind === "sidebar") {
         if (typeof spec.component !== "function") {
             throw new Error(`${name} ${spec.id}: give it a component to show`);
@@ -1187,6 +1192,20 @@ function pocketFor(record) {
                           },
                       },
             );
+        },
+        /** Archive a session, or bring it back with `archived` false: as the session list's Archive does, without its undo. */
+        archiveConversation: (id, archived = true) => {
+            tick(record);
+
+            const value = typeof id === "string" && /^[1-9]\d*$/.test(id) ? Number(id) : id;
+
+            if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) {
+                throw new Error("pocket.archiveConversation: give a positive conversation id");
+            }
+
+            return (async () => {
+                await api(`sessions/${value}`, { archived: archived !== false });
+            })();
         },
         /**
          * Call one of the module's routes: `api("status")` gets, `api("items", { name })` posts, and
@@ -1738,6 +1757,33 @@ export function closeExtPanel() {
     }
 
     store.set({ extPanel: null });
+}
+
+/**
+ * Modules' panels that are tabs of the dock now (`tab` says so): `{ module, id, title, open }`, `open` while it shows. A
+ * `tab` that throws counts as false.
+ */
+export function dockPanels() {
+    const { extPanel } = store.state;
+
+    return added("panel")
+        .filter(({ record, spec }) => {
+            if (!liveRecord(record) || typeof spec.tab !== "function") {
+                return false;
+            }
+
+            try {
+                return spec.tab() === true;
+            } catch {
+                return false;
+            }
+        })
+        .map(({ record, spec }) => ({
+            module: record.module,
+            id: spec.id,
+            title: spec.title,
+            open: extPanel?.module === record.module && extPanel.id === spec.id,
+        }));
 }
 
 /** The extension panel shows now: one asked for, in a conversation that is there. `App` draws it by this. */
@@ -2895,7 +2941,10 @@ export function ExtensionPanel({ leaving = false }) {
         tabindex="-1"
         inert=${leaving}
     >
-        <header class="ext-panel-bar">
+        ${
+            beside && target && isDockTab(target.module, target.id)
+                ? html`<${DockHead} />`
+                : html`<header class="ext-panel-bar">
             ${
                 !beside &&
                 html`<button
@@ -2928,7 +2977,8 @@ export function ExtensionPanel({ leaving = false }) {
                     <${Icon} name="close" size=${17} />
                 </button>`
             }
-        </header>
+        </header>`
+        }
         <div class="ext-panel-body">
             <${Body} record=${record} spec=${spec} title=${title} props=${{}} close=${close} />
         </div>

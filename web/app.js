@@ -2,6 +2,7 @@
 import { render } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import { folderColor } from "./colors.js";
+import { framed, hearFrames } from "./frame.js";
 import { canGoBack, goBack, replaceAddress, startHistory, useBack } from "./back.js";
 import { BrowserButton, BrowserPanel } from "./browser-panel.js";
 import { browserAvailable, setBrowserOpen, toggleBrowser } from "./browser.js";
@@ -525,6 +526,23 @@ function App() {
         return html`<${SignIn} /><${Notices} />`;
     }
 
+    // In a frame (a project's thread in the side dock): the conversation and its message box, nothing around them.
+    if (framed) {
+        return html`<div class="layout framed" data-part="app">
+            <div class="pane window" data-part="pane">
+                <${Transcript} key=${state.conversationId} />
+                ${
+                    state.view.conversation &&
+                    !state.missing &&
+                    html`<${Composer} key=${state.conversationId} />`
+                }
+            </div>
+            <${Sheets} />
+            <${QuoteReplyButton} />
+            <${Notices} />
+        </div>`;
+    }
+
     const inConversation = state.conversationId !== null;
     // The sidebar and the splash show only on wide screens (style.css): narrower, they are not drawn at all. A phone
     // drew the sidebar's session list beside its own, hidden, on each change and each Back.
@@ -967,9 +985,14 @@ if (new URLSearchParams(location.search).has("pip")) {
     });
 }
 
-// The worker shows notifications and receives what other apps share; it needs a secure page (https or localhost).
-registerWorker();
-store.subscribe(updateBadge);
+// The worker shows notifications and receives what other apps share; it needs a secure page (https or localhost). A
+// frame leaves both to the page around it, which also opens the sessions a frame asks for.
+if (!framed) {
+    registerWorker();
+    store.subscribe(updateBadge);
+    hearFrames((id) => navigate(id));
+}
+
 start();
 // Something shared from another app: the service worker kept it, and redirected here to choose where it goes.
 const shared = new URLSearchParams(location.search).get("share");

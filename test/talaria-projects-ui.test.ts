@@ -264,3 +264,102 @@ test(
         }
     },
 );
+
+test(
+    "Beside a coordinator, the dock's Threads tab opens a thread there: its conversation, a box to steer it, and Done",
+    real,
+    async () => {
+        const coordinator = app
+            .sessions()
+            .filter((each) => each.cwd === join(root, "pip", "projects", "phone-app"))
+            .sort((a, b) => Number(a.id) - Number(b.id))[0]!;
+        const thread = app.sessions().find((each) => each.title === "Write the notes")!;
+        const frameHas = (selector: string) =>
+            inPage<boolean>(
+                `return JSON.stringify(document.querySelector(".talaria-thread-frame")?.contentDocument?.querySelector(${JSON.stringify(selector)}) != null)`,
+            );
+
+        await page.setViewport({ width: 1440, height: 900, scale: 1, mobile: false });
+
+        try {
+            await page.navigate(`${base}/s/${coordinator.id}`);
+            // The coordinator opens with its threads beside it: the dock's first tab, then Files and Changes.
+            await until(
+                () => has('.dock-head [data-tab="ext:talaria-projects:project"].on'),
+                "the Threads tab",
+            );
+            assert.deepEqual(
+                (
+                    await inPage<string[]>(
+                        `return JSON.stringify([...document.querySelectorAll(".dock-tabs [role=tab]")].map((each) => each.textContent.trim()))`,
+                    )
+                ).slice(0, 3),
+                ["Threads", "Files", "Changes"],
+            );
+            await until(() => has(".ext-panel .talaria-thread"), "the threads in the panel");
+            await inPage(
+                `[...document.querySelectorAll(".ext-panel .talaria-thread")].find((each) => each.textContent.includes("Write the notes")).click(); return "null"`,
+            );
+            // The thread opens in the panel, and the coordinator stays in the middle.
+            await until(
+                () => has(".talaria-thread-view .talaria-thread-frame"),
+                "the thread's frame",
+            );
+            assert.equal(
+                await inPage<string>(`return JSON.stringify(location.pathname)`),
+                `/s/${coordinator.id}`,
+            );
+            await until(
+                () => frameHas(".composer textarea"),
+                "the thread's message box in the frame",
+            );
+            assert.equal(
+                await inPage<string>(
+                    `return JSON.stringify(document.querySelector(".talaria-thread-frame").contentDocument.querySelector(".composer textarea").placeholder)`,
+                ),
+                "Steer this thread…",
+            );
+            assert.equal(await frameHas(".sidebar .side-nav"), false, "no sidebar in the frame");
+            assert.equal(await frameHas(".topbar"), false, "no top bar in the frame");
+
+            if (process.env.PI_TALARIA_SHOTS !== undefined) {
+                await new Promise((resolve) => setTimeout(resolve, 800));
+                const shot = await page.screenshot({});
+
+                writeFileSync(
+                    join(process.env.PI_TALARIA_SHOTS, "thread-beside.jpg"),
+                    shot.data,
+                    "base64",
+                );
+            }
+
+            // ⋯ lists its helpers; it has none.
+            await inPage(
+                `document.querySelector('.talaria-thread-head [aria-label="More"]').click(); return "null"`,
+            );
+            await until(() => has(".talaria-menu"), "the thread's menu");
+            assert.match(
+                await inPage<string>(
+                    `return JSON.stringify(document.querySelector(".talaria-menu").textContent)`,
+                ),
+                /Helpers and subagents[\s\S]*No helpers yet/,
+            );
+            await inPage(
+                `document.querySelector('.talaria-thread-head [aria-label="More"]').click(); return "null"`,
+            );
+
+            // Done resolves it, and the panel goes back to the list.
+            await inPage(`document.querySelector(".talaria-done").click(); return "null"`);
+            await until(
+                () =>
+                    Promise.resolve(
+                        app.sessions().find((each) => each.id === thread.id)?.archived === true,
+                    ),
+                "the thread resolved",
+            );
+            await until(async () => !(await has(".talaria-thread-view")), "back to the list");
+        } finally {
+            await page.setViewport(PHONE);
+        }
+    },
+);

@@ -269,6 +269,16 @@ html`<button
 </button>`;
 ```
 
+### `archiveConversation`
+
+```ts
+archiveConversation(id: number | string, archived?: boolean): Promise<void>;
+```
+
+Since 0.31.0 · Experimental
+
+Archives a session, or brings it back with `archived` false, as the session list's Archive does, without its undo. The server checks that the person may archive it. Invalid ids throw; a refusal rejects with the server's words. A project's resolved thread is an archived session: the Threads panel's done check uses it.
+
 ### `onConversation`
 
 ```ts
@@ -911,6 +921,7 @@ interface PanelSpec {
     iconPath?: string;
     badge?: number | string | null | false;
     wide?: boolean;
+    tab?: () => boolean;
 }
 ```
 
@@ -924,6 +935,7 @@ A panel beside the conversation.
 - `icon`, `iconPath`: the icon of its buttons, as for a rail button.
 - `badge`: a short count or word on its buttons, as for a rail button.
 - `wide`: with `true`, the panel takes more of the width beside the conversation.
+- `tab`: while it returns true, the panel is a tab of the dock beside the conversation, before Files, Changes, and Browser, as a project's Threads is. Keep it fast: the dock asks as it draws. Since 0.31.0.
 
 The panel shows only in a session. The app keeps it open in the tab across a reload, and closes it when its module goes.
 

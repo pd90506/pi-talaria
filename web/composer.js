@@ -2,6 +2,7 @@
 // what was sent before (↑, Ctrl+R), fold long pastes, pick the model, stop.
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { useBack } from "./back.js";
+import { framed } from "./frame.js";
 import { boxKey, keyBox } from "./box-keys.js";
 import {
     loadTemplates,
@@ -1872,7 +1873,9 @@ export function Composer() {
               : sendMode === "interrupt"
                 ? "Stop the run and send this now…"
                 : "Queue a message for after this run…"
-          : "Ask Pi anything…";
+          : framed
+            ? "Steer this thread…"
+            : "Ask Pi anything…";
     const inbox = view.inbox ?? [];
     const { me, users } = store.state;
     const queuedBy = (item) =>

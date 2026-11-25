@@ -8,6 +8,7 @@ import { useBack } from "./back.js";
 import { DiffReview, KIND_LETTERS, reloadChanges, useChanges, useWidth } from "./diff.js";
 import { loadFiles, suggestFiles } from "./files.js";
 import { FileView } from "./sheets/file.js";
+import { DockHead } from "./side-dock.js";
 import { actions, canSteer, panelsBeside, store } from "./store.js";
 import {
     dragWidth,
@@ -679,6 +680,7 @@ function FilesPanelContent({ leaving = false }) {
         inert=${leaving}
     >
         <${ResizeEdge} />
+        ${beside && html`<${DockHead} counts=${{ changes: count }} />`}
         <header class="files-bar">
             ${
                 !beside &&
@@ -692,7 +694,9 @@ function FilesPanelContent({ leaving = false }) {
                     <${Icon} name="back" size=${22} />
                 </button>`
             }
-            <div class="files-tabs" role="tablist">
+            ${
+                !beside &&
+                html`<div class="files-tabs" role="tablist">
                 <button
                     type="button"
                     role="tab"
@@ -712,20 +716,9 @@ function FilesPanelContent({ leaving = false }) {
                     Changes
                     ${count > 0 && html`<span class="files-count">${count}</span>`}
                 </button>
-            </div>
-            <span class="files-root" title=${root}>${shortPath(root, server?.home)}</span>
-            ${
-                beside &&
-                html`<button
-                    class="icon-button"
-                    type="button"
-                    aria-label="Close the files"
-                    title="Close (Alt+E)"
-                    onClick=${() => setFilesOpen(false)}
-                >
-                    <${Icon} name="close" size=${17} />
-                </button>`
+            </div>`
             }
+            <span class="files-root" title=${root}>${shortPath(root, server?.home)}</span>
         </header>
         <div class="files-body" role="tabpanel" aria-label="Files" hidden=${filesTab !== "files"}>
             <${FilesTab} changes=${changes} covering=${!beside && !leaving} />
