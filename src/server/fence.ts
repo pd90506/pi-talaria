@@ -7,8 +7,7 @@ import { snippet } from "./projection.ts";
 
 /**
  * Characters that show as nothing (controls, format characters, lone surrogates, private and unassigned ones, variation
- * selectors, joiners, and the blank letters), for a regular expression's `[…]`: `memory.ts` keeps them out of lessons,
- * and `defang` sees through them.
+ * selectors, joiners, and the blank letters), for a regular expression's `[…]`: `defang` sees through them.
  */
 export const INVISIBLE_CLASS =
     "\\p{Cc}\\p{Cf}\\p{Cs}\\p{Co}\\p{Cn}\\uFE00-\\uFE0F\\u{E0100}-\\u{E01EF}\\u034F\\u115F\\u1160\\u17B4\\u17B5\\u180B-\\u180F\\u2800\\u3164\\uFFA0";

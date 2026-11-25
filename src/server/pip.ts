@@ -75,7 +75,6 @@ export const PIP_EXTENSIONS = [
     "pocket-artifacts",
     "pocket-schedules",
     "pocket-codemode",
-    "pocket-memory",
     PROJECTS_PIP_EXTENSION,
 ];
 /**

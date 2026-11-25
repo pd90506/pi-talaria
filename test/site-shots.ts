@@ -459,8 +459,6 @@ async function stage() {
     // A drop-in that asks about a push.
     writeAsker(app.dataDir, "^git push\\b");
     await app.setExtensionEnabled(riley, "asker.ts", true);
-    // PiP's panel would show a "Pending memories" row.
-    await app.setExtensionEnabled(riley, "memory.ts", false);
 
     SHOP = makeProject(
         "shop-web",

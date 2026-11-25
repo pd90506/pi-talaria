@@ -11,7 +11,6 @@ import { ExtensionsSheet } from "./sheets/extensions.js";
 import { FileSheet } from "./sheets/file.js";
 import { FindSheet } from "./sheets/find.js";
 import { CwdSheet } from "./sheets/folder.js";
-import { MemorySheet } from "./sheets/memory.js";
 import { MenuSheet } from "./sheets/menu.js";
 import { MessageSheet } from "./sheets/message.js";
 import { ModelPicker } from "./sheets/model.js";
@@ -287,16 +286,6 @@ function sheetBody(sheet) {
             break;
         case "hooks":
             body = html`<${HooksSheet} />`;
-            break;
-        case "memory":
-            body =
-                sheet.conversationId !== undefined || view.conversation
-                    ? html`<${MemorySheet}
-                          draft=${sheet.draft ?? ""}
-                          conversationId=${sheet.conversationId}
-                          pendingOnly=${sheet.pendingOnly === true}
-                      />`
-                    : null;
             break;
         case "share":
             body = html`<${ShareSheet} share=${sheet.share} />`;

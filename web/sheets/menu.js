@@ -26,7 +26,6 @@ import {
 } from "../store.js";
 import { isPinned, lookLabel, togglePin } from "../theme.js";
 import { currentTrust, trustAvailable } from "../trust.js";
-import { memoryAvailable, memoryHint, useMemory } from "./memory.js";
 import { defaultLabel, defaultsKept } from "./model.js";
 import { copyText, html, item, Sheet, shortPath } from "../ui.js";
 
@@ -251,7 +250,6 @@ export function MenuSheet() {
     const conversation = view.conversation;
     const steer = canSteer();
     const session = conversation?.kind === "session";
-    const memory = useMemory();
 
     // The embedder this page runs in adds its own group at the end, below App, under its own title (`embedder.js`).
     const embedder = hostMenu();
@@ -316,7 +314,6 @@ export function MenuSheet() {
             ${session && extensionMenuItems("session").map((each) => item(each.label, each.run, each.hint))}
             ${conversation && steer && item("Compact context", () => openSheet({ type: "compact" }), "summarize older messages")}
             ${conversation && steer && item("New context", () => openSheet({ type: "reset" }), "Pi starts fresh; history stays")}
-            ${conversation && memoryAvailable() && item("Memory", () => openSheet({ type: "memory" }), memoryHint(memory))}
             ${schedulesAvailable() && item("Scheduled messages", () => openSheet({ type: "schedules" }), schedulesHint(view.schedules))}
             ${
                 watchAvailable() &&

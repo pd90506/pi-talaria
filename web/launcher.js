@@ -19,7 +19,6 @@ import { openPip, pipAvailable } from "./pip.js";
 import { setArchived, toggleBoard } from "./sessions.js";
 import { branchAvailable, headLabel } from "./sheets/branch.js";
 import { recentLabels } from "./sheets/folder.js";
-import { memoryAvailable } from "./sheets/memory.js";
 import { piSessionsAvailable } from "./sheets/pi-sessions.js";
 import {
     actions,
@@ -309,13 +308,6 @@ function actionItems() {
                 keywords: "reset clear",
                 icon: "reload",
                 run: () => openSheet({ type: "reset" }),
-            },
-        conversation &&
-            memoryAvailable() && {
-                label: "Memory",
-                detail: "lessons Pi keeps across sessions",
-                icon: "sparkle",
-                run: () => openSheet({ type: "memory" }),
             },
         watchAvailable() &&
             steer &&

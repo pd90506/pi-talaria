@@ -491,7 +491,7 @@ function memoryRules(level: "personal" | "project", thread: boolean): string {
         `- One subject per file. Look for a file that already covers it first; update that one, and delete one that turns out wrong. To change a file, read it, then write it whole (memory_files write, with the version read gave): never append a correction or keep old and new side by side. A file holds ${String(FILE_BYTES)} bytes at most: past that, split it or summarize it. When you add, rename, or delete a file, change its line in ${INDEX_FILE} the same way.`,
         "- Give each fact its date and where it came from (a session and entry), for example (2026-11-24, session 12 #345).",
         "- Never put secrets (passwords, tokens, keys) in memory.",
-        "- Rules for every session (how to build and test, a convention) stay lessons, with the memory tool, which the owner approves. Memory files hold facts and state.",
+        "- Rules for every session in a project (how to build and test, a convention) belong in its AGENTS.md. Memory files hold facts and state.",
         ...(thread ? ["- In your final answer, list the memory files you changed."] : []),
     ].join("\n");
 }
@@ -1964,30 +1964,6 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
         },
     });
 
-    /** Threads keep what they learn in the project's memory: a lesson for this session alone is refused there. */
-    const noSessionLessons = wrapTool(
-        { name: "memory" } as ToolRegistration,
-        (tool) =>
-            ({
-                ...tool,
-                execute: async (args, api, context) => {
-                    if ((args as { scope?: string }).scope === "session") {
-                        const found = await roleOf(api.conversationId, () =>
-                            api.snapshot(Projects, context),
-                        );
-
-                        if (found?.role === "thread") {
-                            throw new Error(
-                                "A thread keeps no lessons of its own: put what the project should remember in its memory (memory_files), or leave it in this conversation.",
-                            );
-                        }
-                    }
-
-                    return tool.execute(args as never, api, context);
-                },
-            }) as ToolRegistration,
-    );
-
     return [
         defineExtension({
             name: PROJECTS_PIP_EXTENSION,
@@ -2007,7 +1983,7 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
         defineExtension({
             name: "talaria-projects",
             tools: [thread, projectMemoryTool, projectSearch],
-            wraps: [...readOnly, noSessionLessons],
+            wraps: readOnly,
             sections: [
                 section("talaria-project", async ({ conversationId, read }, context) => {
                     const found = await roleOf(conversationId, () =>

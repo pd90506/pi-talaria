@@ -2685,7 +2685,6 @@ export class Commands {
                 forkedFrom: { id: Number(id), ...(at === undefined ? {} : { entryId: at }) },
                 ...(place.worktree === undefined ? {} : { worktree: place.worktree }),
             };
-            await app.memory.forked(tx, id, forked, title);
 
             if (fork.resend !== undefined) {
                 await tx.createTask(ResendTask, fork.resend, {

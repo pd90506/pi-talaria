@@ -69,7 +69,7 @@ const NOTES_HEAD =
     "The conversation history before this point was compacted into the following summary:";
 
 /**
- * Tools whose results are PiP's own (lists, what it did, its lessons): kept, with any fence in them left out. What any
+ * Tools whose results are PiP's own (lists, what it did, its old lessons): kept, with any fence in them left out. What any
  * other tool returned (a file read, a script's output) is outside text, and only its name stays.
  */
 const OWN_TOOLS = new Set([

@@ -13,7 +13,6 @@ import {
     ArtifactSharesDoc,
     DeletedDoc,
     HooksDoc,
-    MemoryDoc,
     PublicLinksDoc,
     type RemovedSession,
     RepoWatchesDoc,
@@ -22,7 +21,6 @@ import {
 } from "./docs.ts";
 import { describe, HttpError } from "./errors.ts";
 import { git } from "./git.ts";
-import { sessionKey } from "./memory.ts";
 import { isEnvFile } from "./secrets.ts";
 import { inWorktree, removeWorktree, type Worktree } from "./worktrees.ts";
 
@@ -56,7 +54,6 @@ export type SessionPlan = {
         repoWatches: number;
         shares: number;
         links: number;
-        lessons: number;
     };
 };
 
@@ -283,7 +280,6 @@ export class SessionCleanup {
             watches: { target: number }[];
             shares: { conversation: string }[];
             links: { conversation?: number }[];
-            lessons: { project?: string }[];
         },
     ): Promise<SessionPlan | undefined> {
         const app = this.#app;
@@ -346,7 +342,6 @@ export class SessionCleanup {
                 links: docs.links.filter(
                     (link) => link.conversation !== undefined && numbers.has(link.conversation),
                 ).length,
-                lessons: docs.lessons.filter((lesson) => lesson.project === sessionKey(id)).length,
             },
         };
     }
@@ -359,7 +354,6 @@ export class SessionCleanup {
             watches: Object.values((await snapshot(RepoWatchesDoc, context))?.items ?? {}),
             shares: Object.values((await snapshot(ArtifactSharesDoc, context))?.items ?? {}),
             links: Object.values((await snapshot(PublicLinksDoc, context))?.items ?? {}),
-            lessons: Object.values((await snapshot(MemoryDoc, context))?.items ?? {}),
         };
     }
 
@@ -548,14 +542,6 @@ export class SessionCleanup {
             for (const [key, link] of Object.entries(links.items)) {
                 if (link.conversation !== undefined && numbers.has(link.conversation)) {
                     delete links.items[key];
-                }
-            }
-
-            const memory = await tx.doc(MemoryDoc);
-
-            for (const [key, lesson] of Object.entries(memory.items)) {
-                if (lesson.project === sessionKey(id)) {
-                    delete memory.items[key];
                 }
             }
         }, context);

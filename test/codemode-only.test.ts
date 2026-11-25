@@ -104,7 +104,7 @@ test("Only mode declares codemode, tool search, and the tools with cards, and li
     await app.setExtensionEnabled(owner(app), "late.ts", true);
     await say(app, await newSession(app), "hello");
 
-    assert.deepEqual(declared.sort(), ["artifact", "ask", "codemode", "memory", "tool_search"]);
+    assert.deepEqual(declared.sort(), ["artifact", "ask", "codemode", "tool_search"]);
     assert.match(sections.codemode!, /^<codemode>\nYour other tools are not declared/);
     assert.match(sections.codemode!, /## read\n.*\nParameters \(JSON Schema\): \{/);
     // Past the budget, a drop-in installed later is listed by name.

@@ -13,7 +13,6 @@ import type {
 import type { Browsers } from "./browser.ts";
 import type { Role, User } from "./config.ts";
 import type { Goals } from "./goals.ts";
-import type { Memory } from "./memory.ts";
 import type { Pip } from "./pip.ts";
 import type { PipCompaction } from "./pip-compact.ts";
 import type { Schedules } from "./schedules.ts";
@@ -729,8 +728,6 @@ export interface PocketHost {
     readonly watches: Pick<Watches, "task" | "start" | "stop" | "get">;
     /** Repository watches: the triggers extension runs their task; PiP's repo_watch tool sets them up. */
     readonly repoWatches: Pick<RepoWatches, "task">;
-    /** Lessons Pi keeps across sessions (`memory.ts`): the memory tool saves them, and its section lists them. */
-    readonly memory: Pick<Memory, "project" | "applying" | "inForce" | "add" | "change">;
     /**
      * Text from elsewhere made safe for Pi to read (`fence.ts`): `quoted` gives one line, cut to `max`, without
      * invisible characters or any tag, in quotes it cannot close; `defang` keeps the lines, but no closing tag survives,

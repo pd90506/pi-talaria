@@ -296,7 +296,6 @@ const ICONS = {
     "goals.ts": "check",
     "plan.ts": "eye",
     "codemode.ts": "terminal",
-    "memory.ts": "pin",
     "pip.ts": "pip",
     "triggers.ts": "pulse",
     "agent-teams.ts": "fork",
