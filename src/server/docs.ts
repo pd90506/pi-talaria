@@ -500,7 +500,7 @@ export const ChatDoc = defineDoc<{ messages: ChatMessage[] }>({
 /** Messages a chat keeps; older ones drop off. */
 export const CHAT_LIMIT = 500;
 
-/** Emoji reactions to transcript entries: entry id → emoji → user ids. */
+/** Emoji reactions to transcript entries: entry id → emoji → who reacted (`pi` for Pi's own, `extensions/react.ts`). */
 export const ReactionsDoc = defineDoc<{ entries: Record<string, Record<string, string[]>> }>({
     kind: "pocket.reactions",
     version: 1,

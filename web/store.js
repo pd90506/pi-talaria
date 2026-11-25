@@ -72,6 +72,7 @@ const emptyView = () => ({
     authors: {},
     linkedPeers: {},
     decisions: {},
+    reactions: {},
     plan: { on: false },
     schedules: [],
     goal: null,
@@ -1522,6 +1523,7 @@ function mergeView(current, data) {
         authors: data.authors ?? base.authors,
         linkedPeers: data.linkedPeers ?? base.linkedPeers,
         decisions: data.decisions ?? base.decisions,
+        reactions: data.reactions ?? base.reactions,
         plan: data.plan ?? base.plan,
         schedules: data.schedules ?? base.schedules,
         // What a Stop held out of the queue: it waits until someone sends it.
