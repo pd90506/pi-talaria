@@ -30,7 +30,6 @@ import {
 } from "./store.js";
 import { spendTap } from "./taps.js";
 import { prefs } from "./theme.js";
-import { memoryAvailable, PendingMemories } from "./sheets/memory.js";
 import { itemsOf, says, summarize } from "./turns.js";
 import {
     attachedPictureSrc,
@@ -1043,12 +1042,6 @@ function Composer({ id, busy, board = false }) {
             }
         }}
     >
-        ${
-            id !== undefined &&
-            store.state.me?.role === "owner" &&
-            memoryAvailable(id) &&
-            html`<${PendingMemories} id=${id} before=${board ? undefined : closePip} />`
-        }
         ${
             files.length > 0 &&
             html`<div class="pip-attachments" aria-label="Files attached to PiP">

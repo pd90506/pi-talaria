@@ -744,47 +744,6 @@ export const SpendDoc = defineDoc<{
     initial: () => ({ people: {}, counted: {} }),
 });
 
-export type Lesson = {
-    /** Short and stable: what Pi and people use to change or remove it. */
-    id: string;
-    text: string;
-    /**
-     * The project it is for (`memory.ts`: the repository's shared git folder, or the folder); absent: everywhere.
-     * `pocket-session:<root id>` (`sessionKey`): that session's own lessons, a key no folder has.
-     */
-    project?: string;
-    /** The project's folder name, or the session's title, for people to read. */
-    projectName?: string;
-    /** The session it came from: a subagent's lesson is its session's. */
-    from?: { conversationId: number; title: string };
-    /** Who saved it, or whom Pi worked for when it did. */
-    by: string;
-    byPi: boolean;
-    createdAt: number;
-    updatedAt?: number;
-    /** Saved by Pi, or by someone who is not the owner: unused until the owner approves it. */
-    pending?: boolean;
-    /**
-     * A change to it in force that waits for the owner, as Pi or a guest proposed it: new text, or forgetting it. The
-     * lesson stays as it is until then.
-     */
-    proposal?: { text?: string; forget?: boolean; by: string; byPi: boolean; at: number };
-    /** The tool call that made it, `taskId:callId`: the call run again finds it instead of saving another. */
-    key?: string;
-};
-
-/**
- * Memory: short lessons Pi keeps across sessions, by id, for one project, everywhere, or one session. Pi gets those
- * that apply in its system prompt (`extensions/memory.ts`).
- */
-export const MemoryDoc = defineDoc<{ items: Record<string, Lesson> }>({
-    kind: "pocket.memory",
-    version: 1,
-    ...rebased,
-    scope: "session",
-    initial: () => ({ items: {} }),
-});
-
 /**
  * The page a conversation's browser last showed, and its size, to open it again after a restart. The page itself lives
  * in memory only (`browser.ts`).

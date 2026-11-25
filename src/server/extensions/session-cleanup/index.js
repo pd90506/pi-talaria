@@ -54,7 +54,6 @@ function endsLine(plans) {
         [sum("repoWatches"), "repository watch", "repository watches"],
         [sum("shares"), "published artifact link"],
         [sum("links"), "public page link"],
-        [sum("lessons"), "session lesson"],
     ]
         .filter(([count]) => count > 0)
         .map(([count, one, many]) => plural(count, one, many));

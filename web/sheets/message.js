@@ -7,7 +7,6 @@ import {
     closeSheet,
     navigate,
     notify,
-    openSheet,
     scoped,
     store,
 } from "../store.js";
@@ -30,7 +29,6 @@ import {
     promptBefore,
     resendable,
 } from "../entry-presentation.js";
-import { memoryAvailable } from "./memory.js";
 
 /** What each mode is called where a person chooses it. */
 const MODE_NAMES = { open: "Show", folded: "Fold", hidden: "Hide" };
@@ -73,13 +71,6 @@ function PresentationChoice({ presentation }) {
             )}
         </div>
     </div>`;
-}
-
-/** A message as the start of a lesson: one line, cut to a lesson's length. */
-function lessonFrom(text) {
-    const flat = text.replace(/\s+/g, " ").trim();
-
-    return flat.length > 300 ? `${flat.slice(0, 299)}…` : flat;
 }
 
 /** A fork or a send again on its way: a second tap waits for it. */
@@ -268,17 +259,6 @@ export function MessageSheet({ entryId }) {
             ${canBranch && !toPi && item("Fork from here", () => openBranch(() => actions.fork(entry.id, { worktree })), "everything up to this reply")}
             ${canBranch && toPi && again && !waiting && item("Edit and send again…", () => setDraft(text))}
             ${canBranch && again && prompt && html`<${SendAgain} prompt=${prompt} worktree=${worktree} />`}
-            ${
-                memoryAvailable() &&
-                canSteer() &&
-                !filesAlone &&
-                !waiting &&
-                item(
-                    "Remember…",
-                    () => openSheet({ type: "memory", draft: lessonFrom(text) }),
-                    "keep it as a lesson for Pi",
-                )
-            }
             ${!filesAlone && !waiting && item("Copy text", copy)}
         </div>
     <//>`;

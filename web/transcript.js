@@ -73,7 +73,6 @@ import {
     splitAttachments,
     Thumb,
 } from "./ui.js";
-import { LessonCall, memoryAvailable } from "./sheets/memory.js";
 
 const REPORT = /^\[subagent (\S+) (answered|failed|stopped|stalled)([^\]]*)\]\s?([\s\S]*)$/;
 /** Where the next report starts, in a message of several that arrived together (`extensions/subagents.ts`). */
@@ -1451,19 +1450,12 @@ function ToolStep({
     });
     const watch = call.name === "browser" && browserAvailable() && !store.state.browserOpen;
     // What a call made shows under its line, as on today's cards: what it returned as images, an artifact, the browser.
-    // A lesson Pi saved, changed, or forgot: its state, and approving it where it happened.
-    const lesson =
-        call.name === "memory" &&
-        typeof details?.lesson === "string" &&
-        memoryAvailable(conversationId)
-            ? details.lesson
-            : null;
     const imagesUnder = result?.images > 0 && !imagesInside;
     const answers =
         call.name === "ask" && !result?.isError && Array.isArray(details?.answers)
             ? details.answers
             : null;
-    const extras = imagesUnder || artifact || watch || lesson || answers;
+    const extras = imagesUnder || artifact || watch || answers;
 
     return html`<div
         class=${`step ${open ? "open" : ""} ${settled ? "settled" : ""}`}
@@ -1519,10 +1511,6 @@ function ToolStep({
             extras &&
             html`<div class="step-extras" data-part="step-detail">
                 ${answers && html`<${AskAnswers} answers=${answers} />`}
-                ${
-                    lesson &&
-                    html`<${LessonCall} lessonId=${lesson} conversationId=${conversationId} />`
-                }
                 ${
                     imagesUnder &&
                     html`<${EntryImages}

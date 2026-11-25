@@ -108,10 +108,6 @@ before(async () => {
             return call("search_history", { query: "3 files" });
         }
 
-        if (role === "user" && text.includes("SESSION_LESSON")) {
-            return call("memory", { action: "add", scope: "session", text: "Keep it short." });
-        }
-
         if (role === "user" && text.includes("START_THREAD")) {
             return call("project_thread", {
                 action: "start",
@@ -546,13 +542,6 @@ test("project memory: a thread writes it, the coordinator's prompt carries its i
         /<memory level=\\"personal\\"[^\n]*\\n- \[Prefs\]\(prefs\.md\): the person writes Chinese/,
     );
     assert.match(prompt, /## Memory/);
-
-    // A thread keeps no lessons of its own.
-    await say(app, thread.id as never, "SESSION_LESSON");
-    assert.match(
-        (await modelTexts(app, thread.id as never)).join("\n"),
-        /A thread keeps no lessons of its own/,
-    );
 
     // The person reads and changes it on the Projects page, from the version shown.
     const files = await call("owner", "memory/my-app");

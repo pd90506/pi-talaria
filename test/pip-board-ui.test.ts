@@ -524,44 +524,21 @@ test(
     },
 );
 
-test(
-    "Over PiP's box: Pending memories in both places while one waits, and waiting messages",
-    real,
-    async () => {
-        const COUNT = (where: string) =>
-            `document.querySelector('${where} .pip-memory-count')?.textContent.trim()`;
-
-        await fresh("board");
-        await page.evaluate(`${PIP}.openPip()`);
-        await boarded("PiP");
-        await settle();
-        assert.equal(await inPage(`${COUNT(".pane")} ?? null`), null, "none waits: no strip");
-
-        const lesson = await app.memory.add(
-            background,
-            project,
-            { userId: owner(app).id, byPi: true, name: "Pi" },
-            { text: "Run the board tests alone.", scope: "everywhere" },
-        );
-
-        await see(
-            `${COUNT(".pane .pip-composer-wrap")} === '1 pending'`,
-            "over PiP's box on the board",
-        );
-        // Over it too: your message that waits while PiP works, as in the panel.
-        await page.evaluate(`${STORE}.store.set((state) => ({ view: { ...state.view, inbox: [
+test("Over PiP's box: your messages that wait while PiP works", real, async () => {
+    await fresh("board");
+    await page.evaluate(`${PIP}.openPip()`);
+    await boarded("PiP");
+    await settle();
+    // Over it: your message that waits while PiP works, as in the panel.
+    await page.evaluate(`${STORE}.store.set((state) => ({ view: { ...state.view, inbox: [
         { id: 9001, mode: 'steer', by: '${owner(app).id}', text: 'also this' }] } }))`);
-        await see(
-            `document.querySelector('.pane .pip-you.pending')?.textContent.includes('also this')`,
-            "waiting",
-        );
-        await place("floating");
-        await see(`${COUNT(".pip-panel")} === '1 pending'`, "floating");
-        await app.memory.edit(background, owner(app), lesson.id, "discard");
-        await see(`document.querySelector('.pip-memory') === null`, "gone once none waits");
-        await page.evaluate(`${PIP}.closePip()`);
-    },
-);
+    await see(
+        `document.querySelector('.pane .pip-you.pending')?.textContent.includes('also this')`,
+        "waiting",
+    );
+    await page.evaluate(`${STORE}.store.set((state) => ({ view: { ...state.view, inbox: [] } }))`);
+    await page.evaluate(`${PIP}.closePip()`);
+});
 
 test("PiP turned off in Extensions closes the board", real, async () => {
     await fresh("board");

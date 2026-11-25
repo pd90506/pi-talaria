@@ -68,7 +68,6 @@ import {
     DecisionsDoc,
     DeletedDoc,
     FolderFavoritesDoc,
-    MemoryDoc,
     RunFailureDoc,
     type RemovedSession,
     type SessionMeta,
@@ -93,7 +92,6 @@ import {
 } from "./host.ts";
 import { takeLock } from "./lock.ts";
 import { pendingApprovalsFor } from "./pending-approvals.ts";
-import { Memory } from "./memory.ts";
 import { isThinkingLevel, modelInfo, modelList, resolveModel, THINKING_LEVELS } from "./models.ts";
 import { pocketPackage, pocketVersion } from "./versions.ts";
 import { serverBuild } from "./build.ts";
@@ -425,8 +423,6 @@ export class PocketApp {
     readonly hooks = new Hooks(this);
     /** Outside data delivered to a session as a person's message: webhooks, and extensions (`inbox.ts`). */
     readonly inbox = new Inbox(this);
-    /** Lessons Pi keeps across sessions, for a project or everywhere. */
-    readonly memory = new Memory(this);
     /** Each person's favorite working folders, shared by their devices. */
     readonly folderFavorites = new FolderFavorites(this);
     /** Artifacts published to anyone with their address (`share.ts`), which needs no sign-in. */
@@ -915,7 +911,6 @@ export class PocketApp {
             pipCompaction: this.pipCompaction,
             watches: this.watches,
             repoWatches: this.repoWatches,
-            memory: this.memory,
             text: Object.freeze({ quoted, defang }),
             thinkingLevels: THINKING_LEVELS,
             toolNames: () =>
@@ -1392,8 +1387,6 @@ export class PocketApp {
             }
         } else if (kind === FolderFavoritesDoc.definition.kind) {
             this.folderFavorites.committed(value as { users: Record<string, string[]> } | null);
-        } else if (kind === MemoryDoc.definition.kind) {
-            this.memory.committed();
         } else if (ROOM_DOCS.has(kind) && id !== undefined) {
             if (kind === SubagentsDoc.definition.kind) {
                 this.#noteSubagents(id, value as SubagentsValue | null);

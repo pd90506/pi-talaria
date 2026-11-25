@@ -2,7 +2,6 @@
 import { browserAvailable, openInBrowser, toggleBrowser } from "./browser.js";
 import { filesAvailable, toggleFiles } from "./files-panel.js";
 import { branchAvailable } from "./sheets/branch.js";
-import { memoryAvailable, remember } from "./sheets/memory.js";
 import { askPip, openPip, pipAvailable } from "./pip.js";
 import { actions, navigate, notify, openSheet, scoped, store } from "./store.js";
 import { setPrefs } from "./theme.js";
@@ -291,26 +290,6 @@ const COMMANDS = [
             const added = await actions.schedule(arg);
 
             notify("info", `Scheduled for ${formatWhen(added.next)}.`);
-        },
-    },
-    {
-        name: "remember",
-        args: "<lesson>",
-        description: "Keep a lesson for Pi in every session of this project",
-        available: () => memoryAvailable() && store.state.me?.role !== "viewer",
-        run: async (arg) => {
-            if (arg === "") {
-                return openSheet({ type: "memory" });
-            }
-
-            const lesson = await remember(arg);
-
-            notify(
-                "info",
-                lesson.pending
-                    ? "Remembered. Pi uses it once the owner approves it."
-                    : "Remembered. Pi gets it from its next message.",
-            );
         },
     },
     {
