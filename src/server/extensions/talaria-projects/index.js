@@ -623,11 +623,189 @@ export default function setup(pocket) {
         </nav>`;
     }
 
-    /** Beside a project's coordinator or thread: the project, its threads by state, and its memory. */
+    // ─── The thread the Threads panel shows, of this tab ───
+
+    /** `{ thread, helper? }`: a thread of the project, or one of its helpers under it; null for the list. */
+    let viewing = null;
+    const viewers = new Set();
+
+    const view = (next) => {
+        viewing = next;
+
+        for (const hear of viewers) {
+            hear(next);
+        }
+    };
+
+    function useViewing() {
+        const [now, setNow] = useState(viewing);
+
+        useEffect(() => {
+            viewers.add(setNow);
+
+            return () => viewers.delete(setNow);
+        }, []);
+
+        return now;
+    }
+
+    /**
+     * A thread in the Threads panel, as Claude's projects show one: a head with Back, its title, a done check that
+     * resolves it, and a ⋯ menu (open it in full, reopen it, its helpers); then the thread itself, in a frame of the
+     * app (`?frame=thread`): its conversation, and a box to steer it.
+     */
+    function ThreadView({ thread, helper }) {
+        const [menu, setMenu] = useState(false);
+        const [busy, setBusy] = useState(false);
+        const shown = helper ?? thread;
+        const helpers = thread.helpers ?? [];
+        const back = () => view(helper ? { thread: thread.id } : null);
+
+        const archive = async (archived) => {
+            setBusy(true);
+            setMenu(false);
+
+            try {
+                await pocket.archiveConversation(thread.id, archived);
+                await refresh();
+
+                if (archived) {
+                    view(null);
+                }
+            } catch (error) {
+                pocket.notify("error", error.message);
+            } finally {
+                setBusy(false);
+            }
+        };
+
+        return html`<div class="talaria-thread-view">
+            <div class="talaria-thread-head">
+                <button
+                    type="button"
+                    class="icon-button"
+                    aria-label=${helper ? `Back to ${thread.title}` : "Back to the threads"}
+                    title="Back"
+                    onClick=${back}
+                >
+                    <${Icon} name="back" size=${18} />
+                </button>
+                <span class="talaria-thread-name" title=${shown.title}>
+                    ${helper && html`<span class="muted">${thread.title} › </span>`}${shown.title}
+                </span>
+                ${
+                    !helper &&
+                    !thread.resolved &&
+                    html`<button
+                        type="button"
+                        class="icon-button talaria-done"
+                        aria-label="Done: resolve this thread"
+                        title="Done: resolve this thread"
+                        disabled=${busy}
+                        onClick=${() => void archive(true)}
+                    >
+                        <${Icon} name="check" size=${18} />
+                    </button>`
+                }
+                <button
+                    type="button"
+                    class=${`icon-button ${menu ? "on" : ""}`}
+                    aria-label="More"
+                    aria-haspopup="menu"
+                    aria-expanded=${menu}
+                    onClick=${() => setMenu(!menu)}
+                >
+                    <${Icon} name="more" size=${18} />
+                </button>
+                ${
+                    menu &&
+                    html`<div class="talaria-menu" role="menu">
+                        <button
+                            type="button"
+                            role="menuitem"
+                            onClick=${() => {
+                                setMenu(false);
+                                pocket.openConversation(shown.id);
+                            }}
+                        >
+                            Open in full view
+                        </button>
+                        ${
+                            !helper &&
+                            thread.resolved &&
+                            html`<button
+                                type="button"
+                                role="menuitem"
+                                disabled=${busy}
+                                onClick=${() => void archive(false)}
+                            >
+                                Reopen this thread
+                            </button>`
+                        }
+                        ${
+                            !helper &&
+                            html`<div class="talaria-menu-head">Helpers and subagents</div>
+                                ${
+                                    helpers.length === 0
+                                        ? html`<div class="talaria-menu-note muted small">
+                                              No helpers yet. Its subagents show in its
+                                              conversation.
+                                          </div>`
+                                        : helpers.map(
+                                              (each) =>
+                                                  html`<button
+                                                      key=${each.id}
+                                                      type="button"
+                                                      role="menuitem"
+                                                      onClick=${() => {
+                                                          setMenu(false);
+                                                          view({
+                                                              thread: thread.id,
+                                                              helper: each.id,
+                                                          });
+                                                      }}
+                                                  >
+                                                      ${each.title ?? "Helper"}
+                                                      <span class="muted small">
+                                                          ${each.resolved ? "archived" : each.busy ? "working" : ""}
+                                                      </span>
+                                                  </button>`,
+                                          )
+                                }`
+                        }
+                    </div>`
+                }
+            </div>
+            <iframe
+                key=${shown.id}
+                class="talaria-thread-frame"
+                src=${`/s/${shown.id}?frame=thread`}
+                title=${shown.title ?? "Thread"}
+            ></iframe>
+        </div>`;
+    }
+
+    /** Beside a project's coordinator or thread: its threads by state, and its memory; a thread opens here. */
     function ProjectPanel() {
         const { data, failure: failed } = useProjects();
         const shown = useShown();
+        const viewingNow = useViewing();
         const project = projectOf(data, shown);
+        const thread =
+            viewingNow === null
+                ? undefined
+                : project?.threads.find((each) => each.id === viewingNow.thread);
+        const helper =
+            viewingNow?.helper === undefined
+                ? undefined
+                : thread?.helpers?.find((each) => each.id === viewingNow.helper);
+
+        // A thread of another project, or gone: the list again.
+        useEffect(() => {
+            if (data !== null && viewingNow !== null && thread === undefined) {
+                view(null);
+            }
+        }, [data, viewingNow, thread]);
 
         if (data === null) {
             return failed
@@ -643,7 +821,15 @@ export default function setup(pocket) {
             </p>`;
         }
 
-        const open = (target) => pocket.openConversation(target.coordinator);
+        if (thread !== undefined) {
+            return html`<${ThreadView} thread=${thread} helper=${helper} />`;
+        }
+
+        // The project opens its coordinator; a thread opens here, in the panel.
+        const open = (target) =>
+            target.coordinator === project.coordinator
+                ? pocket.openConversation(target.coordinator)
+                : view({ thread: target.coordinator });
 
         return html`<div class="talaria-panel">
             ${project.summary && html`<p class="talaria-panel-summary">${project.summary}</p>`}
@@ -704,9 +890,11 @@ export default function setup(pocket) {
     if (typeof pocket.panel === "function") {
         pocket.panel({
             id: "project",
-            title: "Project",
+            title: "Threads",
             iconPath: PROJECTS_PATH,
             component: ProjectPanel,
+            // A tab of the dock beside a project's sessions, before Files.
+            tab: () => projectOf(latest, pocket.conversationId()) !== undefined,
         });
 
         // A project's coordinator opens with its threads beside it, where there is room; once a tab, for each.

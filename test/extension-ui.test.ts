@@ -59,6 +59,7 @@ const POCKET_MEMBERS: Record<keyof Pocket, true> = {
     me: true,
     conversationId: true,
     openConversation: true,
+    archiveConversation: true,
     api: true,
     on: true,
     notify: true,

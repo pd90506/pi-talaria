@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { useBack } from "./back.js";
 import { screenPaste } from "./browser-paste.js";
+import { DockHead } from "./side-dock.js";
 import {
     browserApi,
     browserAvailable,
@@ -914,6 +915,7 @@ export function BrowserPanel({ leaving = false }) {
         inert=${leaving}
     >
         <${ResizeEdge} />
+        ${beside && html`<${DockHead} />`}
         <header class="browser-bar">
             <button
                 class="icon-button"
@@ -1024,14 +1026,17 @@ export function BrowserPanel({ leaving = false }) {
                     <${Icon} name="keyboard" size=${18} />
                 </button>`
             }
-            <button
-                class="icon-button browser-close"
-                aria-label="Close the browser"
-                title="Close the browser (Alt+B)"
-                onClick=${() => setBrowserOpen(false)}
-            >
-                <${Icon} name="close" size=${18} />
-            </button>
+            ${
+                !beside &&
+                html`<button
+                    class="icon-button browser-close"
+                    aria-label="Close the browser"
+                    title="Close the browser (Alt+B)"
+                    onClick=${() => setBrowserOpen(false)}
+                >
+                    <${Icon} name="close" size=${18} />
+                </button>`
+            }
         </header>
         <div class=${`browser-progress ${state?.loading ? "on" : ""}`}></div>
         <div class="browser-stage" ref=${stageRef}>${stage}</div>

@@ -1,5 +1,6 @@
 // App state, the server connection, and API calls. Components read `store.state` and re-render on `store.subscribe`.
 import { onRoute, popRoute, pushRoute, routeState, routeUnder } from "./back.js";
+import { framed, openAround } from "./frame.js";
 import { hostCan, onPageVisibility, pageVisible } from "./host.js";
 import { sessionForest, unfolded } from "./session-tree.js";
 import { liveMessage } from "./live.js";
@@ -2435,6 +2436,13 @@ export function navigate(
     conversationId,
     { replace = false, sheet = null, over = null, back = false } = {},
 ) {
+    // In a frame, only its own session shows: another goes in the page around it.
+    if (framed && conversationId !== store.state.conversationId) {
+        openAround(conversationId);
+
+        return;
+    }
+
     const path = conversationId === null ? "/" : `/s/${conversationId}`;
 
     // A new route says what it is over; the same route keeps what its entry already says.
