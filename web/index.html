@@ -52,6 +52,7 @@
                             .setAttribute("content", chosen.color);
                     }
                     if (look && look.text) root.style.setProperty("--text-size", look.text);
+                    if (look && look.sidebar) root.style.setProperty("--sidebar-w", look.sidebar);
                 } catch (error) {}
             })();
         </script>

@@ -638,7 +638,7 @@ arrange(slot: SlotName, arrangement: Arrangement): { remove(): void };
 
 Since 0.19.0 · Experimental
 
-Hides or reorders the items of a slot, the app's own too, in the tabs that load the module. A second call for the same slot replaces the first. `remove` takes it back. When two modules arrange one slot, the one later in the server's order of modules wins. What a person chooses in Appearance → Layout wins over all modules: there, an item that a module hid says so, and the person can show it again. Fixed items always show, in their own places. See [Slots](#slots), [`SlotName`](#slotname), and [`Arrangement`](#arrangement).
+Hides or reorders the items of a slot, the app's own too, in the tabs that load the module. A second call for the same slot replaces the first. `remove` takes it back. When two modules arrange one slot, the one later in the server's order of modules wins. Fixed items always show, in their own places. See [Slots](#slots), [`SlotName`](#slotname), and [`Arrangement`](#arrangement).
 
 ### `toolCall`
 
@@ -951,7 +951,7 @@ An item in the status line. Give one [`Action`](#action), or none for an item th
 - `short`: what it says on a narrow line, such as `"46W"`. Without it, the item keeps `text`.
 - `title`: its tooltip. On a touch screen, a tap on the line says it.
 - `tone`: its color: `"warn"`, `"error"`, or `"muted"`, greyed, for a service that is out of reach.
-- `label`: its name in Appearance → Layout. The default is the module's title.
+- `label`: its name for people. The default is the module's title.
 - `before`, `after`: where it goes. See [`Placement`](#placement).
 
 The items of modules show in the order in which the server lists the modules. Update an item from a timer or an event, not as a component draws.
@@ -1280,7 +1280,7 @@ An id that is not in the slot does nothing.
 
 A slot is a place in the app that is a list of named items: the app's own items and those of modules. Each item has an id. The app's items are `core:…`. A module's items are `ext:<module>:<id>`, with the `id` that the module gave: a panel's top bar button has the panel's id. The ids of the app's items are kept as the theme surface's names are ([API stability](../policies/api-stability.md)).
 
-What shows comes in layers, the last one wins: each item's default place, then the `before` or `after` of a module's own item, then each module's `arrange`, then the person's own choices in Appearance → Layout. These are kept in the browser.
+What shows comes in layers, the last one wins: each item's default place, then the `before` or `after` of a module's own item, then each module's `arrange`.
 
 | Slot       | Ids, in their default order                                                                                                                                        | Fixed                                                                          | Modules' items go           |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | --------------------------- |
@@ -1290,7 +1290,7 @@ What shows comes in layers, the last one wins: each item's default place, then t
 | `composer` | `core:places`, `core:attach`, `core:model`, `core:plan`                                                                                                            | none (Send, Stop, the mic, and Steer, Queue and Interrupt are not in the slot) | after `core:plan`           |
 | `reply`    | `core:time`, `core:react`, `core:discuss`, `core:pin`, `core:copy`, `core:more`                                                                                    | `core:more`, last                                                              | before `core:more`          |
 
-The `core:time` item shows a completed reply's stored message time. Appearance → Layout can hide or move it.
+The `core:time` item shows a completed reply's stored message time.
 
 An item that has nothing to show now shows nothing, wherever it is: Changes with no changes, the cache before the first answer, a quiet button.
 

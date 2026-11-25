@@ -102,11 +102,13 @@ const DEFAULTS = {
      * come, then show it whole. Off, the tab's copy of it shows at once and the updates slide in (`holdsFor` in store.js).
      */
     waitForUpdates: false,
+    /** The sidebar's width in pixels, as its edge was last dragged (264 to 524); a double click on the edge resets it. */
+    sidebarWidth: 312,
 };
 
 /**
  * What the one look fixes, which code elsewhere still reads: no tiled windows, the system's motion, the usual spacing
- * and widths, the open sidebar, no session tabs, no peek tiles, and every slot in the app's own order.
+ * and widths, the sidebar open, no session tabs, no peek tiles, and every slot in the app's own order.
  */
 const FIXED = {
     tiling: false,
@@ -114,7 +116,6 @@ const FIXED = {
     density: "comfortable",
     width: "comfortable",
     sidebar: "open",
-    sidebarWidth: 312,
     sessionTabs: false,
     peeks: false,
     layout: {},
@@ -272,6 +273,9 @@ export function motionLevel() {
     return reduceQuery.matches ? "reduced" : "full";
 }
 
+/** The sidebar's width for `--sidebar-w`, kept in range. */
+const sidebarWidth = (p) => `${Math.min(524, Math.max(264, Number(p.sidebarWidth) || 312))}px`;
+
 /** Put the current look on the page: variables, mode, and the switches style.css reads from data attributes. */
 export function apply() {
     const root = document.documentElement;
@@ -281,6 +285,7 @@ export function apply() {
 
     setPalette(vars);
     root.style.setProperty("--text-size", `${textSizeOf(p.text)}px`);
+    root.style.setProperty("--sidebar-w", sidebarWidth(p));
 
     const attrs = {
         mode: modeOf(palette),
@@ -302,6 +307,7 @@ export function apply() {
         JSON.stringify({
             mode: p.mode,
             text: `${textSizeOf(p.text)}px`,
+            sidebar: sidebarWidth(p),
             pair: Object.fromEntries(
                 ["light", "dark"].map((mode) => {
                     const each = themeVars({ colors: PALETTES[mode] });

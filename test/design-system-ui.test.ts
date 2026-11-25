@@ -370,6 +370,10 @@ body { margin: 0; padding: 24px; background: ${hex("color.bg.canvas")}; font: 16
     page = await browsers.open(1);
     await page.setViewport({ width: 1440, height: 900, scale: 1, mobile: false });
     await page.navigate(`${base}/login?token=${encodeURIComponent(app.config.ownerToken)}`);
+    // The app in dark mode, which these checks of the canvas's mode expect; the system's would be light here.
+    await page.evaluate(
+        `localStorage.setItem("pocket.appearance", JSON.stringify({ mode: "dark" })); return "null";`,
+    );
     await go(session);
 });
 

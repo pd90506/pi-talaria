@@ -2381,8 +2381,8 @@ export function Composer() {
     </footer>`;
 }
 
-// The buttons on the left of the message box's row: the app's own items of the `composer` slot (slots.js), which a
-// person can hide and reorder in Appearance, with extensions' after them. Each gets what the box knows: its file
+// The buttons on the left of the message box's row: the app's own items of the `composer` slot (slots.js), with
+// extensions' after them. Each gets what the box knows: its file
 // picker, the model and thinking level, and the session's view. Send, Stop, the mic, and Steer and Queue stay on the
 // right, always.
 defineItem("composer", {
@@ -2637,8 +2637,8 @@ function SpeedPart({ stats }) {
     </span>`;
 }
 
-// The status line's items: the app's own items of the `status` slot (slots.js), which a person can hide and reorder in
-// Appearance, with extensions' before the spend. The connection's warning leads and Lancet Guard ends it, always.
+// The status line's items: the app's own items of the `status` slot (slots.js), with extensions' before the
+// spend. The connection's warning leads and Lancet Guard ends it, always.
 defineItem("status", {
     id: "core:connection",
     label: "Connection",
