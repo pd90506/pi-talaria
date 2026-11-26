@@ -2672,7 +2672,16 @@ export const toggleBoard = (which = "subagents", filter = null) =>
               },
     );
 
-const openBoard = toggleBoard;
+/** Show a board, as a sidebar place does: a tab, so a click on the one that shows leaves it be. */
+const openBoard = (which, filter = null) =>
+    store.set({
+        board: which,
+        boardAgents: null,
+        boardFilter: filter,
+        drawer: false,
+        page: null,
+        sheet: null,
+    });
 
 /** One of the sidebar's places: an icon and its name, a count when something is at work there. */
 function NavRow({ name, icon, label, keys, count, trouble, open, lit, onClick, onPointerDown }) {
