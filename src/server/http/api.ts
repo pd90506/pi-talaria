@@ -27,6 +27,7 @@ import { extensionRoute } from "./extension-routes.ts";
 import { isIconColors, storeIconColors } from "../icon-store.ts";
 import { type ApiRequest, conversationId, type HttpOptions, json, readJson } from "./io.ts";
 import { pushRoutes } from "./push-routes.ts";
+import { ReleaseManager } from "../release-manager.ts";
 
 /** This machine's non-internal IPv4 addresses, for invite links other devices on its networks can open. */
 function lanAddresses(): string[] {
@@ -40,6 +41,15 @@ function lanAddresses(): string[] {
 export function createApi(options: HttpOptions, auth: Auth) {
     const { app } = options;
     const { events, poll } = createEventStreams(app);
+    // Releases of pi-talaria itself: the owner's, at /api/releases.
+    const releases = new ReleaseManager({
+        data: app.dataDir,
+        supervised: app.supervised,
+        restart: () => options.restart(),
+        log: (line) => console.log(line),
+    });
+
+    releases.start();
 
     const requireUser = (request: IncomingMessage): User => {
         const user = auth.user(request);
@@ -760,6 +770,36 @@ export function createApi(options: HttpOptions, auth: Auth) {
                 path: `/login?once=${auth.createSignInLink()}`,
                 expiresInMs: SIGN_IN_LINK_MS,
             });
+        }
+
+        if (first === "releases") {
+            requireOwner(user);
+
+            const failed = (error: unknown): never => {
+                throw new HttpError(409, (error as Error).message);
+            };
+
+            if (second === undefined && method === "GET") {
+                return json(response, 200, releases.status());
+            }
+
+            if (second === "check" && method === "POST") {
+                return json(response, 200, await releases.check().catch(failed));
+            }
+
+            if (second === "update" && method === "POST") {
+                return json(response, 200, await releases.update().catch(failed));
+            }
+
+            if (second === "rollback" && method === "POST") {
+                const body = (await readJson(request)) as { slot?: unknown };
+
+                if (typeof body.slot !== "string") {
+                    throw new HttpError(400, "Say which release.");
+                }
+
+                return json(response, 200, await releases.rollback(body.slot).catch(failed));
+            }
         }
 
         if (first === "restart" && method === "POST") {

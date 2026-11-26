@@ -42,7 +42,21 @@ import {
     rollBackUpdate,
     stopMeansRollBack,
 } from "../server/update-state.ts";
-import { pointedSlot, readSlot, slotDir, slotOf } from "../server/releases.ts";
+import {
+    failTrial,
+    passTrial,
+    pointedSlot,
+    readSlot,
+    readTrial,
+    releasePaths,
+    setCurrent,
+    slotDir,
+    slotOf,
+    TRIAL_CRASHES,
+    TRIAL_START_MS,
+    TRIAL_WATCH_MS,
+    writeTrial,
+} from "../server/releases.ts";
 import {
     accent,
     bold,
@@ -648,6 +662,18 @@ function startServer(first: boolean): void {
         args.push("--rotate-token");
     }
 
+    // A switch on trial (`releases/trial.json`): this start is the new slot's, which must get ready, pass its checks,
+    // and not keep crashing, or the launcher goes back to the slot before. A trial for another slot is stale (a
+    // rollback from the command line, say): drop it.
+    let trial = readTrial(options.data);
+
+    if (trial !== undefined && trial.slot !== entry.slot) {
+        rmSync(releasePaths(options.data).trial, { force: true });
+        trial = undefined;
+    }
+
+    const onTrial = trial !== undefined;
+
     // Node 22 calls node:sqlite experimental and says so at every start, right above the panel.
     const flags = ["--disable-warning=ExperimentalWarning", ...SERVER_FLAGS];
     const proc = spawn(process.execPath, [...flags, ...args], {
@@ -663,23 +689,33 @@ function startServer(first: boolean): void {
             PI_POCKET_SOCKET: undefined,
             // The release slot the server runs from, or none for a checkout.
             PI_TALARIA_RELEASE: entry.slot,
+            // The server checks itself before it says it is ready (`trialProblems` in main.ts).
+            PI_TALARIA_TRIAL: onTrial ? "1" : undefined,
         },
     });
     /** This start said it was ready: a stop after that is not a new version that cannot start. */
     let ready = false;
     // A new version that hangs before it is ready never exits: stop it, so the exit goes back to the version before.
-    const watchdog = readPending(APP_ROOT)
-        ? setTimeout(() => {
-              if (!ready && child === proc) {
-                  log(
-                      yellow(
-                          `  The server did not get ready in ${UPDATE_START_LIMIT_MS / 60_000} minutes after an update: stopping it.`,
-                      ),
-                  );
-                  proc.kill("SIGKILL");
-              }
-          }, UPDATE_START_LIMIT_MS)
-        : undefined;
+    const startLimit = onTrial
+        ? TRIAL_START_MS
+        : readPending(APP_ROOT)
+          ? UPDATE_START_LIMIT_MS
+          : undefined;
+    const watchdog =
+        startLimit === undefined
+            ? undefined
+            : setTimeout(() => {
+                  if (!ready && child === proc) {
+                      log(
+                          yellow(
+                              `  The server did not get ready in ${startLimit / 60_000} minutes after an update: stopping it.`,
+                          ),
+                      );
+                      proc.kill("SIGKILL");
+                  }
+              }, startLimit);
+    /** Ends a trial that ran its time without failing. */
+    let trialTimer: NodeJS.Timeout | undefined;
 
     child = proc;
     pipeLines(proc.stdout, (line) => log(line));
@@ -691,6 +727,28 @@ function startServer(first: boolean): void {
 
         ready = true;
         clearTimeout(watchdog);
+
+        if (onTrial) {
+            const current = readTrial(options.data);
+
+            if (current !== undefined && current.slot === entry.slot) {
+                const readyAt = current.readyAt ?? Date.now();
+
+                if (current.readyAt === undefined) {
+                    writeTrial(options.data, { ...current, readyAt });
+                }
+
+                trialTimer = setTimeout(
+                    () => {
+                        if (child === proc && readTrial(options.data)?.slot === entry.slot) {
+                            passTrial(options.data, "launcher");
+                            log(green(`  ✓ Release ${entry.slot} passed its trial.`));
+                        }
+                    },
+                    Math.max(0, readyAt + TRIAL_WATCH_MS - Date.now()),
+                );
+            }
+        }
 
         state.loginPath = message.loginPath;
         state.serverReady = true;
@@ -715,6 +773,7 @@ function startServer(first: boolean): void {
 
     const exited = (code: number | null, signal: NodeJS.Signals | null) => {
         clearTimeout(watchdog);
+        clearTimeout(trialTimer);
 
         if (child !== proc) {
             return;
@@ -725,6 +784,52 @@ function startServer(first: boolean): void {
 
         if (quitting) {
             return;
+        }
+
+        // A slot on trial that does not start, fails its checks, or keeps crashing goes back to the slot before.
+        if (onTrial && code !== RESTART_CODE && !(ready && code === 0 && signal === null)) {
+            const current = readTrial(options.data);
+            const how = signal ?? `code ${code}`;
+            let reason: string | undefined;
+
+            if (current === undefined || current.slot !== entry.slot) {
+                // The trial ended already (a rollback from the command line, say).
+            } else if (!ready) {
+                reason = `it did not start (${how})`;
+            } else {
+                const crashes = current.crashes + 1;
+
+                writeTrial(options.data, { ...current, crashes });
+
+                if (crashes >= TRIAL_CRASHES) {
+                    reason = `it stopped ${crashes} times on trial (${how})`;
+                }
+            }
+
+            if (reason !== undefined) {
+                try {
+                    log(yellow(`  ${failTrial(options.data, reason, "launcher")}`));
+                } catch (error) {
+                    log(
+                        red(
+                            `  Going back from release ${entry.slot} failed: ${(error as Error).message}`,
+                        ),
+                    );
+
+                    // The code goes back even when the database could not: the trial file is gone already.
+                    if (current!.from !== pointedSlot(options.data, "current")) {
+                        try {
+                            setCurrent(options.data, current!.from, "launcher", "rollback", reason);
+                        } catch {
+                            // Nothing more to do here: the next start runs whatever is current.
+                        }
+                    }
+                }
+
+                startServer(false);
+
+                return;
+            }
         }
 
         // A server that stops before it is ready, with an update from the app under way: the new version does not

@@ -56,7 +56,7 @@ export interface Pointer {
     at: number;
 }
 
-export type LedgerEvent = "install" | "switch" | "rollback" | "prune";
+export type LedgerEvent = "install" | "switch" | "rollback" | "prune" | "good" | "snapshot";
 
 /** One line of `ledger.jsonl`. */
 export interface LedgerEntry {
@@ -74,6 +74,14 @@ export interface ReleasePaths {
     root: string;
     slots: string;
     current: string;
+    /** A switch on trial: the launcher goes back when the new slot does not start or keeps failing. */
+    trial: string;
+    /** Copies of the database, made before a switch. */
+    snapshots: string;
+    /** Where new releases come from (`ReleaseSource`). */
+    source: string;
+    /** The app's own bare clone of the source, which new slots are installed from. */
+    mirror: string;
     previous: string;
     ledger: string;
 }
@@ -85,6 +93,10 @@ export function releasePaths(data: string): ReleasePaths {
         root,
         slots: join(root, "slots"),
         current: join(root, "current.json"),
+        trial: join(root, "trial.json"),
+        snapshots: join(root, "snapshots"),
+        source: join(root, "source.json"),
+        mirror: join(root, "repo.git"),
         previous: join(root, "previous.json"),
         ledger: join(root, "ledger.jsonl"),
     };
@@ -437,11 +449,14 @@ export function installSlot(data: string, options: InstallOptions): SlotInfo {
     rmSync(temp, { recursive: true, force: true });
 
     try {
-        // A private index: the checkout's own index and files stay as they are.
-        git(repo, ["read-tree", commit], { GIT_INDEX_FILE: index });
-        git(repo, ["checkout-index", "--all", "--force", `--prefix=${temp}/`], {
-            GIT_INDEX_FILE: index,
-        });
+        // A private index and the temporary folder as the work tree: the checkout's own index and files stay as they
+        // are, and a bare repository (the app's mirror) works the same way.
+        const gitDir = git(repo, ["rev-parse", "--absolute-git-dir"]);
+        const env = { GIT_INDEX_FILE: index, GIT_DIR: gitDir, GIT_WORK_TREE: temp };
+
+        mkdirSync(temp, { recursive: true });
+        git(temp, ["read-tree", commit], env);
+        git(temp, ["checkout-index", "--all", "--force"], env);
 
         const lock = lockHash(temp);
         const donor = [
@@ -569,4 +584,243 @@ export function pruneSlots(
 /** The slot that a launcher or server whose code is in `appRoot` came from, or undefined for a checkout. */
 export function slotOf(appRoot: string): string | undefined {
     return isSlotRoot(appRoot) ? basename(resolve(appRoot)) : undefined;
+}
+
+// ─── Trials ─────────────────────────────────────────────────────────────
+
+/** How long a new slot runs on trial after it is ready: two crashes in this time send it back. */
+export const TRIAL_WATCH_MS = Number(process.env.PI_TALARIA_TRIAL_WATCH_MS) || 10 * 60_000;
+/** How long a slot on trial may take to be ready. */
+export const TRIAL_START_MS = 3 * 60_000;
+/** Crashes after it was ready that end a trial with a rollback. */
+export const TRIAL_CRASHES = 2;
+
+/** A switch on trial, as `trial.json` holds it. */
+export interface Trial {
+    v: 1;
+    /** The slot on trial, and the slot to go back to. */
+    slot: string;
+    from: string;
+    at: number;
+    /** When the slot on trial first said it was ready. */
+    readyAt?: number;
+    crashes: number;
+    /** The database copy made before the switch, and its schema then (`schemaHash`). */
+    snapshot?: string;
+    schema?: string;
+}
+
+export function readTrial(data: string): Trial | undefined {
+    try {
+        const trial = JSON.parse(readFileSync(releasePaths(data).trial, "utf8")) as Trial;
+
+        return trial?.v === 1 && SLOT_ID.test(trial.slot) && SLOT_ID.test(trial.from)
+            ? trial
+            : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+export function writeTrial(data: string, trial: Trial): void {
+    mkdirSync(releasePaths(data).root, { recursive: true, mode: 0o700 });
+    writeAtomic(releasePaths(data).trial, `${JSON.stringify(trial)}\n`);
+}
+
+/** The trial passed: the slot is good. */
+export function passTrial(data: string, by: string, now = Date.now()): void {
+    const trial = readTrial(data);
+
+    rmSync(releasePaths(data).trial, { force: true });
+
+    if (trial !== undefined) {
+        appendLedger(data, { at: now, event: "good", slot: trial.slot, by });
+    }
+}
+
+/**
+ * The slot on trial failed: make the slot before it current again. When the database's schema changed since the
+ * snapshot (the new version migrated it), the snapshot goes back too, after a copy of the database as it is now. Runs
+ * between two starts of the server, with no server holding the database. Returns what was done, in words, or undefined
+ * when no trial is under way.
+ */
+export function failTrial(
+    data: string,
+    reason: string,
+    by: string,
+    now = Date.now(),
+): string | undefined {
+    const trial = readTrial(data);
+
+    if (trial === undefined) {
+        return undefined;
+    }
+
+    rmSync(releasePaths(data).trial, { force: true });
+
+    if (!slotReady(data, trial.from)) {
+        appendLedger(data, {
+            at: now,
+            event: "rollback",
+            slot: trial.slot,
+            by,
+            note: `${reason}; release ${trial.from} to go back to is gone`,
+        });
+
+        return `Release ${trial.slot} failed (${reason}), and release ${trial.from} is gone: staying on ${trial.slot}.`;
+    }
+
+    let restored = "";
+
+    if (trial.snapshot !== undefined && trial.schema !== undefined && existsSync(trial.snapshot)) {
+        const db = databasePath(data);
+
+        if (existsSync(db) && schemaHash(db) !== trial.schema) {
+            snapshotDatabase(data, `before-restore-${trial.slot}`, by, now);
+            restoreDatabase(data, trial.snapshot);
+            restored = "; the database went back to its copy from before the switch";
+        }
+    }
+
+    setCurrent(data, trial.from, by, "rollback", `${reason}${restored}`, now);
+
+    return `Release ${trial.slot} failed (${reason}): back on release ${trial.from}${restored}.`;
+}
+
+// ─── Database snapshots ─────────────────────────────────────────────────
+
+/** The database every conversation lives in. */
+export function databasePath(data: string): string {
+    return join(data, "pocket.sqlite");
+}
+
+type Sqlite = typeof import("node:sqlite");
+
+/** node:sqlite, loaded when used: Node 22 warns that it is experimental, which the launcher need not print at every start. */
+function sqlite(): Sqlite {
+    return process.getBuiltinModule("node:sqlite") as Sqlite;
+}
+
+/** A hash of the database's schema: its tables, indexes, and `user_version`. A migration changes it. */
+export function schemaHash(db: string): string {
+    const database = new (sqlite().DatabaseSync)(db, { readOnly: true });
+
+    try {
+        const rows = database
+            .prepare("SELECT type, name, sql FROM sqlite_master ORDER BY type, name")
+            .all();
+        const version = database.prepare("PRAGMA user_version").get();
+
+        return createHash("sha256")
+            .update(JSON.stringify([rows, version]))
+            .digest("hex")
+            .slice(0, 16);
+    } finally {
+        database.close();
+    }
+}
+
+/**
+ * A consistent copy of the database (`VACUUM INTO`, which reads it in one transaction, also while the server writes
+ * to it), in `releases/snapshots/`. Returns its path.
+ */
+export function snapshotDatabase(
+    data: string,
+    label: string,
+    by: string,
+    now = Date.now(),
+): string {
+    const folder = releasePaths(data).snapshots;
+    const stamp = new Date(now).toISOString().replace(/[:.]/g, "-");
+    const file = join(folder, `${stamp}-${label.replace(/[^A-Za-z0-9_-]/g, "_")}.sqlite`);
+    const database = new (sqlite().DatabaseSync)(databasePath(data));
+
+    mkdirSync(folder, { recursive: true, mode: 0o700 });
+
+    try {
+        database.exec(`VACUUM INTO '${file.replaceAll("'", "''")}'`);
+    } finally {
+        database.close();
+    }
+
+    appendLedger(data, { at: now, event: "snapshot", slot: label, by, note: basename(file) });
+
+    return file;
+}
+
+/** Put a snapshot in place of the database. Only with no server running: the old WAL and shared memory go too. */
+export function restoreDatabase(data: string, snapshot: string): void {
+    const db = databasePath(data);
+    const temp = `${db}.restore-${process.pid}`;
+
+    copyFileSync(snapshot, temp);
+    rmSync(`${db}-wal`, { force: true });
+    rmSync(`${db}-shm`, { force: true });
+    renameSync(temp, db);
+}
+
+/** The snapshots, newest first. */
+export function listSnapshots(data: string): string[] {
+    try {
+        return readdirSync(releasePaths(data).snapshots)
+            .filter((name) => name.endsWith(".sqlite"))
+            .sort()
+            .reverse()
+            .map((name) => join(releasePaths(data).snapshots, name));
+    } catch {
+        return [];
+    }
+}
+
+/** Remove all but the newest `keep` snapshots, and never the one a trial still needs. */
+export function pruneSnapshots(data: string, keep = KEEP_SLOTS): void {
+    const needed = readTrial(data)?.snapshot;
+
+    for (const file of listSnapshots(data).slice(keep)) {
+        if (file !== needed) {
+            rmSync(file, { force: true });
+        }
+    }
+}
+
+// ─── Where releases come from ───────────────────────────────────────────
+
+/** `source.json`: the repository and branch that new releases come from. */
+export interface ReleaseSource {
+    v: 1;
+    /** The git address to fetch from, like `https://github.com/pd90506/pi-talaria.git`. */
+    url: string;
+    branch: string;
+    /** A local checkout of it, which the mirror is first cloned from: a full clone over a slow line takes long. */
+    seed?: string;
+}
+
+export function readSource(data: string): ReleaseSource | undefined {
+    try {
+        const source = JSON.parse(readFileSync(releasePaths(data).source, "utf8")) as ReleaseSource;
+
+        return source?.v === 1 &&
+            typeof source.url === "string" &&
+            typeof source.branch === "string"
+            ? source
+            : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+export function writeSource(data: string, source: ReleaseSource): void {
+    mkdirSync(releasePaths(data).root, { recursive: true, mode: 0o700 });
+    writeAtomic(releasePaths(data).source, `${JSON.stringify(source)}\n`);
+}
+
+/** The source a checkout gives: its `origin`, and `main`. Undefined when it has no origin. */
+export function sourceOfCheckout(repo: string): ReleaseSource | undefined {
+    try {
+        const url = git(repo, ["remote", "get-url", "origin"]);
+
+        return url === "" ? undefined : { v: 1, url, branch: "main", seed: resolve(repo) };
+    } catch {
+        return undefined;
+    }
 }

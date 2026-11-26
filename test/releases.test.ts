@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { once } from "node:events";
 import {
     existsSync,
     mkdirSync,
@@ -11,22 +12,34 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { test, type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
+    databasePath,
+    failTrial,
     installSlot,
     isSlotRoot,
     listSlots,
+    listSnapshots,
     makeWritable,
     pointedSlot,
     pruneSlots,
+    pruneSnapshots,
     readLedger,
+    readTrial,
+    schemaHash,
     setCurrent,
     slotDir,
     slotOf,
+    snapshotDatabase,
+    writeSource,
+    writeTrial,
 } from "../src/server/releases.ts";
+import { ReleaseManager } from "../src/server/release-manager.ts";
 
 const BIN = fileURLToPath(new URL("../bin/pi-pocket.js", import.meta.url));
+const LAUNCHER = fileURLToPath(new URL("../src/launcher/main.ts", import.meta.url));
 
 /** A lock file that asks for `dep` at `version`. */
 function lockText(version: string): string {
@@ -258,4 +271,268 @@ test("the launcher of the current slot runs, and the commands switch slots", (t)
     assert.equal(pointedSlot(data, "current"), one);
     assert.match(run("--yes").stdout, new RegExp(`slot launcher .*${one}`));
     assert.equal(run("rollback", "0123456789ab").status, 1);
+});
+
+// ─── Trials ─────────────────────────────────────────────────────────────
+
+/** A slot made by hand: a stand-in server (`server`, its code) and the record beside it. */
+function handSlot(data: string, id: string, server: string): void {
+    const dir = slotDir(data, id);
+
+    mkdirSync(join(dir, "src", "server"), { recursive: true });
+    writeFileSync(join(dir, "src", "server", "main.ts"), server);
+    writeFileSync(
+        join(data, "releases", "slots", `${id}.json`),
+        JSON.stringify({
+            v: 1,
+            id,
+            commit: id.padEnd(40, "0"),
+            version: "1.0.0",
+            source: "test",
+            installedAt: 0,
+            lock: "",
+        }),
+    );
+}
+
+/** A database with one table, or two once migrated. */
+function makeDatabase(data: string, migrated = false): void {
+    const database = new DatabaseSync(databasePath(data));
+
+    database.exec("CREATE TABLE IF NOT EXISTS t (x)");
+    database.exec("INSERT INTO t VALUES (1)");
+
+    if (migrated) {
+        database.exec("CREATE TABLE IF NOT EXISTS added (y)");
+    }
+
+    database.close();
+}
+
+function rows(data: string): number {
+    const database = new DatabaseSync(databasePath(data), { readOnly: true });
+    const { n } = database.prepare("SELECT count(*) AS n FROM t").get() as { n: number };
+
+    database.close();
+
+    return n;
+}
+
+test("a failed trial goes back, and restores the database only when its schema changed", (t) => {
+    const { data } = fixture(t);
+
+    mkdirSync(data, { recursive: true });
+    handSlot(data, "aaaaaaaaaaaa", "");
+    handSlot(data, "bbbbbbbbbbbb", "");
+    setCurrent(data, "aaaaaaaaaaaa", "test");
+    makeDatabase(data);
+
+    // Same schema: the code goes back, the data written on trial stays.
+    let snapshot = snapshotDatabase(data, "before-b", "test", 1);
+
+    writeTrial(data, {
+        v: 1,
+        slot: "bbbbbbbbbbbb",
+        from: "aaaaaaaaaaaa",
+        at: 1,
+        crashes: 0,
+        snapshot,
+        schema: schemaHash(snapshot),
+    });
+    setCurrent(data, "bbbbbbbbbbbb", "test");
+    makeDatabase(data);
+    assert.match(failTrial(data, "it did not start", "test")!, /back on release aaaaaaaaaaaa\.$/);
+    assert.equal(pointedSlot(data, "current"), "aaaaaaaaaaaa");
+    assert.equal(rows(data), 2);
+    assert.equal(readTrial(data), undefined);
+
+    // A migration on trial: the database goes back to the copy, and the migrated one is kept as a copy too.
+    snapshot = snapshotDatabase(data, "before-b", "test", 2);
+    writeTrial(data, {
+        v: 1,
+        slot: "bbbbbbbbbbbb",
+        from: "aaaaaaaaaaaa",
+        at: 2,
+        crashes: 0,
+        snapshot,
+        schema: schemaHash(snapshot),
+    });
+    setCurrent(data, "bbbbbbbbbbbb", "test");
+    makeDatabase(data, true);
+    assert.match(failTrial(data, "it crashed", "test")!, /database went back/);
+    assert.equal(rows(data), 2);
+    assert.equal(pointedSlot(data, "current"), "aaaaaaaaaaaa");
+    assert.ok(listSnapshots(data).some((file) => file.includes("before-restore-bbbbbbbbbbbb")));
+    assert.deepEqual(
+        readLedger(data, 1).map((entry) => [entry.event, entry.slot, entry.from]),
+        [["rollback", "aaaaaaaaaaaa", "bbbbbbbbbbbb"]],
+    );
+    assert.equal(failTrial(data, "again", "test"), undefined);
+
+    pruneSnapshots(data, 1);
+    assert.equal(listSnapshots(data).length, 1);
+});
+
+test("a slot installs from a bare mirror of the checkout", (t) => {
+    const { dir, repo, data, commit } = fixture(t);
+    const mirror = join(dir, "mirror.git");
+
+    commit("two");
+    execFileSync("git", ["clone", "--bare", "--quiet", repo, mirror]);
+    const info = installSlot(data, { repo: mirror, ref: "main", by: "test" });
+
+    assert.equal(
+        readFileSync(join(slotDir(data, info.id), "src", "server", "main.ts"), "utf8"),
+        'console.log("two");\n',
+    );
+    assert.equal(info.source, "main");
+});
+
+/** The real launcher, on `data`, until `done` holds or 20 seconds pass; then it stops. */
+async function launcher(
+    data: string,
+    done: () => boolean,
+    env: NodeJS.ProcessEnv = {},
+): Promise<void> {
+    const proc = spawn(
+        process.execPath,
+        [
+            LAUNCHER,
+            "--access",
+            "local",
+            "--port",
+            String(40_000 + Math.floor(Math.random() * 20_000)),
+            "--data",
+            data,
+            "--cwd",
+            data,
+        ],
+        {
+            stdio: "ignore",
+            env: { ...process.env, NO_COLOR: "1", PI_TALARIA_NO_SLOT: "1", ...env },
+        },
+    );
+    const exited = once(proc, "exit");
+
+    try {
+        for (let waited = 0; !done(); waited += 100) {
+            assert.ok(waited < 20_000, "the launcher did not get there");
+            assert.equal(proc.exitCode, null, "the launcher stopped");
+            await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+    } finally {
+        proc.kill("SIGTERM");
+        await exited;
+    }
+}
+
+/** A stand-in server that marks `file` when it starts, says it is ready, and stays. */
+const goodServer = (file: string) => `import { writeFileSync } from "node:fs";
+writeFileSync(${JSON.stringify(file)}, process.env.PI_TALARIA_TRIAL ?? "");
+process.send?.({ type: "ready" });
+process.on("disconnect", () => process.exit(0));
+setInterval(() => {}, 60_000);
+`;
+
+test("the launcher goes back from a release that does not start", async (t) => {
+    const { data, dir } = fixture(t);
+    const started = join(dir, "started-a");
+
+    mkdirSync(data, { recursive: true });
+    handSlot(data, "aaaaaaaaaaaa", goodServer(started));
+    handSlot(data, "bbbbbbbbbbbb", "process.exit(1);\n");
+    setCurrent(data, "aaaaaaaaaaaa", "test");
+    setCurrent(data, "bbbbbbbbbbbb", "test");
+    writeTrial(data, { v: 1, slot: "bbbbbbbbbbbb", from: "aaaaaaaaaaaa", at: 0, crashes: 0 });
+
+    await launcher(data, () => existsSync(started));
+    assert.equal(pointedSlot(data, "current"), "aaaaaaaaaaaa");
+    assert.match(readLedger(data, 1)[0]?.note ?? "", /did not start/);
+    // The slot it went back to is not on trial.
+    assert.equal(readFileSync(started, "utf8"), "");
+});
+
+test("the launcher goes back from a release that keeps crashing, and passes one that does not", async (t) => {
+    const { data, dir } = fixture(t);
+    const startedA = join(dir, "started-a");
+    const startedC = join(dir, "started-c");
+
+    mkdirSync(data, { recursive: true });
+    handSlot(data, "aaaaaaaaaaaa", goodServer(startedA));
+    handSlot(
+        data,
+        "bbbbbbbbbbbb",
+        'process.send?.({ type: "ready" });\nsetTimeout(() => process.exit(1), 100);\n',
+    );
+    handSlot(data, "cccccccccccc", goodServer(startedC));
+    setCurrent(data, "aaaaaaaaaaaa", "test");
+    setCurrent(data, "bbbbbbbbbbbb", "test");
+    writeTrial(data, { v: 1, slot: "bbbbbbbbbbbb", from: "aaaaaaaaaaaa", at: 0, crashes: 0 });
+
+    await launcher(data, () => existsSync(startedA));
+    assert.equal(pointedSlot(data, "current"), "aaaaaaaaaaaa");
+    assert.match(readLedger(data, 1)[0]?.note ?? "", /stopped 2 times on trial/);
+
+    setCurrent(data, "cccccccccccc", "test");
+    writeTrial(data, { v: 1, slot: "cccccccccccc", from: "aaaaaaaaaaaa", at: 0, crashes: 0 });
+    await launcher(data, () => readTrial(data) === undefined, { PI_TALARIA_TRIAL_WATCH_MS: "500" });
+    assert.equal(readFileSync(startedC, "utf8"), "1");
+    assert.equal(pointedSlot(data, "current"), "cccccccccccc");
+    assert.deepEqual(
+        readLedger(data, 1).map((entry) => [entry.event, entry.slot]),
+        [["good", "cccccccccccc"]],
+    );
+});
+
+test("the app finds a new commit at the source, installs it, and switches to it on trial", async (t) => {
+    const { repo, data, commit } = fixture(t);
+    let restarts = 0;
+
+    mkdirSync(data, { recursive: true });
+    const first = installSlot(data, { repo, by: "test" });
+
+    setCurrent(data, first.id, "test");
+    writeSource(data, { v: 1, url: repo, branch: "main", seed: repo });
+    makeDatabase(data);
+
+    const manager = new ReleaseManager({ data, supervised: true, restart: () => restarts++ });
+
+    assert.equal((await manager.check()).available, undefined);
+
+    const next = commit("two");
+    const checked = await manager.check();
+
+    assert.equal(checked.available?.commit.slice(0, 12), next);
+    assert.deepEqual(
+        checked.available?.commits.map((each) => each.subject),
+        ["two"],
+    );
+
+    const updated = await manager.update();
+
+    assert.equal(updated.current, next);
+    assert.equal(updated.previous, first.id);
+    assert.equal(updated.trial?.slot, next);
+    assert.equal(updated.trial?.from, first.id);
+    assert.ok(updated.trial?.snapshot !== undefined && existsSync(updated.trial.snapshot));
+    assert.deepEqual(
+        readLedger(data, 4).map((entry) => [entry.event, entry.by]),
+        [
+            ["switch", "app"],
+            ["snapshot", "app"],
+            ["install", "app"],
+            ["switch", "test"],
+        ],
+    );
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    assert.equal(restarts, 1);
+    await assert.rejects(manager.update(), /on trial/);
+
+    // Going back from the app is a switch on trial too.
+    rmSync(join(data, "releases", "trial.json"));
+    const back = await manager.rollback(first.id);
+
+    assert.equal(back.current, first.id);
+    assert.equal(back.trial?.slot, first.id);
+    await assert.rejects(manager.rollback("0123456789ab"), /not installed/);
 });
