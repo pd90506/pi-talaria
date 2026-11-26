@@ -608,6 +608,8 @@ export interface Trial {
     /** The database copy made before the switch, and its schema then (`schemaHash`). */
     snapshot?: string;
     schema?: string;
+    /** The data version before the switch: it goes back with the database. */
+    dataVersion?: DataRecord;
 }
 
 export function readTrial(data: string): Trial | undefined {
@@ -674,10 +676,15 @@ export function failTrial(
 
     if (trial.snapshot !== undefined && trial.schema !== undefined && existsSync(trial.snapshot)) {
         const db = databasePath(data);
+        // The slot on trial moved the data past what the slot before reads: its copy goes back too.
+        const unreadable =
+            (readDataVersion(data)?.readableFrom ?? 0) >
+            declarationOf(slotDir(data, trial.from)).version;
 
-        if (existsSync(db) && schemaHash(db) !== trial.schema) {
+        if (existsSync(db) && (schemaHash(db) !== trial.schema || unreadable)) {
             snapshotDatabase(data, `before-restore-${trial.slot}`, by, now);
             restoreDatabase(data, trial.snapshot);
+            writeDataVersion(data, trial.dataVersion);
             restored = "; the database went back to its copy from before the switch";
         }
     }
@@ -685,6 +692,152 @@ export function failTrial(
     setCurrent(data, trial.from, by, "rollback", `${reason}${restored}`, now);
 
     return `Release ${trial.slot} failed (${reason}): back on release ${trial.from}${restored}.`;
+}
+
+// ─── Data versions ──────────────────────────────────────────────────────
+
+/** What a release's code declares about its data (`src/server/data-version.ts`). */
+export interface DataDeclaration {
+    /** The data version its code writes. */
+    version: number;
+    /** The oldest data version whose code can read what it writes. */
+    readableFrom: number;
+}
+
+/** What the data folder has seen: the newest declaration that ran on it. */
+export interface DataRecord extends DataDeclaration {
+    v: 1;
+    at: number;
+    /** The release that moved it there, when it ran from one. */
+    slot?: string;
+}
+
+/**
+ * The declaration of the code in `dir` (a slot or a checkout), read from its file without running it: a release has
+ * its own copy. One from before declarations reads and writes version 0.
+ */
+export function declarationOf(dir: string): DataDeclaration {
+    let text: string;
+
+    try {
+        text = readFileSync(join(dir, "src", "server", "data-version.ts"), "utf8");
+    } catch {
+        return { version: 0, readableFrom: 0 };
+    }
+
+    const value = (name: string) => {
+        const found = new RegExp(`^export const ${name}\\s*=\\s*(\\d+)\\s*;`, "m").exec(text);
+
+        return found === null ? 0 : Number(found[1]);
+    };
+
+    return { version: value("DATA_VERSION"), readableFrom: value("READABLE_FROM") };
+}
+
+function dataVersionPath(data: string): string {
+    return join(data, "data-version.json");
+}
+
+/** The data version the folder is at, or undefined when no declared release has run on it (version 0). */
+export function readDataVersion(data: string): DataRecord | undefined {
+    try {
+        const record = JSON.parse(readFileSync(dataVersionPath(data), "utf8")) as DataRecord;
+
+        return record.v === 1 && Number.isInteger(record.version) ? record : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+/** Put a record back (or remove it, for none): with a database that went back to its copy. */
+export function writeDataVersion(data: string, record: DataRecord | undefined): void {
+    if (record === undefined) {
+        rmSync(dataVersionPath(data), { force: true });
+    } else {
+        writeAtomic(dataVersionPath(data), `${JSON.stringify(record)}\n`);
+    }
+}
+
+/**
+ * Note that code declaring `declaration` runs on the data: the record moves forward (never back) to what it writes.
+ * Returns the record now.
+ */
+export function noteDataVersion(
+    data: string,
+    declaration: DataDeclaration,
+    slot?: string,
+    now = Date.now(),
+): DataRecord | undefined {
+    const record = readDataVersion(data);
+    const version = record?.version ?? 0;
+    const readableFrom = record?.readableFrom ?? 0;
+
+    if (declaration.version < version) {
+        return record;
+    }
+
+    if (declaration.version === version && declaration.readableFrom <= readableFrom) {
+        return record;
+    }
+
+    const next: DataRecord = {
+        v: 1,
+        version: declaration.version,
+        readableFrom: declaration.readableFrom,
+        at: now,
+        ...(slot === undefined ? {} : { slot }),
+    };
+
+    writeDataVersion(data, next);
+
+    return next;
+}
+
+/** Why code declaring `declaration` cannot run on the data as it is, or undefined when it can. */
+export function unreadableReason(data: string, declaration: DataDeclaration): string | undefined {
+    const record = readDataVersion(data);
+
+    if (record === undefined || declaration.version >= record.readableFrom) {
+        return undefined;
+    }
+
+    return `it reads data up to version ${declaration.version}, but the data is at version ${record.version}, which code from data version ${record.readableFrom} on can read`;
+}
+
+export interface Preflight {
+    /** Reasons the switch would fail: it is refused unless forced. */
+    problems: string[];
+    /** What to know first: releases before this one may not read the data after it. */
+    warnings: string[];
+}
+
+/** Check a switch to `slot` before it is made: the slot is installed, and its code reads the data as it is. */
+export function preflight(data: string, slot: string): Preflight {
+    const problems: string[] = [];
+    const warnings: string[] = [];
+
+    if (!slotReady(data, slot)) {
+        return { problems: [`Release ${slot} is not installed.`], warnings };
+    }
+
+    const declaration = declarationOf(slotDir(data, slot));
+    const unreadable = unreadableReason(data, declaration);
+
+    if (unreadable !== undefined) {
+        problems.push(
+            `Release ${slot} cannot run on this data: ${unreadable}. Going back that far needs the database copy from before (pi-pocket versions lists the snapshots).`,
+        );
+    }
+
+    const record = readDataVersion(data);
+
+    if (declaration.readableFrom > (record?.readableFrom ?? 0)) {
+        warnings.push(
+            `Release ${slot} changes the data so that releases before data version ${declaration.readableFrom} cannot read it; going back past it then needs the database copy made now.`,
+        );
+    }
+
+    return { problems, warnings };
 }
 
 // ─── Database snapshots ─────────────────────────────────────────────────

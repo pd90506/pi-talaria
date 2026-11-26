@@ -25,6 +25,8 @@ function Release({ slot, status, busy, goBack }) {
         slot.id === status.trial?.slot && "on trial",
     ].filter(Boolean);
     const current = slot.id === status.current;
+    // Its code cannot read the data as it is now (`preflight` in releases.ts).
+    const blocked = status.blocked?.[slot.id];
 
     return html`<div class="version-row" key=${slot.id}>
         <span class="grow">
@@ -33,13 +35,14 @@ function Release({ slot, status, busy, goBack }) {
             ${tags.map((tag) => html` <span class="version-tag">${tag}</span>`)}
             <br />
             <span class="muted small">installed ${formatWhen(slot.installedAt)}</span>
+            ${blocked && html`<br /><span class="small version-error">${blocked}</span>`}
         </span>
         ${
             !current &&
             status.supervised &&
             html`<button
                 class="button small ghost"
-                disabled=${busy}
+                disabled=${busy || Boolean(blocked)}
                 onClick=${() => goBack(slot.id)}
             >
                 Go back to this
@@ -222,6 +225,13 @@ export function VersionsSheet() {
                     ${" "}${short(status.trial.from)} by itself.
                 </p>`
             }
+            <p class="muted small">
+                Data version ${status.data?.version ?? 0}${
+                    status.data?.readableFrom
+                        ? `, readable by releases of data version ${status.data.readableFrom} and later`
+                        : ""
+                }.
+            </p>
             ${!status.supervised && html`<p class="muted small">Start pi-talaria with bin/pi-pocket.js to update or go back from here.</p>`}
         </div>
 

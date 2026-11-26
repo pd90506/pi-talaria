@@ -15,7 +15,9 @@ import {
     installSlot,
     listSlots,
     pointedSlot,
+    preflight,
     pruneSlots,
+    readDataVersion,
     readLedger,
     readSource,
     setCurrent,
@@ -28,9 +30,10 @@ const HELP = `Release slots: the versions of pi-talaria this data folder keeps.
 
   pi-pocket versions [--data DIR]
       List the installed releases, which one runs, and the latest changes.
-  pi-pocket rollback [ID] [--data DIR]
-      Go back to release ID (the previous one when not given) and restart a running server.
-  pi-pocket release install [--from REPO] [--ref REF] [--switch] [--data DIR]
+  pi-pocket rollback [ID] [--force] [--data DIR]
+      Go back to release ID (the previous one when not given) and restart a running server. A release
+      whose code cannot read the data as it is (its data version) is refused unless --force.
+  pi-pocket release install [--from REPO] [--ref REF] [--switch] [--force] [--data DIR]
       Install commit REF (HEAD when not given) of the git checkout REPO (this code's folder when not given)
       as a release. --switch makes it the current one and restarts a running server. The first install
       from a checkout makes its origin's main branch the source of updates from the app.`;
@@ -52,7 +55,7 @@ function positional(): string[] {
     for (let index = 0; index < argv.length; index++) {
         const arg = argv[index]!;
 
-        if (arg === "--switch" || arg === "-h" || arg === "--help") {
+        if (arg === "--switch" || arg === "--force" || arg === "-h" || arg === "--help") {
             continue;
         }
 
@@ -117,6 +120,22 @@ function versions(): void {
         );
     }
 
+    const record = readDataVersion(data);
+
+    console.log(
+        record === undefined
+            ? "\nData version 0 (no declared release has run on it)."
+            : `\nData version ${record.version}, readable by releases of data version ${record.readableFrom} and later.`,
+    );
+
+    for (const slot of slots) {
+        const problem = slot.id === current ? undefined : preflight(data, slot.id).problems[0];
+
+        if (problem !== undefined) {
+            console.log(`  ${slot.id} cannot be gone back to: ${problem}`);
+        }
+    }
+
     const ledger = readLedger(data, 15);
 
     if (ledger.length > 0) {
@@ -133,6 +152,34 @@ function versions(): void {
     }
 }
 
+/** Whether a switch to `slot` may go on: its code reads the data as it is, or `--force` says go on anyway. */
+function passesPreflight(slot: string): boolean {
+    const { problems, warnings } = preflight(data, slot);
+
+    for (const warning of warnings) {
+        console.log(`Note: ${warning}`);
+    }
+
+    if (problems.length === 0) {
+        return true;
+    }
+
+    for (const problem of problems) {
+        console.error(problem);
+    }
+
+    if (argv.includes("--force")) {
+        console.error("Going on anyway (--force).");
+
+        return true;
+    }
+
+    console.error("Nothing switched. Add --force to switch anyway.");
+    process.exitCode = 1;
+
+    return false;
+}
+
 function rollback(): void {
     const target = positional()[1] ?? pointedSlot(data, "previous");
 
@@ -142,6 +189,10 @@ function rollback(): void {
         );
         process.exitCode = 1;
 
+        return;
+    }
+
+    if (!passesPreflight(target)) {
         return;
     }
 
@@ -173,7 +224,7 @@ function install(): void {
 
     console.log(`Installed release ${info.id} (${info.version}, ${info.source}).`);
 
-    if (argv.includes("--switch")) {
+    if (argv.includes("--switch") && passesPreflight(info.id)) {
         const { from } = setCurrent(data, info.id, "cli");
 
         console.log(`Release ${info.id} is current${from === undefined ? "" : ` (was ${from})`}.`);

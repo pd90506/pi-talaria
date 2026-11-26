@@ -9,7 +9,10 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { APP_ROOT } from "./config.ts";
 import {
+    type DataRecord,
     type LedgerEntry,
+    preflight,
+    readDataVersion,
     listSlots,
     pointedSlot,
     pruneSlots,
@@ -56,6 +59,10 @@ export interface ReleaseStatus {
     error?: string;
     /** The launcher runs the server: without it, nothing can switch or go back. */
     supervised: boolean;
+    /** The data version the data folder is at (`data-version.ts`); none before a declared release ran on it. */
+    data?: DataRecord;
+    /** The kept slots that cannot run on the data as it is, with why (`preflight`). */
+    blocked: Record<string, string>;
 }
 
 export interface ReleaseManagerOptions {
@@ -134,11 +141,23 @@ export class ReleaseManager {
         const current = pointedSlot(this.#data, "current");
         const previous = pointedSlot(this.#data, "previous");
 
+        const slots = listSlots(this.#data);
+        const data = readDataVersion(this.#data);
+        const blocked: Record<string, string> = {};
+
+        for (const slot of slots) {
+            const problem = preflight(this.#data, slot.id).problems[0];
+
+            if (problem !== undefined && slot.id !== current) {
+                blocked[slot.id] = problem;
+            }
+        }
+
         return {
             ...(running === undefined ? {} : { running }),
             ...(current === undefined ? {} : { current }),
             ...(previous === undefined ? {} : { previous }),
-            slots: listSlots(this.#data),
+            slots,
             ledger: readLedger(this.#data, 50),
             ...(trial === undefined ? {} : { trial }),
             ...(source === undefined ? {} : { source }),
@@ -147,6 +166,8 @@ export class ReleaseManager {
             ...(this.#step === undefined ? {} : { step: this.#step }),
             ...(this.#error === undefined ? {} : { error: this.#error }),
             supervised: this.#options.supervised,
+            ...(data === undefined ? {} : { data }),
+            blocked,
         };
     }
 
@@ -282,8 +303,19 @@ export class ReleaseManager {
             );
         }
 
+        const checked = preflight(this.#data, slot);
+
+        if (checked.problems.length > 0) {
+            throw new Error(checked.problems.join(" "));
+        }
+
+        for (const warning of checked.warnings) {
+            this.#options.log?.(warning);
+        }
+
         const from = pointedSlot(this.#data, "current") ?? slotOf(APP_ROOT);
         const now = this.#now();
+        const dataVersion = readDataVersion(this.#data);
         let snapshot: string | undefined;
         let schema: string | undefined;
 
@@ -303,6 +335,7 @@ export class ReleaseManager {
                 crashes: 0,
                 ...(snapshot === undefined ? {} : { snapshot }),
                 ...(schema === undefined ? {} : { schema }),
+                ...(dataVersion === undefined ? {} : { dataVersion }),
             });
         }
 

@@ -17,15 +17,19 @@ import { test, type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
     databasePath,
+    declarationOf,
     failTrial,
     installSlot,
     isSlotRoot,
     listSlots,
     listSnapshots,
     makeWritable,
+    noteDataVersion,
     pointedSlot,
+    preflight,
     pruneSlots,
     pruneSnapshots,
+    readDataVersion,
     readLedger,
     readTrial,
     schemaHash,
@@ -535,4 +539,157 @@ test("the app finds a new commit at the source, installs it, and switches to it 
     assert.equal(back.current, first.id);
     assert.equal(back.trial?.slot, first.id);
     await assert.rejects(manager.rollback("0123456789ab"), /not installed/);
+});
+
+// ─── Data versions ──────────────────────────────────────────────────────
+
+/** A data-version.ts as a release would have it. */
+const declaring = (version: number, readableFrom: number) =>
+    `export const DATA_VERSION = ${version};\nexport const READABLE_FROM = ${readableFrom};\n`;
+
+function declaredSlot(data: string, id: string, version?: number, readableFrom = 0): void {
+    handSlot(data, id, "");
+
+    if (version !== undefined) {
+        writeFileSync(
+            join(slotDir(data, id), "src", "server", "data-version.ts"),
+            declaring(version, readableFrom),
+        );
+    }
+}
+
+test("this code's declaration reads back, and a release from before declares version 0", (t) => {
+    const { data } = fixture(t);
+    const root = fileURLToPath(new URL("..", import.meta.url));
+
+    mkdirSync(data, { recursive: true });
+    assert.deepEqual(declarationOf(root), { version: 1, readableFrom: 0 });
+    declaredSlot(data, "aaaaaaaaaaaa");
+    assert.deepEqual(declarationOf(slotDir(data, "aaaaaaaaaaaa")), { version: 0, readableFrom: 0 });
+});
+
+test("the data version only moves forward, and a release that cannot read the data is refused", (t) => {
+    const { data } = fixture(t);
+
+    mkdirSync(data, { recursive: true });
+    declaredSlot(data, "aaaaaaaaaaaa");
+    declaredSlot(data, "bbbbbbbbbbbb", 1, 0);
+    declaredSlot(data, "cccccccccccc", 2, 0);
+    declaredSlot(data, "dddddddddddd", 3, 2);
+
+    // Nothing declared has run: everything may run.
+    assert.equal(readDataVersion(data), undefined);
+    assert.deepEqual(preflight(data, "aaaaaaaaaaaa").problems, []);
+
+    // Expands: older releases still read the data.
+    noteDataVersion(data, { version: 1, readableFrom: 0 }, "bbbbbbbbbbbb", 1);
+    noteDataVersion(data, { version: 2, readableFrom: 0 }, "cccccccccccc", 2);
+    assert.deepEqual(preflight(data, "aaaaaaaaaaaa").problems, []);
+
+    // An older release running again moves nothing back.
+    noteDataVersion(data, { version: 1, readableFrom: 0 }, "bbbbbbbbbbbb", 3);
+    assert.equal(readDataVersion(data)?.version, 2);
+
+    // A contract: switching to it warns first, and after it ran, releases before version 2 are refused.
+    assert.match(preflight(data, "dddddddddddd").warnings[0] ?? "", /before data version 2/);
+    noteDataVersion(data, { version: 3, readableFrom: 2 }, "dddddddddddd", 4);
+    assert.deepEqual(readDataVersion(data), {
+        v: 1,
+        version: 3,
+        readableFrom: 2,
+        at: 4,
+        slot: "dddddddddddd",
+    });
+    assert.match(preflight(data, "bbbbbbbbbbbb").problems[0] ?? "", /cannot run on this data/);
+    assert.match(preflight(data, "aaaaaaaaaaaa").problems[0] ?? "", /cannot run on this data/);
+    assert.deepEqual(preflight(data, "cccccccccccc").problems, []);
+    assert.match(preflight(data, "eeeeeeeeeeee").problems[0] ?? "", /not installed/);
+});
+
+test("the commands and the app refuse to go back to a release that cannot read the data", async (t) => {
+    const { data } = fixture(t);
+    const run = (...args: string[]) =>
+        spawnSync(process.execPath, [BIN, ...args, "--data", data], {
+            encoding: "utf8",
+            env: { ...process.env, PI_POCKET_DIR: undefined, PI_TALARIA_NO_SLOT: undefined },
+        });
+
+    mkdirSync(data, { recursive: true });
+    declaredSlot(data, "aaaaaaaaaaaa", 1, 0);
+    declaredSlot(data, "bbbbbbbbbbbb", 2, 2);
+    setCurrent(data, "aaaaaaaaaaaa", "test");
+    setCurrent(data, "bbbbbbbbbbbb", "test");
+    noteDataVersion(data, { version: 2, readableFrom: 2 }, "bbbbbbbbbbbb");
+
+    const refused = run("rollback");
+
+    assert.equal(refused.status, 1);
+    assert.match(refused.stderr, /cannot run on this data[\s\S]*--force/);
+    assert.equal(pointedSlot(data, "current"), "bbbbbbbbbbbb");
+    assert.match(
+        run("versions").stdout,
+        /Data version 2[\s\S]*aaaaaaaaaaaa cannot be gone back to/,
+    );
+
+    const manager = new ReleaseManager({ data, supervised: true, restart: () => {} });
+
+    assert.match(manager.status().blocked.aaaaaaaaaaaa ?? "", /cannot run on this data/);
+    await assert.rejects(manager.rollback("aaaaaaaaaaaa"), /cannot run on this data/);
+    assert.equal(pointedSlot(data, "current"), "bbbbbbbbbbbb");
+
+    const forced = run("rollback", "--force");
+
+    assert.equal(forced.status, 0, forced.stderr);
+    assert.equal(pointedSlot(data, "current"), "aaaaaaaaaaaa");
+});
+
+test("a failed trial that moved the data past the release before restores the copy and its version", (t) => {
+    const { data } = fixture(t);
+
+    mkdirSync(data, { recursive: true });
+    declaredSlot(data, "aaaaaaaaaaaa", 1, 0);
+    declaredSlot(data, "bbbbbbbbbbbb", 2, 2);
+    setCurrent(data, "aaaaaaaaaaaa", "test");
+    makeDatabase(data);
+    noteDataVersion(data, { version: 1, readableFrom: 0 }, "aaaaaaaaaaaa", 1);
+
+    const before = readDataVersion(data)!;
+    const snapshot = snapshotDatabase(data, "before-b", "test", 2);
+
+    writeTrial(data, {
+        v: 1,
+        slot: "bbbbbbbbbbbb",
+        from: "aaaaaaaaaaaa",
+        at: 2,
+        crashes: 0,
+        snapshot,
+        schema: schemaHash(snapshot),
+        dataVersion: before,
+    });
+    setCurrent(data, "bbbbbbbbbbbb", "test");
+    // The new release ran, rewrote rows in place (no schema change), and moved the data to version 2.
+    makeDatabase(data);
+    noteDataVersion(data, { version: 2, readableFrom: 2 }, "bbbbbbbbbbbb", 3);
+    assert.match(failTrial(data, "it crashed", "test")!, /database went back/);
+    assert.equal(rows(data), 1);
+    assert.deepEqual(readDataVersion(data), before);
+    assert.deepEqual(preflight(data, "aaaaaaaaaaaa").problems, []);
+});
+
+test("a server refuses data a newer release made unreadable to it", (t) => {
+    const { data } = fixture(t);
+    const main = fileURLToPath(new URL("../src/server/main.ts", import.meta.url));
+
+    mkdirSync(data, { recursive: true });
+    noteDataVersion(data, { version: 9, readableFrom: 5 });
+
+    const started = spawnSync(
+        process.execPath,
+        [main, "--data", data, "--socket", join(data, "s.sock")],
+        { encoding: "utf8", env: { ...process.env, PI_TALARIA_TRIAL: undefined }, timeout: 60_000 },
+    );
+
+    assert.equal(started.status, 78, started.stderr);
+    assert.match(started.stderr, /cannot open the data[\s\S]*version 9/);
+    assert.equal(existsSync(databasePath(data)), false, "it opened nothing");
 });
