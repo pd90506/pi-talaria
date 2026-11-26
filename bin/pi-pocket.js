@@ -24,4 +24,5 @@ if (fixed && (minor < fixed[0] || (minor === fixed[0] && patch < fixed[1]))) {
 
 // From an npm install, Node needs help to run TypeScript: strip-types.js gives it.
 await import("./strip-types.js");
-await import("../src/launcher/main.ts");
+// boot.ts picks the launcher: the current release slot's, or this folder's.
+await import("../src/launcher/boot.ts");

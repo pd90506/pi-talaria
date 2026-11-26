@@ -605,7 +605,7 @@ async function launchLocal(
             copyFileSync(join(repo, "src", "launcher", file), join(root, "src", "launcher", file));
         }
 
-        for (const file of ["lock.ts", "socket-path.ts", "update-state.ts"]) {
+        for (const file of ["lock.ts", "socket-path.ts", "update-state.ts", "releases.ts"]) {
             copyFileSync(join(repo, "src", "server", file), join(root, "src", "server", file));
         }
 

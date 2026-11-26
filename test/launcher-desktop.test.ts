@@ -204,6 +204,7 @@ test("the desktop app's launcher: a ready file, a window that signs in once, no 
             pid: proc.pid,
             url: `http://127.0.0.1:${port}`,
             desktop: true,
+            appRoot: fileURLToPath(new URL("..", import.meta.url)),
         });
 
         const token = (

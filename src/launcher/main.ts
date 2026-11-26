@@ -42,6 +42,7 @@ import {
     rollBackUpdate,
     stopMeansRollBack,
 } from "../server/update-state.ts";
+import { pointedSlot, readSlot, slotDir, slotOf } from "../server/releases.ts";
 import {
     accent,
     bold,
@@ -72,6 +73,21 @@ const SERVER_FLAGS = APP_ROOT.split(sep).includes("node_modules")
     ? ["--import", new URL("../../bin/strip-types.js", import.meta.url).href]
     : [];
 const RESTART_CODE = 75;
+
+/**
+ * The server to start: the current release slot's when pi-talaria runs from slots (`src/server/releases.ts`), read
+ * again at each start, so a switch or a rollback takes effect at the next restart; else this folder's.
+ */
+function serverEntry(): { path: string; slot?: string } {
+    const slot = pointedSlot(options.data, "current");
+
+    return slot === undefined
+        ? { path: SERVER }
+        : { path: join(slotDir(options.data, slot), "src", "server", "main.ts"), slot };
+}
+
+/** The slot the last server started from, to say so when it changes. */
+let startedSlot: string | undefined = slotOf(APP_ROOT);
 /** How long a server started with an update under way may take to be ready before it counts as not starting. */
 const UPDATE_START_LIMIT_MS = 5 * 60_000;
 
@@ -603,8 +619,22 @@ function startServer(first: boolean): void {
         log(red(`Could not restore the live npm package: ${(error as Error).message}`));
     }
 
+    const entry = serverEntry();
+
+    if (entry.slot !== undefined && entry.slot !== startedSlot) {
+        const info = readSlot(options.data, entry.slot);
+
+        log(
+            dim(
+                `  Running release ${entry.slot}${info ? ` (${info.version}, ${info.source})` : ""}.`,
+            ),
+        );
+    }
+
+    startedSlot = entry.slot;
+
     const args = [
-        SERVER,
+        entry.path,
         ...(state.mode === "socket"
             ? ["--socket", options.socket!]
             : ["--host", state.host, "--port", String(options.port)]),
@@ -631,6 +661,8 @@ function startServer(first: boolean): void {
             PI_POCKET_NPM_ROLLBACK: "1",
             // The socket goes as `--socket` when it is used; `--desktop` drops the variable, so the server must too.
             PI_POCKET_SOCKET: undefined,
+            // The release slot the server runs from, or none for a checkout.
+            PI_TALARIA_RELEASE: entry.slot,
         },
     });
     /** This start said it was ready: a stop after that is not a new version that cannot start. */
@@ -771,6 +803,7 @@ function noteRunning(): void {
             pid: process.pid,
             url: state.mode === "socket" ? null : localUrl(),
             desktop: options.desktop,
+            appRoot: APP_ROOT,
         });
     } catch (error) {
         log(yellow(`  Could not write ${RUNNING_FILE}: ${(error as Error).message}`));
