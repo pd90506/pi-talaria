@@ -116,7 +116,6 @@ function actionItems() {
     const here = view.agent?.cwd ?? conversation?.cwd ?? null;
     // As the folder picker names them: folders of one name get their parent's too.
     const favoriteNames = recentLabels(folderFavorites, server?.home);
-    const wide = matchMedia("(min-width: 960px)").matches;
     const list = [
         canStart && {
             label: "New session",
@@ -148,12 +147,6 @@ function actionItems() {
             detail: "light or dark, text size, thinking, reply speed",
             icon: "palette",
             run: () => openSheet({ type: "appearance" }),
-        },
-        wide && {
-            label: prefs().tiling ? "Turn tiling off" : "Turn tiling on",
-            detail: "gaps and window borders",
-            icon: "swatch",
-            run: () => setPrefs({ tiling: !prefs().tiling }),
         },
         {
             label: prefs().showThinking ? "Hide thinking" : "Show thinking",

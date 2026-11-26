@@ -37,7 +37,7 @@
                         (mode !== "dark" && matchMedia("(prefers-color-scheme: light)").matches);
                     root.dataset.mode = light ? "light" : "dark";
                     root.dataset.theme = "pocket";
-                    root.dataset.tiling = "off";
+                    root.dataset.tiling = "on";
                     if (look && look.pair) {
                         var chosen = look.pair[light ? "light" : "dark"];
                         var colors = "";

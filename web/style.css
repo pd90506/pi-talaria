@@ -936,6 +936,45 @@ kbd {
     .topbar > .icon-button:first-child {
         display: none;
     }
+    /* Tiled: the sidebar, the conversation, and what opens beside it are separate cards over the desk, with gaps,
+     * rounded corners on a hairline, and a soft accent ring on the one in focus. */
+    :root[data-tiling="on"] .sidebar {
+        padding-left: 0;
+        border-right: 0;
+    }
+
+    :root[data-tiling="on"] .layout {
+        --inset-r: 0px;
+        padding: var(--gap-out) calc(var(--gap-out) + env(safe-area-inset-right)) var(--gap-out)
+            calc(var(--gap-out) + env(safe-area-inset-left));
+        gap: calc(var(--gap-in) * 2);
+        background: var(--desk);
+    }
+    /* Rounded, so what they hold is cut to their corners; the edges to drag sit inside them. */
+    :root[data-tiling="on"] .window {
+        border: var(--border) solid var(--window-border);
+        border-radius: var(--r-window);
+        overflow: hidden;
+        height: auto;
+        animation: popin var(--t-in) var(--ease-out) backwards;
+        transition:
+            border-color var(--t-border) var(--ease-out),
+            box-shadow var(--t-border) var(--ease-out);
+    }
+    :root[data-tiling="on"] .pane {
+        animation-delay: 60ms;
+    }
+    :root[data-tiling="on"][data-focus="sidebar"] .sidebar,
+    :root[data-tiling="on"][data-focus="browser-panel"] .browser,
+    :root[data-tiling="on"][data-focus="files-panel"] .files-tile,
+    :root[data-tiling="on"][data-focus="extension-panel"] .ext-panel,
+    :root[data-tiling="on"]:not([data-focus="sidebar"]):not([data-focus="browser-panel"]):not(
+            [data-focus="files-panel"]
+        ):not([data-focus="extension-panel"])
+        .pane {
+        border-color: var(--window-border-active);
+        box-shadow: var(--window-ring);
+    }
 }
 
 /* Drag the sidebar's edge to resize it; double-click puts it back. Inside the window, which cuts off what is past it. */
@@ -1040,6 +1079,25 @@ kbd {
 
 [data-under-controls="push"] {
     padding-top: var(--controls-room) !important;
+}
+
+:root[data-tiling="on"] .layout > [data-under-controls="push"] {
+    padding-top: 0 !important;
+    margin-top: var(--controls-room);
+    height: auto;
+}
+
+/* A browser without corner-shape keeps the corner. */
+@supports (corner-shape: notch) {
+    :root[data-tiling="on"][data-window-controls="right"] .layout > [data-controls-notch] {
+        border-top-right-radius: var(--notch-w) var(--notch-h);
+        corner-top-right-shape: superellipse(-5);
+    }
+
+    :root[data-tiling="on"][data-window-controls="left"] .layout > [data-controls-notch] {
+        border-top-left-radius: var(--notch-w) var(--notch-h);
+        corner-top-left-shape: superellipse(-5);
+    }
 }
 
 .window-drag {
@@ -13668,6 +13726,15 @@ textarea.notes {
     display: none;
 }
 
+/* Over the conversation, below 1100px: no frame of its own. */
+@media (max-width: 1099px) {
+    :root[data-tiling="on"] .files-tile.window {
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+    }
+}
+
 @media (min-width: 1100px) {
     .layout.filing .files-tile {
         position: relative;
@@ -13679,6 +13746,9 @@ textarea.notes {
         border-left: 1px solid var(--hair);
         padding-inline: 0 var(--inset-r);
         animation-delay: 90ms;
+    }
+    :root[data-tiling="on"] .layout.filing .files-tile {
+        height: auto;
     }
 
     .files-resize {
@@ -13702,6 +13772,15 @@ textarea.notes {
     animation: popin var(--t-in) var(--ease-out);
 }
 
+/* Over the conversation, below 1100px: no frame of its own. */
+@media (max-width: 1099px) {
+    :root[data-tiling="on"] .ext-panel.window {
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+    }
+}
+
 @media (min-width: 1100px) {
     .layout.paneling .ext-panel {
         position: relative;
@@ -13713,6 +13792,9 @@ textarea.notes {
         border-left: 1px solid var(--hair);
         padding-inline: 0 var(--inset-r);
         animation-delay: 90ms;
+    }
+    :root[data-tiling="on"] .layout.paneling .ext-panel {
+        height: auto;
     }
     .layout.paneling .ext-panel.wide {
         --ext-panel-w: 44%;
@@ -14203,6 +14285,15 @@ textarea.notes {
     display: none;
 }
 
+/* Over the conversation, below 1100px: no frame of its own. */
+@media (max-width: 1099px) {
+    :root[data-tiling="on"] .browser.window {
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+    }
+}
+
 @media (min-width: 1100px) {
     .layout.browsing .browser {
         position: relative;
@@ -14214,6 +14305,9 @@ textarea.notes {
         border-left: 1px solid var(--line);
         padding-inline: 0 var(--inset-r);
         animation-delay: 90ms;
+    }
+    :root[data-tiling="on"] .layout.browsing .browser {
+        height: auto;
     }
 
     .browser-resize {

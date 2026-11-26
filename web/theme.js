@@ -107,11 +107,11 @@ const DEFAULTS = {
 };
 
 /**
- * What the one look fixes, which code elsewhere still reads: no tiled windows, the system's motion, the usual spacing
- * and widths, no session tabs, and every slot in the app's own order.
+ * What the one look fixes, which code elsewhere still reads: tiled windows (separate cards with gaps), the system's
+ * motion, the usual spacing and widths, no session tabs, and every slot in the app's own order.
  */
 const FIXED = {
-    tiling: false,
+    tiling: true,
     motion: "auto",
     density: "comfortable",
     width: "comfortable",
@@ -289,7 +289,7 @@ export function apply() {
         mode: modeOf(palette),
         theme: "pocket",
         colors: palette.id,
-        tiling: "off",
+        tiling: "on",
         motion: motionLevel(),
         rail: "off",
         density: "comfortable",
