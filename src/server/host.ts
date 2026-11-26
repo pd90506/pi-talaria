@@ -18,6 +18,7 @@ import type { PipCompaction } from "./pip-compact.ts";
 import type { Schedules } from "./schedules.ts";
 import type { SessionCleanup } from "./session-cleanup.ts";
 import type { BackgroundTasks } from "./background.ts";
+import type { DevInstances } from "./dev-instances.ts";
 import type { RepoWatches } from "./repo-watches.ts";
 import type { Watches } from "./watches.ts";
 import type { FetchPublic } from "./public-fetch.ts";
@@ -724,6 +725,11 @@ export interface PocketHost {
     >;
     /** PiP's compactions: its extension's hook has PiP write its own summaries. */
     readonly pipCompaction: Pick<PipCompaction, "summarize">;
+    /**
+     * pi-talaria's dev instances (`dev-instances.ts`): the dev_instance tool starts and stops them. Undefined in a dev
+     * instance itself.
+     */
+    devInstances(): DevInstances | undefined;
     /** Sessions' watches of their pull requests: Pi's watch_pr tool starts and stops them. */
     readonly watches: Pick<Watches, "task" | "start" | "stop" | "get">;
     /** Repository watches: the triggers extension runs their task; PiP's repo_watch tool sets them up. */

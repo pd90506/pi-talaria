@@ -35,7 +35,7 @@ function docs(dataDir: string): string {
     const folder = join(code, "docs");
 
     return `Pi Pocket's docs, only for questions about Pi Pocket itself (how it works, your behavior in it, extending or changing it): start at the index ${join(folder, "index.md")}, follow only the links your task needs, and read a doc completely before changing anything.
-- Code: ${code}${isSlotRoot(code) ? " (a read-only release that the app installed: read it, never edit it; to change pi-talaria, work in a git checkout or worktree of its repository, and check the change there)" : code.split(sep).includes("node_modules") ? " (an npm install: read it, never edit it, since the next npm update replaces it; to change Pi Pocket, clone https://github.com/TannerMidd/pi-pocket and run that)" : ""}. Data: ${dataDir}; change it through the app, never by editing its files, except extensions/ (drop-ins) and themes/.
+- Code: ${code}${isSlotRoot(code) ? " (a read-only release that the app installed: read it, never edit it; to change pi-talaria, work in a git checkout or worktree of its repository, check the change there, and let the owner try it with dev_instance before it is merged)" : code.split(sep).includes("node_modules") ? " (an npm install: read it, never edit it, since the next npm update replaces it; to change Pi Pocket, clone https://github.com/TannerMidd/pi-pocket and run that)" : ""}. Data: ${dataDir}; change it through the app, never by editing its files, except extensions/ (drop-ins) and themes/.
 - Pi's own docs (skills, prompt templates, models, providers, settings): ${getDocsPath()}`;
 }
 

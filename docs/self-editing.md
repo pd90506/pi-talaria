@@ -84,6 +84,17 @@ Add `--data DIR` when the data folder is not the default. When pi-talaria runs f
 
 `node src/server/main.ts --sandbox [LABEL] --data COPY` (or `PI_TALARIA_SANDBOX=LABEL`) runs a dev instance on a copy of the data, such as a database snapshot. A sandbox must not act for the real server: schedules, triggers (PR watches, repository watches, webhooks) and Relay are off whatever the copied settings say, push notifications are off, releases cannot be changed from it, and the run, compaction, or queued message that the copy caught under way is stopped before anything runs. Background commands that the copy lists belong to the real server: the sandbox counts a process as a task's only by its own marker, so it never signals them. The app shows a DEV band at the top (`src/server/sandbox.ts`).
 
+## Dev instances
+
+Pi's `dev_instance` tool runs pi-talaria from a session's checkout or worktree as a sandbox beside the real server (`src/server/dev-instances.ts`). Each dev instance:
+
+- gets a copy of the real data in `dev/<id>/data`: the database through `VACUUM INTO`, and the rest of the folder except releases, worktrees, locks, background commands' files, and Pi's own folder (sign-ins stay shared, so a refreshed sign-in does not end the real one);
+- listens on its own Unix socket, and where Tailscale runs, is served at `https://<machine>:10443/` (then 10444, 10445; `PI_TALARIA_DEV_PORTS` changes them, `PI_TALARIA_DEV_EXPOSE=0` turns serving off);
+- gets packages linked from the real server's code or current release when the lock file is the same, else `npm ci`;
+- writes its log to `dev/<id>/server.log` (`dev_instance` action `logs`).
+
+At most three run at once. A restart keeps the copy, so what was tried there stays; `fresh` copies the real data again. They stop with the real server, and the Versions sheet lists them with Restart and Stop.
+
 ## Undo a change that breaks it
 
 - **A blank app** (a syntax error in `web/`): the server is good, and your work continues. Correct the file; each browser loads again.

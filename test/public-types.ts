@@ -74,6 +74,7 @@ type Internal =
     | "updates"
     | "watches"
     | "repoWatches"
+    | "devInstances"
     | "approvals"
     | "schedules"
     | "sessionCleanup"

@@ -96,6 +96,7 @@ const TITLES: Record<string, string> = {
     "ask.ts": "Ask",
     "design.ts": "Design",
     "tool-search.ts": "Tool search",
+    "dev-instances.ts": "Dev instances",
 };
 
 /**

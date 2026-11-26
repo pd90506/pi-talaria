@@ -125,6 +125,7 @@ import {
     subagentView,
 } from "./room.ts";
 import { whyUnanswered } from "./subagent-runs.ts";
+import { DevInstances } from "./dev-instances.ts";
 import { quietCopy, sandboxChoice } from "./sandbox.ts";
 import { Schedules } from "./schedules.ts";
 import { CoreSecrets } from "./secrets.ts";
@@ -373,6 +374,8 @@ export class PocketApp {
     readonly supervised: boolean;
     /** Set in a dev instance (`sandbox.ts`): its label, "" for none. */
     readonly sandbox: string | undefined;
+    /** The dev instances this server runs (`dev-instances.ts`); none in a dev instance itself. */
+    devInstances: DevInstances | undefined;
     readonly startedAt = Date.now();
     readonly #code = serverBuild();
 
@@ -779,6 +782,14 @@ export class PocketApp {
     async #open(): Promise<void> {
         this.#releaseLock = takeLock(this.#lockFile);
 
+        if (this.sandbox === undefined) {
+            this.devInstances = new DevInstances({
+                data: this.dataDir,
+                agentDir: getAgentDir(),
+                log: (line) => this.#log(line),
+            });
+        }
+
         // A sandbox's copied subscriptions are the owner's real phones.
         if (this.sandbox !== undefined) {
             this.#log("Sandbox: push notifications, schedules, triggers, and Relay are off.");
@@ -847,6 +858,7 @@ export class PocketApp {
             pendingApprovals: pendingApprovalsFor(this),
             agentDir: getAgentDir(),
             dataDir: this.dataDir,
+            devInstances: () => this.devInstances,
             pocketVersion: pocketVersion(),
             modelInfo: (spec) => modelInfo(this.models, spec),
             skillPaths: () => {
@@ -3888,6 +3900,9 @@ export class PocketApp {
     close(): Promise<void> {
         this.#closing ??= (async () => {
             clearTimeout(this.#sessionsTimer);
+            // Dev instances stop with the real server; each gets its stop at once, and the rest closes meanwhile.
+            const devStopped = this.devInstances?.close().catch(() => {});
+
             this.alerts.close();
             await this.cacheKeeper.close();
             this.spend.close();
@@ -3921,7 +3936,7 @@ export class PocketApp {
             let limit: NodeJS.Timeout | undefined;
 
             await Promise.race([
-                cleaned,
+                Promise.all([cleaned, devStopped]),
                 new Promise<void>((resolve) => {
                     limit = setTimeout(resolve, CLEANUP_LIMIT_MS);
                 }),
