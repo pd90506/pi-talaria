@@ -76,6 +76,8 @@ pi-pocket release install --switch     # install this checkout's HEAD as a slot,
 pi-pocket rollback [ID]                # go back to the previous slot (or ID), restart the server
 ```
 
+The app updates itself the same way (`src/server/release-manager.ts`, owner routes under `/api/releases`). It fetches the release source (`releases/source.json`: the first checkout's `origin`, branch `main`) into its own bare clone (`releases/repo.git`), installs the newest commit as a slot, copies the database (`releases/snapshots/`), and switches to the slot **on trial** (`releases/trial.json`). The launcher then goes back to the slot before when the new one does not get ready within 3 minutes, fails its own checks (a built-in module that does not load, a missing `web/index.html`), or stops twice in its first 10 minutes. When the new version changed the database's schema, the copy goes back too. A rollback from the app is a switch on trial as well.
+
 Add `--data DIR` when the data folder is not the default. When pi-talaria runs from a slot, its code folder is read-only: change pi-talaria in a git checkout or worktree of its repository, and check the change there. `PI_TALARIA_NO_SLOT=1` runs a checkout's own launcher and server even when the data folder has slots.
 
 ## Undo a change that breaks it

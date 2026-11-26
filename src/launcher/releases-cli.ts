@@ -17,8 +17,11 @@ import {
     pointedSlot,
     pruneSlots,
     readLedger,
+    readSource,
     setCurrent,
     slotOf,
+    sourceOfCheckout,
+    writeSource,
 } from "../server/releases.ts";
 
 const HELP = `Release slots: the versions of pi-talaria this data folder keeps.
@@ -29,7 +32,8 @@ const HELP = `Release slots: the versions of pi-talaria this data folder keeps.
       Go back to release ID (the previous one when not given) and restart a running server.
   pi-pocket release install [--from REPO] [--ref REF] [--switch] [--data DIR]
       Install commit REF (HEAD when not given) of the git checkout REPO (this code's folder when not given)
-      as a release. --switch makes it the current one and restarts a running server.`;
+      as a release. --switch makes it the current one and restarts a running server. The first install
+      from a checkout makes its origin's main branch the source of updates from the app.`;
 
 const argv = process.argv.slice(2);
 const data = dataDirFrom(argv);
@@ -153,8 +157,19 @@ function install(): void {
     const info = installSlot(data, {
         repo,
         ...(option("--ref") === undefined ? {} : { ref: option("--ref")! }),
-        by: "cli",
+        ...(option("--source") === undefined ? {} : { source: option("--source")! }),
+        by: option("--by") ?? "cli",
     });
+
+    // The first install from a checkout says where later releases come from: its origin, branch main.
+    if (readSource(data) === undefined) {
+        const source = sourceOfCheckout(repo);
+
+        if (source !== undefined) {
+            writeSource(data, source);
+            console.log(`New releases will come from ${source.url} (${source.branch}).`);
+        }
+    }
 
     console.log(`Installed release ${info.id} (${info.version}, ${info.source}).`);
 

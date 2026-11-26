@@ -7,7 +7,7 @@
  * Under the launcher (PI_POCKET_LAUNCHER=1 with an IPC channel) the server reports `ready` instead of printing its
  * sign-in links, and takes `access` messages that say how other devices reach it (a tunnel's public URL).
  */
-import { chmodSync, mkdirSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync } from "node:fs";
 import { createServer } from "node:http";
 import { networkInterfaces } from "node:os";
 import { join, resolve } from "node:path";
@@ -33,6 +33,8 @@ const RESTART_CODE = 75;
  * the server has run, it keeps trying, since the port may still be closing or the address may come back.
  */
 const CONFIG_ERROR_CODE = 78;
+/** A release on trial failed its own checks: the launcher goes back to the release before. */
+const TRIAL_FAILED_CODE = 79;
 const launcher = process.env.PI_POCKET_LAUNCHER === "1" && typeof process.send === "function";
 
 function parseArgs(argv: string[]) {
@@ -288,6 +290,27 @@ stopWatching = (() => {
         }
     };
 })();
+
+// A release on trial (a switch from the app) checks itself before it says it is ready: a problem here sends the launcher
+// back to the release before (`failTrial` in releases.ts).
+if (process.env.PI_TALARIA_TRIAL === "1") {
+    const problems: string[] = [];
+
+    if (!existsSync(join(APP_ROOT, "web", "index.html"))) {
+        problems.push("web/index.html is missing");
+    }
+
+    for (const module of opened.loader.list()) {
+        if (module.source === "built-in" && module.enabled && module.error !== undefined) {
+            problems.push(`the built-in module ${module.file} did not load: ${module.error}`);
+        }
+    }
+
+    if (problems.length > 0) {
+        console.error(`This release failed its checks: ${problems.join("; ")}.`);
+        await stop(TRIAL_FAILED_CODE);
+    }
+}
 
 const token = encodeURIComponent(opened.config.ownerToken);
 
