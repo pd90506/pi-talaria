@@ -288,7 +288,10 @@ export class BackgroundTasks {
     #sweeper: ReturnType<typeof setInterval> | undefined;
     /** Whether `split` was found. */
     #split = false;
-    readonly #procs: TaskProcesses = taskProcesses();
+    readonly #procs: TaskProcesses = taskProcesses(
+        process.platform,
+        () => this.#app.sandbox !== undefined,
+    );
     /** The durable task behind each background command; the background extension installs it. */
     readonly task: Task<WatchInput, WatchState, null, object>;
 

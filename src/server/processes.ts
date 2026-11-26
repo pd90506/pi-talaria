@@ -446,7 +446,13 @@ class DarwinTable implements ProcTable {
 }
 
 /** Once the leader is gone, a member counts only while one carries the marker: a group id can be reused. */
-function groupMembers(table: ProcTable, item: TaskRef, fresh: boolean, guess?: boolean): number[] {
+function groupMembers(
+    table: ProcTable,
+    item: TaskRef,
+    fresh: boolean,
+    guess?: boolean,
+    markedOnly = false,
+): number[] {
     if (item.pid <= 0 || (item.boot !== undefined && item.boot !== table.boot)) {
         return [];
     }
@@ -459,7 +465,7 @@ function groupMembers(table: ProcTable, item: TaskRef, fresh: boolean, guess?: b
 
     const own = (leader: Proc) =>
         leader.start === item.startTicks &&
-        (!table.coarse || table.marked(leader.pid, item.marker, guess));
+        ((!table.coarse && !markedOnly) || table.marked(leader.pid, item.marker, guess));
 
     if (
         first !== undefined &&
@@ -495,9 +501,11 @@ function markedProcesses(table: ProcTable, marker: string): Proc[] {
 
 class PosixProcesses implements TaskProcesses {
     readonly #table: ProcTable;
+    readonly #markedOnly: () => boolean;
 
-    constructor(table: ProcTable) {
+    constructor(table: ProcTable, markedOnly: () => boolean = () => false) {
         this.#table = table;
+        this.#markedOnly = markedOnly;
     }
 
     get boot(): string | undefined {
@@ -548,7 +556,7 @@ class PosixProcesses implements TaskProcesses {
     }
 
     members(task: TaskRef, fresh = false): Promise<number[]> {
-        return this.#look(() => groupMembers(this.#table, task, fresh));
+        return this.#look(() => groupMembers(this.#table, task, fresh, false, this.#markedOnly()));
     }
 
     aliveSync(task: TaskRef): boolean {
@@ -557,7 +565,7 @@ class PosixProcesses implements TaskProcesses {
         }
 
         // At once, from the table as it is, outside the looks' turns: an environment not read yet counts as the task's.
-        return groupMembers(this.#table, task, true, true).length > 0;
+        return groupMembers(this.#table, task, true, true, this.#markedOnly()).length > 0;
     }
 
     async left(task: TaskRef): Promise<number[]> {
@@ -576,7 +584,13 @@ class PosixProcesses implements TaskProcesses {
     }
 
     async signal(task: TaskRef, name: Signal): Promise<void> {
-        if ((await this.#look(() => groupMembers(this.#table, task, true))).length > 0) {
+        if (
+            (
+                await this.#look(() =>
+                    groupMembers(this.#table, task, true, false, this.#markedOnly()),
+                )
+            ).length > 0
+        ) {
             kill(-task.pid, name);
         }
 
@@ -1407,13 +1421,21 @@ class WindowsProcesses implements TaskProcesses {
     }
 }
 
-export function taskProcesses(platform: NodeJS.Platform = process.platform): TaskProcesses {
+/**
+ * `markedOnly`: a leader counts as a task's only while it carries the task's marker, not by its pid and start alone. A
+ * sandbox (`sandbox.ts`) sets it: the tasks its copied data lists are the real server's, whose processes carry the real
+ * data folder in their marker, so it never signals them.
+ */
+export function taskProcesses(
+    platform: NodeJS.Platform = process.platform,
+    markedOnly?: () => boolean,
+): TaskProcesses {
     switch (platform) {
         case "win32":
             return new WindowsProcesses();
         case "darwin":
-            return new PosixProcesses(new DarwinTable());
+            return new PosixProcesses(new DarwinTable(), markedOnly);
         default:
-            return new PosixProcesses(new LinuxTable());
+            return new PosixProcesses(new LinuxTable(), markedOnly);
     }
 }

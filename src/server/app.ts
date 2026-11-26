@@ -125,6 +125,7 @@ import {
     subagentView,
 } from "./room.ts";
 import { whyUnanswered } from "./subagent-runs.ts";
+import { quietCopy, sandboxChoice } from "./sandbox.ts";
 import { Schedules } from "./schedules.ts";
 import { CoreSecrets } from "./secrets.ts";
 import { BackgroundTasks } from "./background.ts";
@@ -358,6 +359,8 @@ export interface OpenOptions {
     restart?: () => void;
     /** Where Pi Pocket's own code is, for its updates; tests give a checkout of their own. */
     appRoot?: string;
+    /** A dev instance on a copy of the data, with its label ("" for none): nothing in it reaches outside (`sandbox.ts`). */
+    sandbox?: string;
 }
 
 export class PocketApp {
@@ -368,6 +371,8 @@ export class PocketApp {
     readonly dataDir: string;
     readonly defaultCwd: string;
     readonly supervised: boolean;
+    /** Set in a dev instance (`sandbox.ts`): its label, "" for none. */
+    readonly sandbox: string | undefined;
     readonly startedAt = Date.now();
     readonly #code = serverBuild();
 
@@ -508,6 +513,7 @@ export class PocketApp {
         this.dataDir = options.dataDir;
         this.defaultCwd = options.defaultCwd;
         this.supervised = options.supervised;
+        this.sandbox = options.sandbox;
         this.config = new ConfigStore(options.dataDir);
         this.#lockFile = join(options.dataDir, "harness.lock");
         this.#log = options.log ?? ((line) => console.log(line));
@@ -773,10 +779,15 @@ export class PocketApp {
     async #open(): Promise<void> {
         this.#releaseLock = takeLock(this.#lockFile);
 
-        try {
-            this.pushStore = new PushStore(this.dataDir);
-        } catch (error) {
-            this.#log(`Push notifications are off: ${describe(error)}`);
+        // A sandbox's copied subscriptions are the owner's real phones.
+        if (this.sandbox !== undefined) {
+            this.#log("Sandbox: push notifications, schedules, triggers, and Relay are off.");
+        } else {
+            try {
+                this.pushStore = new PushStore(this.dataDir);
+            } catch (error) {
+                this.#log(`Push notifications are off: ${describe(error)}`);
+            }
         }
 
         this.settings = SettingsManager.create(this.defaultCwd);
@@ -955,7 +966,9 @@ export class PocketApp {
             registry,
             host,
             { builtIn: join(APP_ROOT, "src", "server", "extensions"), dropIn },
-            (file) => this.config.extensionChoice(file),
+            this.sandbox === undefined
+                ? (file) => this.config.extensionChoice(file)
+                : sandboxChoice((file) => this.config.extensionChoice(file)),
             // What a module's load says can name the server's folders, or quote a provider: the owner's to read.
             { webs: this.webs, notify: (level, message) => this.ownerNotice(level, message) },
         );
@@ -1038,6 +1051,18 @@ export class PocketApp {
         // Core's secrets are hidden before any work goes on, with the settings the modules that loaded declare.
         this.secrets.sync();
         await this.pip.tuneAll((line) => this.#log(line));
+
+        // A sandbox's copy caught the real server's work under way: it stops here, before anything runs.
+        if (this.sandbox !== undefined) {
+            const stopped = await quietCopy(this.harness, context);
+
+            if (stopped > 0) {
+                this.#log(
+                    `Sandbox: stopped ${stopped} run(s) and queued message(s) the copy caught.`,
+                );
+            }
+        }
+
         // Work a previous process left unfinished continues now.
         this.harness.resume();
         void this.sessionCleanup
@@ -2528,6 +2553,7 @@ export class PocketApp {
             server: {
                 pocketVersion: pocketVersion(),
                 supervised: this.supervised,
+                ...(this.sandbox === undefined ? {} : { sandbox: this.sandbox }),
                 startedAt: this.startedAt,
                 home: homedir(),
                 defaultCwd: this.defaultCwd,

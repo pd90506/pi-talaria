@@ -18757,3 +18757,24 @@ textarea.notes {
     gap: 10px;
     padding: 8px 14px;
 }
+
+/* A dev instance (`--sandbox`): a band at the top that does not take clicks. */
+.dev-banner {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 4px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: #c2410c;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    pointer-events: none;
+    white-space: nowrap;
+    max-width: calc(100vw - 32px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

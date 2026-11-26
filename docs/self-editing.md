@@ -80,6 +80,10 @@ The app updates itself the same way (`src/server/release-manager.ts`, owner rout
 
 Add `--data DIR` when the data folder is not the default. When pi-talaria runs from a slot, its code folder is read-only: change pi-talaria in a git checkout or worktree of its repository, and check the change there. `PI_TALARIA_NO_SLOT=1` runs a checkout's own launcher and server even when the data folder has slots.
 
+## Sandbox
+
+`node src/server/main.ts --sandbox [LABEL] --data COPY` (or `PI_TALARIA_SANDBOX=LABEL`) runs a dev instance on a copy of the data, such as a database snapshot. A sandbox must not act for the real server: schedules, triggers (PR watches, repository watches, webhooks) and Relay are off whatever the copied settings say, push notifications are off, releases cannot be changed from it, and the run, compaction, or queued message that the copy caught under way is stopped before anything runs. Background commands that the copy lists belong to the real server: the sandbox counts a process as a task's only by its own marker, so it never signals them. The app shows a DEV band at the top (`src/server/sandbox.ts`).
+
 ## Undo a change that breaks it
 
 - **A blank app** (a syntax error in `web/`): the server is good, and your work continues. Correct the file; each browser loads again.
