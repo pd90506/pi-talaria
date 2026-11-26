@@ -48,6 +48,45 @@ function Release({ slot, status, busy, goBack }) {
     </div>`;
 }
 
+/** A dev instance (`dev-instances.ts`): what it runs, where to open it, and its buttons. */
+function DevRow({ instance, act }) {
+    const running = instance.status === "running";
+    const starting = instance.status === "starting";
+
+    return html`<div class="version-row" key=${instance.id}>
+        <span class="grow">
+            <strong>${instance.label}</strong>${" "}
+            <span class="version-tag">${instance.status}</span>
+            <br />
+            <span class="muted small mono">${instance.worktree}</span>
+            ${instance.commit && html`<span class="muted small"> · ${short(instance.commit)}</span>`}
+            ${
+                running &&
+                instance.url &&
+                html`<br /><a class="small" href=${instance.url} target="_blank" rel="noopener">
+                        ${instance.url}
+                    </a>`
+            }
+            ${instance.error && html`<br /><span class="small version-error">${instance.error}</span>`}
+        </span>
+        <span class="version-actions">
+            <button
+                class="button small ghost"
+                disabled=${starting}
+                onClick=${() => act("restart", instance)}
+            >
+                ${running ? "Restart" : "Start"}
+            </button>
+            ${
+                (running || starting) &&
+                html`<button class="button small ghost" onClick=${() => act("stop", instance)}>
+                    Stop
+                </button>`
+            }
+        </span>
+    </div>`;
+}
+
 /** One line of the ledger. */
 function LedgerLine({ entry }) {
     const what =
@@ -68,7 +107,17 @@ function LedgerLine({ entry }) {
 export function VersionsSheet() {
     const [status, setStatus] = useState(null);
     const [working, setWorking] = useState("");
-    const load = () => attempt(async () => setStatus(await api("releases")));
+    const [dev, setDev] = useState(null);
+    const load = () =>
+        attempt(async () => {
+            const [releases, instances] = await Promise.all([
+                api("releases"),
+                api("dev").catch(() => null),
+            ]);
+
+            setStatus(releases);
+            setDev(instances);
+        });
 
     useEffect(() => {
         load();
@@ -84,6 +133,24 @@ export function VersionsSheet() {
 
         return () => clearInterval(timer);
     }, [status?.step]);
+
+    // While a dev instance starts, follow it.
+    const devStarting = dev?.instances.some((each) => each.status === "starting") ?? false;
+
+    useEffect(() => {
+        if (!devStarting) {
+            return;
+        }
+
+        const timer = setInterval(load, 2000);
+
+        return () => clearInterval(timer);
+    }, [devStarting]);
+
+    const act = (what, instance) =>
+        attempt(async () => {
+            setDev(await api(`dev/${what}`, { id: instance.id }));
+        });
 
     const busy = working !== "" || Boolean(status?.step);
     const run = (label, path, body = {}) =>
@@ -221,6 +288,23 @@ export function VersionsSheet() {
                                 busy=${busy}
                                 goBack=${goBack}
                             />`,
+                    )}
+                </div>
+            </div>`
+        }
+
+        ${
+            dev?.instances.length > 0 &&
+            html`<div class="group">
+                <div class="group-title">Dev instances</div>
+                <p class="muted small">
+                    pi-talaria from a worktree, on a copy of the data: schedules, triggers, Relay, and push are
+                    off in them. Pi starts them with its dev_instance tool.
+                </p>
+                <div class="sheet-list">
+                    ${dev.instances.map(
+                        (instance) =>
+                            html`<${DevRow} key=${instance.id} instance=${instance} act=${act} />`,
                     )}
                 </div>
             </div>`

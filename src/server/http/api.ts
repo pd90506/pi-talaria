@@ -812,6 +812,51 @@ export function createApi(options: HttpOptions, auth: Auth) {
             }
         }
 
+        // Dev instances (`dev-instances.ts`): the owner sees, restarts, and stops them in the Versions sheet.
+        if (first === "dev") {
+            requireOwner(user);
+
+            const dev = app.devInstances;
+
+            const failed = (error: unknown): never => {
+                throw new HttpError(409, (error as Error).message);
+            };
+
+            if (second === undefined && method === "GET") {
+                return json(response, 200, {
+                    available: dev !== undefined,
+                    instances: dev?.list() ?? [],
+                });
+            }
+
+            if ((second === "stop" || second === "restart") && method === "POST") {
+                if (dev === undefined) {
+                    throw new HttpError(409, "A dev instance runs no dev instances of its own.");
+                }
+
+                const body = (await readJson(request)) as { id?: unknown; fresh?: unknown };
+
+                if (typeof body.id !== "string") {
+                    throw new HttpError(400, "Say which dev instance.");
+                }
+
+                if (second === "stop") {
+                    await dev.stop(body.id).catch(failed);
+                } else {
+                    // A start can take minutes (packages, a slow first answer): the sheet follows it in the list.
+                    const restarting = dev.restart(body.id, body.fresh === true);
+
+                    await Promise.race([
+                        restarting.catch(failed),
+                        new Promise((resolve) => setTimeout(resolve, 500)),
+                    ]);
+                    restarting.catch(() => {});
+                }
+
+                return json(response, 200, { available: true, instances: dev.list() });
+            }
+        }
+
         if (first === "restart" && method === "POST") {
             requireOwner(user);
 

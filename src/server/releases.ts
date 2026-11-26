@@ -733,19 +733,24 @@ export function snapshotDatabase(
     const folder = releasePaths(data).snapshots;
     const stamp = new Date(now).toISOString().replace(/[:.]/g, "-");
     const file = join(folder, `${stamp}-${label.replace(/[^A-Za-z0-9_-]/g, "_")}.sqlite`);
-    const database = new (sqlite().DatabaseSync)(databasePath(data));
 
     mkdirSync(folder, { recursive: true, mode: 0o700 });
-
-    try {
-        database.exec(`VACUUM INTO '${file.replaceAll("'", "''")}'`);
-    } finally {
-        database.close();
-    }
+    copyDatabase(databasePath(data), file);
 
     appendLedger(data, { at: now, event: "snapshot", slot: label, by, note: basename(file) });
 
     return file;
+}
+
+/** A consistent copy of a database that may be in use (`VACUUM INTO`), at `to`, which must not exist yet. */
+export function copyDatabase(from: string, to: string): void {
+    const database = new (sqlite().DatabaseSync)(from);
+
+    try {
+        database.exec(`VACUUM INTO '${to.replaceAll("'", "''")}'`);
+    } finally {
+        database.close();
+    }
 }
 
 /** Put a snapshot in place of the database. Only with no server running: the old WAL and shared memory go too. */

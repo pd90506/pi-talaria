@@ -19,6 +19,8 @@ export const SANDBOX_OFF: ReadonlySet<string> = new Set([
     "schedules.ts",
     "triggers.ts",
     "pocket-relay.ts",
+    // A dev instance starts none of its own.
+    "dev-instances.ts",
 ]);
 
 /**
