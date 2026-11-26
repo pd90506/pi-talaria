@@ -22,6 +22,7 @@ import { SessionSheet } from "./sheets/session.js";
 import { ShortcutsSheet } from "./sheets/shortcuts.js";
 import { SpendSheet } from "./sheets/spend.js";
 import { TextSheet } from "./sheets/text.js";
+import { VersionsSheet } from "./sheets/versions.js";
 import {
     ArtifactsSheet,
     ArtifactShareSheet,
@@ -266,6 +267,9 @@ function sheetBody(sheet) {
             break;
         case "spend":
             body = html`<${SpendSheet} />`;
+            break;
+        case "versions":
+            body = html`<${VersionsSheet} />`;
             break;
         case "background":
             body = view.conversation

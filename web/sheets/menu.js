@@ -390,6 +390,7 @@ export function MenuSheet() {
             ${modelRefreshAvailable() && item("Refresh models", refreshModels, store.state.modelRefresh.loading ? "refreshing…" : "models.json and providers")}
             ${extensionMenuItems().map((each) => item(each.label, each.run, each.hint))}
             ${item("Extensions", () => openSheet({ type: "extensions" }), extensionsHint())}
+            ${me?.role === "owner" && item("Versions", () => openSheet({ type: "versions" }), "update, go back")}
             ${
                 me?.role === "owner" &&
                 server?.supervised &&
