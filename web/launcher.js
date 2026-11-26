@@ -404,12 +404,13 @@ function actionItems() {
             keys: "?",
             run: () => openSheet({ type: "shortcuts" }),
         },
-        me?.role === "owner" && {
-            label: "Versions",
-            detail: "update pi-talaria, go back to an earlier one",
-            icon: "reload",
-            run: () => openSheet({ type: "versions" }),
-        },
+        me?.role === "owner" &&
+            server?.sandbox === undefined && {
+                label: "Versions",
+                detail: "update pi-talaria, go back to an earlier one",
+                icon: "reload",
+                run: () => openSheet({ type: "versions" }),
+            },
         me?.role === "owner" &&
             server?.supervised && {
                 label: "Restart server",

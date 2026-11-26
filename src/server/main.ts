@@ -3,6 +3,10 @@
  * Pi Pocket server. Run it through `bin/pi-pocket.js`, which restarts it when the app asks to (exit code 75).
  *
  *   node bin/pi-pocket.js [--host 127.0.0.1] [--port 8787 | --socket PATH] [--cwd DIR] [--data DIR] [--rotate-token]
+ *       [--sandbox [LABEL]]
+ *
+ * `--sandbox` (or PI_TALARIA_SANDBOX=LABEL) runs a dev instance on a copy of the data: nothing in it reaches outside
+ * (`sandbox.ts`).
  *
  * Under the launcher (PI_POCKET_LAUNCHER=1 with an IPC channel) the server reports `ready` instead of printing its
  * sign-in links, and takes `access` messages that say how other devices reach it (a tunnel's public URL).
@@ -22,6 +26,7 @@ import {
     socketArgument,
     SocketPathError,
 } from "./socket-path.ts";
+import { sandboxLabel } from "./sandbox.ts";
 import { restoreMissingNpmPackage } from "./update-state.ts";
 
 // A resident process can reach recovery even when a stopped package switch left no live folder.
@@ -45,6 +50,7 @@ function parseArgs(argv: string[]) {
         cwd: process.cwd(),
         data: dataDir(),
         rotateToken: false,
+        sandbox: sandboxLabel(process.env.PI_TALARIA_SANDBOX),
         keepAliveSeconds: Number(process.env.PI_POCKET_KEEPALIVE_SECONDS?.trim() || 5),
     };
     let tcpFlag: string | undefined;
@@ -74,11 +80,19 @@ function parseArgs(argv: string[]) {
             options.cwd = resolve(value());
         } else if (arg === "--data") {
             options.data = resolve(value());
+        } else if (arg === "--sandbox") {
+            const next = argv[index + 1];
+
+            // An optional label: the next word, unless it is another option.
+            options.sandbox =
+                next !== undefined && !next.startsWith("-")
+                    ? (sandboxLabel(argv[++index]) ?? "")
+                    : (options.sandbox ?? "");
         } else if (arg === "--rotate-token") {
             options.rotateToken = true;
         } else if (arg === "--help" || arg === "-h") {
             console.log(
-                "pi-pocket [--host 127.0.0.1] [--port 8787 | --socket PATH] [--cwd DIR] [--data DIR] [--rotate-token]",
+                "pi-pocket [--host 127.0.0.1] [--port 8787 | --socket PATH] [--cwd DIR] [--data DIR] [--rotate-token] [--sandbox [LABEL]]",
             );
             process.exit(0);
         } else {
@@ -254,7 +268,8 @@ const [{ PocketApp: App }, { createHandler: makeHandler }, { watchTree }] = awai
 const opened = await App.open({
     dataDir: options.data,
     defaultCwd: options.cwd,
-    supervised: process.env.PI_POCKET_SUPERVISED === "1",
+    supervised: process.env.PI_POCKET_SUPERVISED === "1" && options.sandbox === undefined,
+    ...(options.sandbox === undefined ? {} : { sandbox: options.sandbox }),
     // For updates of Pi Pocket itself, which restart the server once the new version is in place.
     restart: () => void stop(RESTART_CODE),
 });

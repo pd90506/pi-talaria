@@ -490,14 +490,29 @@ function PanelHost({ shown, panel }) {
     return html`<${panel} leaving=${leaving} />`;
 }
 
+/** A dev instance (`--sandbox`): a band that says so, so it is not taken for the real app. */
+function DevBanner({ sandbox }) {
+    if (sandbox === undefined || sandbox === null) {
+        return null;
+    }
+
+    return html`<div class="dev-banner" data-part="dev-banner" title="A copy of the data: nothing here reaches outside">
+        DEV${sandbox ? ` · ${sandbox}` : ""}
+    </div>`;
+}
+
 function App() {
     const state = store.state;
 
+    const sandbox = state.server?.sandbox;
+
     useEffect(() => {
+        const name = sandbox === undefined ? "Pi Pocket" : "DEV · Pi Pocket";
+
         document.title = state.view.conversation?.title
-            ? `${state.view.conversation.title} · Pi Pocket`
-            : "Pi Pocket";
-    }, [state.view.conversation?.title]);
+            ? `${state.view.conversation.title} · ${name}`
+            : name;
+    }, [state.view.conversation?.title, sandbox]);
 
     // A checked device view can draw before `/api/me`; with no copy, keep the usual boot screen.
     if (state.me === undefined && state.view.conversation == null) {
@@ -597,6 +612,7 @@ function App() {
         <${Sheets} />
         <${QuoteReplyButton} />
         <${LauncherHost} />
+        <${DevBanner} sandbox=${sandbox} />
         <${Notices} />
     </div>`;
 }

@@ -49,7 +49,10 @@ export function createApi(options: HttpOptions, auth: Auth) {
         log: (line) => console.log(line),
     });
 
-    releases.start();
+    // A dev instance (`sandbox.ts`) is not where releases are managed: its data is a copy.
+    if (app.sandbox === undefined) {
+        releases.start();
+    }
 
     const requireUser = (request: IncomingMessage): User => {
         const user = auth.user(request);
@@ -781,6 +784,13 @@ export function createApi(options: HttpOptions, auth: Auth) {
 
             if (second === undefined && method === "GET") {
                 return json(response, 200, releases.status());
+            }
+
+            if (app.sandbox !== undefined && method === "POST") {
+                throw new HttpError(
+                    409,
+                    "This is a dev instance: update or go back from the real server.",
+                );
             }
 
             if (second === "check" && method === "POST") {
