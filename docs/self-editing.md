@@ -80,6 +80,12 @@ The app updates itself the same way (`src/server/release-manager.ts`, owner rout
 
 Add `--data DIR` when the data folder is not the default. When pi-talaria runs from a slot, its code folder is read-only: change pi-talaria in a git checkout or worktree of its repository, and check the change there. `PI_TALARIA_NO_SLOT=1` runs a checkout's own launcher and server even when the data folder has slots.
 
+## Data versions
+
+Each release declares the data it writes in `src/server/data-version.ts`: `DATA_VERSION`, and `READABLE_FROM`, the oldest data version whose code can still read it. A server notes its declaration in `data-version.json` in the data folder when it starts, moving it forward only, and refuses to start on data whose `READABLE_FROM` is past its own `DATA_VERSION`. Before a switch, `preflight` (`src/server/releases.ts`) checks that the release's code reads the data as it is: `pi-pocket rollback` and `release install --switch` refuse one that does not (unless `--force`), the app greys out its Go back, and `pi-pocket versions` says why. A failed trial that moved the data past the release before puts the database copy and its data version back.
+
+Change stored data in two releases (AGENTS.md): an **expand** adds the new shape beside the old and raises `DATA_VERSION`, so older releases still read the data; a later **contract** drops the old shape, raises `DATA_VERSION`, and sets `READABLE_FROM` to the expand's version. Going back past a contract then needs a database copy from before it.
+
 ## Sandbox
 
 `node src/server/main.ts --sandbox [LABEL] --data COPY` (or `PI_TALARIA_SANDBOX=LABEL`) runs a dev instance on a copy of the data, such as a database snapshot. A sandbox must not act for the real server: schedules, triggers (PR watches, repository watches, webhooks) and Relay are off whatever the copied settings say, push notifications are off, releases cannot be changed from it, and the run, compaction, or queued message that the copy caught under way is stopped before anything runs. Background commands that the copy lists belong to the real server: the sandbox counts a process as a task's only by its own marker, so it never signals them. The app shows a DEV band at the top (`src/server/sandbox.ts`).

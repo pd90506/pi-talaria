@@ -26,6 +26,8 @@ import {
     socketArgument,
     SocketPathError,
 } from "./socket-path.ts";
+import { DATA_VERSION, READABLE_FROM } from "./data-version.ts";
+import { noteDataVersion, unreadableReason } from "./releases.ts";
 import { sandboxLabel } from "./sandbox.ts";
 import { restoreMissingNpmPackage } from "./update-state.ts";
 
@@ -130,6 +132,18 @@ process.env.PI_POCKET_DIR = options.data;
 // --data named a folder that already existed.
 mkdirSync(options.data, { recursive: true, mode: 0o700 });
 chmodSync(options.data, 0o700);
+
+// Data a newer release changed past what this code reads (`data-version.ts`): opening it could misread or damage it.
+// On trial, the launcher then goes back; otherwise a person must start a newer release or restore a database copy.
+const DATA = { version: DATA_VERSION, readableFrom: READABLE_FROM };
+const unreadable = unreadableReason(options.data, DATA);
+
+if (unreadable !== undefined) {
+    console.error(
+        `This code cannot open the data in ${options.data}: ${unreadable}. Start a newer release, or put back a database copy from before (pi-pocket versions).`,
+    );
+    process.exit(process.env.PI_TALARIA_TRIAL === "1" ? TRIAL_FAILED_CODE : CONFIG_ERROR_CODE);
+}
 
 /** How long stopping may wait for running work to stop. What is still running then resumes in the next process. */
 const STOP_LIMIT_MS = 10_000;
@@ -275,6 +289,8 @@ const opened = await App.open({
 });
 
 app = opened;
+// The data is at this code's version now: older releases are checked against it before a switch (`preflight`).
+noteDataVersion(options.data, DATA, process.env.PI_TALARIA_RELEASE || undefined);
 
 if (options.rotateToken) {
     opened.config.rotateOwnerToken();
