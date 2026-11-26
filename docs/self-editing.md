@@ -66,10 +66,23 @@ Server changes outside `extensions/` need a restart. Only the owner can restart,
 - A server that does not start stops Pi Pocket for everyone, and you cannot correct it from the app. The launcher tries again and again, more slowly each time, and prints the error in its terminal. A correction of the file is enough: the next try uses it. While an update from the app is under way, the launcher goes back to the version before instead.
 - Changes that are not committed stop an update from the app (Menu → Update Pi Pocket): commit them, or put them aside with `git stash`, first.
 
+## Releases
+
+pi-talaria can run from release slots instead of from a checkout. A slot is one commit's files and packages in the data folder (`releases/slots/<id>/`), and its source files are read-only. `releases/current.json` names the slot that the launcher runs; `bin/pi-pocket.js` starts that slot's launcher, whatever folder it is started from. Then an edit to a checkout changes nothing that runs, until a new slot is installed from a commit and made current (`src/server/releases.ts`).
+
+```sh
+pi-pocket versions                     # the slots, which one runs, and the ledger of changes
+pi-pocket release install --switch     # install this checkout's HEAD as a slot, make it current, restart the server
+pi-pocket rollback [ID]                # go back to the previous slot (or ID), restart the server
+```
+
+Add `--data DIR` when the data folder is not the default. When pi-talaria runs from a slot, its code folder is read-only: change pi-talaria in a git checkout or worktree of its repository, and check the change there. `PI_TALARIA_NO_SLOT=1` runs a checkout's own launcher and server even when the data folder has slots.
+
 ## Undo a change that breaks it
 
 - **A blank app** (a syntax error in `web/`): the server is good, and your work continues. Correct the file; each browser loads again.
 - **An extension that does not load:** the previous version still runs. Correct the file, or turn off the module in Menu → Extensions.
+- **A release that does not work:** `pi-pocket rollback` goes back to the previous slot.
 - **A server that does not start:** a person at the machine corrects the file, or puts it back with `git checkout -- <file>`. Look at `git diff` first: it can have other work in it. The launcher uses the file when it tries again.
 
 Work in small steps, and check each step. Then the step to undo is small.

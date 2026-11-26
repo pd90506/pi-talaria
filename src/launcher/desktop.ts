@@ -14,6 +14,8 @@ export interface Running {
     url: string | null;
     /** Started by a desktop app (`--desktop`), which stops it when it quits. */
     desktop: boolean;
+    /** The launcher's own code: a release slot keeps it from being pruned while it runs. */
+    appRoot?: string;
 }
 
 export function writeRunning(data: string, running: Running): void {
