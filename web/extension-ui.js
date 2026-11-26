@@ -25,6 +25,7 @@ import {
     api,
     canSteer,
     closeSheet,
+    filesShown,
     insertIntoComposer,
     navigate,
     notify,
@@ -1969,7 +1970,30 @@ export function browserModuleState(module) {
 
 // ─── Where they show ─────────────────────────────────────────────────────────
 
-/** The sidebar's places that extensions added (`pocket.rail`), after the app's own: a row each, with its badge. */
+/**
+ * A place's row is lit only while what it opened is what shows: a board or another page covers a page, and a board, a
+ * page, Files, or the Browser takes a panel's place. So one row is lit at a time, as tabs are.
+ */
+function shownPlace(record, spec, state) {
+    if (!opened(record, spec) || state.board) {
+        return false;
+    }
+
+    if (spec.page !== undefined) {
+        return true;
+    }
+
+    const browsing =
+        state.browserOpen && state.server?.extensions?.includes("pocket-browser") === true;
+
+    return state.page === null && extPanelShown(state) && !browsing && !filesShown(state);
+}
+
+/**
+ * The sidebar's places that extensions added (`pocket.rail`), after the app's own: a row each, with its badge. They
+ * act as tabs: a click shows the place, and a click on the one that shows leaves it be (its own close button closes
+ * it).
+ */
 export function ExtensionNavRows() {
     const buttons = added("rail");
 
@@ -1977,8 +2001,10 @@ export function ExtensionNavRows() {
         return null;
     }
 
+    const state = store.state;
+
     return buttons.map(({ record, spec }) => {
-        const open = opened(record, spec);
+        const open = shownPlace(record, spec, state);
         const toggles = spec.page !== undefined || spec.panel !== undefined;
         const badge = badgeFor(spec);
 
@@ -1989,7 +2015,7 @@ export function ExtensionNavRows() {
             title=${spec.title}
             aria-label=${badge === "" ? spec.title : `${spec.title}, ${badge}`}
             aria-pressed=${toggles ? open : undefined}
-            onClick=${() => (open ? closeOf(spec) : activate(record, spec))}
+            onClick=${() => !open && activate(record, spec)}
         >
             <${Icon} path=${pathOf(spec)} size=${17} />
             <span class="nav-label">${spec.title}</span>
