@@ -821,7 +821,7 @@ kbd {
 }
 
 /* The sidebar and the conversation are windows. On wide screens with tiling on, they tile like Hyprland's, softened:
- * gaps over the desktop (or its wallpaper), rounded corners and a hairline, and a soft accent ring on the one in focus. */
+ * gaps over the desktop (or its wallpaper), rounded corners and a hairline. */
 .window {
     position: relative;
     min-width: 0;
@@ -937,7 +937,7 @@ kbd {
         display: none;
     }
     /* Tiled: the sidebar, the conversation, and what opens beside it are separate cards over the desk, with gaps,
-     * rounded corners on a hairline, and a soft accent ring on the one in focus. */
+     * rounded corners on a hairline. No window marks the focus: every card looks the same. */
     :root[data-tiling="on"] .sidebar {
         padding-left: 0;
         border-right: 0;
@@ -957,23 +957,9 @@ kbd {
         overflow: hidden;
         height: auto;
         animation: popin var(--t-in) var(--ease-out) backwards;
-        transition:
-            border-color var(--t-border) var(--ease-out),
-            box-shadow var(--t-border) var(--ease-out);
     }
     :root[data-tiling="on"] .pane {
         animation-delay: 60ms;
-    }
-    :root[data-tiling="on"][data-focus="sidebar"] .sidebar,
-    :root[data-tiling="on"][data-focus="browser-panel"] .browser,
-    :root[data-tiling="on"][data-focus="files-panel"] .files-tile,
-    :root[data-tiling="on"][data-focus="extension-panel"] .ext-panel,
-    :root[data-tiling="on"]:not([data-focus="sidebar"]):not([data-focus="browser-panel"]):not(
-            [data-focus="files-panel"]
-        ):not([data-focus="extension-panel"])
-        .pane {
-        border-color: var(--window-border-active);
-        box-shadow: var(--window-ring);
     }
 }
 
