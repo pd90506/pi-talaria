@@ -2,7 +2,7 @@
 
 People often change Pi Pocket from inside itself. You can run on the server that you change, and so can all the other people who use it. [AGENTS.md](../AGENTS.md) gives the rules in short; this page gives all of them.
 
-Change a git checkout only. In a copy installed with npm (in a `node_modules` folder), the next update with npm replaces each edit, and the folder often belongs to another user. An update from the app (Menu → Update Pi Pocket) of a global npm install also swaps the whole package folder, so it removes edits there too.
+Change a git checkout only. In a copy installed with npm (in a `node_modules` folder), the next update with npm replaces each edit, and the folder often belongs to another user. An update from the app (App menu → Update Pi Pocket) of a global npm install also swaps the whole package folder, so it removes edits there too.
 
 Before you start, read [map.md](map.md) to find the code that you need, and the part of [architecture.md](architecture.md) about it. Say what you will change. Then wait for a yes, unless the person asked for exactly that change.
 
@@ -59,12 +59,12 @@ The copy listens on `127.0.0.2:8899`. Browsers keep cookies for each host, not f
 
 ## Restarting
 
-Server changes outside `extensions/` need a restart. Only the owner can restart, from Menu → **Restart server**. This menu item shows when Pi Pocket runs under its launcher, as `pi-pocket` does.
+Server changes outside `extensions/` need a restart. Only the owner can restart, from App menu → **Restart server** (the app menu opens from your name at the sidebar's foot; the top bar's ⋯ is the session menu). This menu item shows when Pi Pocket runs under its launcher, as `pi-pocket` does.
 
 - **Never restart while your own tool call runs**, and never on your own. Finish the edit, run `npm run check` and `npm test`, and then ask the person to restart.
 - Work that runs continues after a restart. A tool call that the restart stopped, and that is not safe to repeat, comes back to the model as interrupted.
 - A server that does not start stops Pi Pocket for everyone, and you cannot correct it from the app. The launcher tries again and again, more slowly each time, and prints the error in its terminal. A correction of the file is enough: the next try uses it. While an update from the app is under way, the launcher goes back to the version before instead.
-- Changes that are not committed stop an update from the app (Menu → Update Pi Pocket): commit them, or put them aside with `git stash`, first.
+- Changes that are not committed stop an update from the app (App menu → Update Pi Pocket): commit them, or put them aside with `git stash`, first.
 
 ## Releases
 
@@ -104,7 +104,7 @@ At most three run at once. A restart keeps the copy, so what was tried there sta
 ## Undo a change that breaks it
 
 - **A blank app** (a syntax error in `web/`): the server is good, and your work continues. Correct the file; each browser loads again.
-- **An extension that does not load:** the previous version still runs. Correct the file, or turn off the module in Menu → Extensions.
+- **An extension that does not load:** the previous version still runs. Correct the file, or turn off the module in App menu → Extensions.
 - **A release that does not work:** `pi-pocket rollback` goes back to the previous slot.
 - **A server that does not start:** a person at the machine corrects the file, or puts it back with `git checkout -- <file>`. Look at `git diff` first: it can have other work in it. The launcher uses the file when it tries again.
 

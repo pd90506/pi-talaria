@@ -41,7 +41,7 @@ When two skills have the same name, the project's skill wins. See Pi's `skills.m
 A project's `.agents/skills/` load only in a project that Pi trusts.
 
 - When a session's project has such skills and nobody decided about the project, Pi Pocket asks its owner above the message box.
-- `/trust`, or Menu → **Project trust**, shows the answer and changes it.
+- `/trust`, or App menu → **Project trust**, shows the answer and changes it.
 - The answer goes where Pi's CLI keeps its own (`~/.pi/agent/trust.json`). So each app uses what was decided in the other. In the CLI, trust also loads the project's `.pi` settings, extensions, and packages.
 - `"defaultProjectTrust": "always"` (or `"never"`) in `~/.pi/agent/settings.json` answers for each project that nobody decided about.
 - The CLI also asks before a project's `.pi/skills/`. Pi Pocket loads those until you answer "Don't trust", or until `defaultProjectTrust` is `"never"`. Then it leaves them out too.
@@ -55,9 +55,9 @@ Use a template for a message that people send often. Use a skill for steps that 
 
 ## Models and providers
 
-People sign in to providers in Menu → **Providers**, and pick a model for each session with the model chip in the message box. Pi Pocket uses Pi's sign-ins (`~/.pi/agent/auth.json`) and Pi's list of models. To add an OpenAI-compatible endpoint (LM Studio, Ollama, vLLM, a proxy), the owner taps **Add** on the **OpenAI Compatible** row in Providers: a name, a base URL, an API key (or **No key**), and models picked from the endpoint's list (**Find models**) or typed by hand, each with **Images**, its thinking levels, its context window and maximum output, and its price. Pi Pocket writes the endpoint into Pi's `models.json`, which it makes, with its folder, when missing, and keeps the key in `auth.json`. **Edit** and **Remove** change it later. A `models.json` with comments, or one Pi refuses, is left alone. To add another model or provider that Pi does not know, or the fields the form does not set (headers, compat, price tiers), add it to `models.json` as Pi's `models.md` says; the form keeps those fields when it edits the endpoint. A provider that needs code comes as a Pi Pocket drop-in that calls `host.registerModelProvider` ([host.md](extensions/reference/host.md#registermodelprovider)), not as a Pi extension: see [Pi's extensions and packages](#pis-extensions-and-packages).
+People sign in to providers in App menu → **Providers**, and pick a model for each session with the model chip in the message box. Pi Pocket uses Pi's sign-ins (`~/.pi/agent/auth.json`) and Pi's list of models. To add an OpenAI-compatible endpoint (LM Studio, Ollama, vLLM, a proxy), the owner taps **Add** on the **OpenAI Compatible** row in Providers: a name, a base URL, an API key (or **No key**), and models picked from the endpoint's list (**Find models**) or typed by hand, each with **Images**, its thinking levels, its context window and maximum output, and its price. Pi Pocket writes the endpoint into Pi's `models.json`, which it makes, with its folder, when missing, and keeps the key in `auth.json`. **Edit** and **Remove** change it later. A `models.json` with comments, or one Pi refuses, is left alone. To add another model or provider that Pi does not know, or the fields the form does not set (headers, compat, price tiers), add it to `models.json` as Pi's `models.md` says; the form keeps those fields when it edits the endpoint. A provider that needs code comes as a Pi Pocket drop-in that calls `host.registerModelProvider` ([host.md](extensions/reference/host.md#registermodelprovider)), not as a Pi extension: see [Pi's extensions and packages](#pis-extensions-and-packages).
 
-**A Claude subscription.** Sign in to Anthropic with it in Providers. Then turn on **Claude subscription billing** in Menu → Extensions → Installed → **Built in**, so that requests count against the plan. It is off by default, and it asks before it turns on. Without it, Anthropic can bill the requests as extra usage, and refuse them when that is used up.
+**A Claude subscription.** Sign in to Anthropic with it in Providers. Then turn on **Claude subscription billing** in App menu → Extensions → Installed → **Built in**, so that requests count against the plan. It is off by default, and it asks before it turns on. Without it, Anthropic can bill the requests as extra usage, and refuse them when that is used up.
 
 > [!WARNING]
 > **Using a Claude subscription in Pi Pocket is at your own risk.** Anthropic's terms and its help pages disagree on it:
@@ -87,11 +87,11 @@ Pi Pocket compacts a session's context with Pi's settings in `~/.pi/agent/settin
 }
 ```
 
-Other models keep the general values. With no `compaction.reserveTokens` in Pi's settings, Pi Pocket gives each model its own reserve instead of Pi Durable's 16,384: room for the whole summary the model can write, up to 32,768 tokens and a quarter of its context window (since 0.28.1). Pi Durable writes a summary in at most 80% of the reserve, thinking included, so the old 13,107 tokens cut off the cumulative summary of a long session, and from then on every run failed. A model with a 200,000-token window and 32,768 output tokens now compacts from about 167,000 tokens (before, about 184,000). A `reserveTokens` of your own, general or in a model's override, wins. An entry that Pi refuses (not a whole number, or a name with no provider) is left out, and the server log says so. PiP uses its model's values too. An edit of `settings.json` counts once Pi Pocket reads Pi's settings again: soon after the next message, or at once with Menu → **Refresh models**. See Pi's `settings.md` for each setting.
+Other models keep the general values. With no `compaction.reserveTokens` in Pi's settings, Pi Pocket gives each model its own reserve instead of Pi Durable's 16,384: room for the whole summary the model can write, up to 32,768 tokens and a quarter of its context window (since 0.28.1). Pi Durable writes a summary in at most 80% of the reserve, thinking included, so the old 13,107 tokens cut off the cumulative summary of a long session, and from then on every run failed. A model with a 200,000-token window and 32,768 output tokens now compacts from about 167,000 tokens (before, about 184,000). A `reserveTokens` of your own, general or in a model's override, wins. An entry that Pi refuses (not a whole number, or a name with no provider) is left out, and the server log says so. PiP uses its model's values too. An edit of `settings.json` counts once Pi Pocket reads Pi's settings again: soon after the next message, or at once with App menu → **Refresh models**. See Pi's `settings.md` for each setting.
 
 ## Project model defaults for new sessions
 
-Menu → **Default model** sets the owner's model and thinking level for the whole app. This always wins. To use project defaults, open that menu and choose **Clear owner default: use project defaults, then last picked**.
+App menu → **Default model** sets the owner's model and thinking level for the whole app. This always wins. To use project defaults, open that menu and choose **Clear owner default: use project defaults, then last picked**.
 
 In the session folder's `.pi/settings.json`, set both `defaultProvider` and `defaultModel`. You can also set `defaultThinkingLevel`; without it, the level is `off`. For example:
 
@@ -108,7 +108,7 @@ Use a provider and model ID that Pi's list of models knows. Pi Pocket limits thi
 Project defaults need trust:
 
 - Each project with a `.pi/settings.json` can ask, also when it has no model keys. The same decision controls what Pi's terminal app loads.
-- A project with only settings asks the owner above the message box. **Review**, or Menu → **Project trust**, explains the choice.
+- A project with only settings asks the owner above the message box. **Review**, or App menu → **Project trust**, explains the choice.
 - Until the owner trusts the project, the usual order applies.
 - After trust, only new sessions use project defaults: the open session does not change.
 - No project setting can trust its own project. The decision is shared with Pi's terminal app. Pi Pocket reads `defaultProjectTrust` only from Pi's global settings.
@@ -135,14 +135,14 @@ These are in the app, not in files. Tell the person where they are. Do not chang
 - **Plan mode** (the Plan chip): Pi plans, and asks before it changes anything.
 - **Done when** (`/until npm test`): Pi continues until a check passes.
 - **Scheduled messages** (`/schedule in 2h check the deploy`): a message to Pi later, or again and again. Pi has a `schedule` tool for its own messages.
-- **Background tasks**: Pi's `background` tool runs a command without waiting for it (a dev server, a long test run), reads its output later, and stops it; Pi gets a message when it ends. Menu → Extensions → Background tasks sets how many may run at once in a session.
-- **Extensions** (Menu → Extensions, for the owner): turn on or off the browser, subagents, codemode, a drop-in, and the rest, for all sessions.
+- **Background tasks**: Pi's `background` tool runs a command without waiting for it (a dev server, a long test run), reads its output later, and stops it; Pi gets a message when it ends. App menu → Extensions → Background tasks sets how many may run at once in a session.
+- **Extensions** (App menu → Extensions, for the owner): turn on or off the browser, subagents, codemode, a drop-in, and the rest, for all sessions.
 
 See [features.md](features.md) for each of them.
 
 ## Pi's extensions and packages
 
-Pi Pocket reads Pi's sign-ins, models, settings, skills, prompt templates, and AGENTS.md files, but not Pi's extensions. It does not load `~/.pi/agent/extensions/`, the `extensions` setting, or the packages of the `packages` setting in Pi's `settings.json`. Pi Pocket runs on Pi Durable, and its extensions are of another kind ([extensions.md](extensions.md)). For something that a Pi package gives, look in Menu → Extensions: under **Built in**, and in **Discover**.
+Pi Pocket reads Pi's sign-ins, models, settings, skills, prompt templates, and AGENTS.md files, but not Pi's extensions. It does not load `~/.pi/agent/extensions/`, the `extensions` setting, or the packages of the `packages` setting in Pi's `settings.json`. Pi Pocket runs on Pi Durable, and its extensions are of another kind ([extensions.md](extensions.md)). For something that a Pi package gives, look in App menu → Extensions: under **Built in**, and in **Discover**.
 
 ## When this is not enough
 

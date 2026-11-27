@@ -1,6 +1,6 @@
 /**
  * A note the transcript can fold: one line in the app, and the whole message for the model.
- * An example drop-in: copy it and `quiet-note.js` into `~/.pi-pocket/extensions/`, then turn it on in Menu → Extensions.
+ * An example drop-in: copy it and `quiet-note.js` into `~/.pi-pocket/extensions/`, then turn it on in App menu → Extensions.
  */
 import { obj, str } from "@earendil-works/pi-schema";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";

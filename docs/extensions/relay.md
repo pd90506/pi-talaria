@@ -1,6 +1,6 @@
 # Relay connectors
 
-The relay is a built-in extension, **Relay**, that is off by default. It connects a chat service or a feed to a session: what people write there reaches Pi as fenced data, and Pi answers with the `relay_reply` tool. The owner turns it on in Menu → **Extensions** → **Relay** and adds connectors in Menu → **Relay**.
+The relay is a built-in extension, **Relay**, that is off by default. It connects a chat service or a feed to a session: what people write there reaches Pi as fenced data, and Pi answers with the `relay_reply` tool. The owner turns it on in App menu → **Extensions** → **Relay** and adds connectors in App menu → **Relay**.
 
 A **connector** is one kind of connection: `discord`, `telegram`, `slack`, `matrix`, `http`, and `rss` come with Pi Pocket. A drop-in extension can add a kind of its own. This page tells how. A drop-in that only needs to deliver data to a session, without a connection that the owner sets up, uses [`host.inbox`](inbox.md) instead.
 
@@ -8,7 +8,7 @@ A **connector** is one kind of connection: `discord`, `telegram`, `slack`, `matr
 
 ## How it works
 
-- A connector makes outbound connections only: it polls an address, or it keeps a stream open. The server needs no public address and no separate relay service. A service that can only push needs a [webhook](../features.md) instead (Menu → **Webhooks and watches**). A webhook uses the same inbox path.
+- A connector makes outbound connections only: it polls an address, or it keeps a stream open. The server needs no public address and no separate relay service. A service that can only push needs a [webhook](../features.md) instead (App menu → **Webhooks and watches**). A webhook uses the same inbox path.
 - A connector calls `context.emit(events)`. The relay filters the events, keeps them on disk in a queue, and delivers them one by one to the session through `host.inbox.deliver`.
 - Each event id is delivered once. The inbox key is `relay-<connector id>-<event id>`, so this is also true after a restart. An event waits in the queue on disk until the session takes it.
 - A connector's error never stops the server. It shows as the connector's status, and the relay tries again with a longer wait each time.
@@ -270,7 +270,7 @@ A kind that is registered twice throws. A connector that fails the checks above 
 
 ### An example
 
-This drop-in listens to an [ntfy](https://ntfy.sh) topic. It polls, so it needs no open port. It copies the types it needs from this page, because a drop-in cannot import Pi Pocket's source. Copy it to `~/.pi-pocket/extensions/ntfy-relay.ts`, turn it on in Menu → **Extensions**, turn on **Relay**, and add an **ntfy** connector in Menu → **Relay**.
+This drop-in listens to an [ntfy](https://ntfy.sh) topic. It polls, so it needs no open port. It copies the types it needs from this page, because a drop-in cannot import Pi Pocket's source. Copy it to `~/.pi-pocket/extensions/ntfy-relay.ts`, turn it on in App menu → **Extensions**, turn on **Relay**, and add an **ntfy** connector in App menu → **Relay**.
 
 ```typescript title="ntfy-relay.ts"
 /**

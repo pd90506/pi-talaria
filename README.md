@@ -45,11 +45,11 @@ Or try `npx pi-pocket`. Choose how your devices should connect, then open the la
 - <a name="macos-package"></a>**macOS:** [`Pi-Pocket-<version>.pkg`](docs/macos.md) for Apple silicon or Intel, macOS 13.5 or newer.
 - <a name="other-ways-to-run-it"></a>**Other setups:** [Android with Termux](docs/running.md#android-termux) · [Docker or Podman](docs/docker.md) · [Nix](flake.nix) (`nix run github:TannerMidd/pi-pocket`) · [Linux systemd service](docs/systemd.md).
 
-**Updates:** Menu → **Update Pi Pocket** handles supported installs. For local npm installs, `npx`, or rollback precautions, see [updates and backups](docs/running.md#updates-and-backups).
+**Updates:** App menu → **Update Pi Pocket** handles supported installs. For local npm installs, `npx`, or rollback precautions, see [updates and backups](docs/running.md#updates-and-backups).
 
 ## Remote access
 
-Choose `local` for this machine, `lan` for a trusted local network (plain HTTP), `tailscale` or `tailscale-serve` for your tailnet, or `cloudflare` for a public HTTPS tunnel that still requires sign-in. The [launcher guide](docs/running.md#remote-access) lists prerequisites and flags. In the desktop app, use **Menu → Sign in another device**.
+Choose `local` for this machine, `lan` for a trusted local network (plain HTTP), `tailscale` or `tailscale-serve` for your tailnet, or `cloudflare` for a public HTTPS tunnel that still requires sign-in. The [launcher guide](docs/running.md#remote-access) lists prerequisites and flags. In the desktop app, use **App menu → Sign in another device**.
 
 > [!WARNING]
 > Anyone who can steer Pi can run commands as your user. A session invite limits what someone sees in the app, not which files Pi can reach. Give steering access only to people you would trust at your keyboard. [Security model](SECURITY.md).

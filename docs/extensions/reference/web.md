@@ -172,7 +172,7 @@ settings(fields: readonly SettingField[]): void;
 
 Since 0.22.0 · Experimental
 
-Declares the module's settings, while it loads. Core keeps the owner's values in `config.json`, shows them in Menu → Extensions under the module, and checks each value against its field before it keeps it. A mistake in `fields` throws, so the module does not load and the Extensions sheet says why. See [`SettingField`](#settingfield) and [Extensions that work together](../services-settings.md#settings).
+Declares the module's settings, while it loads. Core keeps the owner's values in `config.json`, shows them in App menu → Extensions under the module, and checks each value against its field before it keeps it. A mistake in `fields` throws, so the module does not load and the Extensions sheet says why. See [`SettingField`](#settingfield) and [Extensions that work together](../services-settings.md#settings).
 
 ### `setting`
 

@@ -330,7 +330,7 @@ export function ExtensionsContent({ query = "", onChanged = () => {} }) {
             (error) =>
                 setProblem(
                     error.status === 404
-                        ? "Restart the server (menu → Restart server) to manage extensions from here."
+                        ? "Restart the server (app menu → Restart server) to manage extensions from here."
                         : error.message,
                 ),
         );

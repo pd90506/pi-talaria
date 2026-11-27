@@ -70,7 +70,7 @@ web.onService("machines", () => web.send("machines-changed"));
 
 ## Settings
 
-A module declares its settings, and core does the rest: it keeps the owner's values, shows a form under the module in Menu → Extensions, and checks each value.
+A module declares its settings, and core does the rest: it keeps the owner's values, shows a form under the module in App menu → Extensions, and checks each value.
 
 ```typescript
 web.settings([

@@ -162,7 +162,7 @@ test(
         item.run();
     `);
         assert.deepEqual(await inPage(`return JSON.stringify(embedderTest.invoked)`), ["settings"]);
-        await page.evaluate(`(await import("/store.js")).openSheet({ type: "menu" })`);
+        await page.evaluate(`(await import("/store.js")).openSheet({ type: "app-menu" })`);
         await until(
             () =>
                 inPage<boolean>(
@@ -177,9 +177,10 @@ test(
         assert.equal(
             groups.at(-1),
             "Pi Pocket GUI",
-            "the embedder's group comes last, below App, under its title",
+            "the embedder's group comes last, under its title",
         );
-        assert.equal(groups.at(-2), "App");
+        // The app menu's own rows have no title: the embedder's group is the one titled.
+        assert.deepEqual(groups, ["Pi Pocket GUI"]);
         await page.evaluate(`(await import("/store.js")).closeSheet()`);
         assert.equal(
             await inPage(`return JSON.stringify(embedderTest.pinned.at(-1)[0].state)`),

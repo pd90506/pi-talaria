@@ -766,7 +766,7 @@ test("PiP may not let strangers' issues into a repository watch", async () => {
 
     await assert.rejects(
         app.pip.addRepoWatch(id, { repo: "acme/mine", events: ["issues"], anyone: true }, "w-1"),
-        /Menu → Webhooks and watches/,
+        /App menu → Webhooks and watches/,
     );
     await say(
         app,

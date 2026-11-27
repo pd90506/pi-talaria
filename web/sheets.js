@@ -11,7 +11,7 @@ import { ExtensionsSheet } from "./sheets/extensions.js";
 import { FileSheet } from "./sheets/file.js";
 import { FindSheet } from "./sheets/find.js";
 import { CwdSheet } from "./sheets/folder.js";
-import { MenuSheet } from "./sheets/menu.js";
+import { AppMenuSheet, MenuSheet } from "./sheets/menu.js";
 import { MessageSheet } from "./sheets/message.js";
 import { ModelPicker } from "./sheets/model.js";
 import { DeviceSheet } from "./sheets/device.js";
@@ -221,6 +221,9 @@ function sheetBody(sheet) {
             break;
         case "menu":
             body = html`<${MenuSheet} />`;
+            break;
+        case "app-menu":
+            body = html`<${AppMenuSheet} />`;
             break;
         case "session":
             body = store.state.sessions.some((each) => each.id === sheet.id)

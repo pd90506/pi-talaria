@@ -10,7 +10,7 @@ Use `host.inbox` when text that people you do not know wrote must reach Pi. It d
 
 - Do not use it for a message that a person of this app wrote. Use [`host.sessions.start`](sessions.md) or [`host.linkedSessions`](linked-sessions.md).
 - Do not use it to let a service connect to a chat or a feed. The [relay](relay.md) does that, and it delivers through this same call.
-- Webhooks (Menu → **Webhooks and watches**) use this call too. A post to a hook and an event from the relay reach Pi the same way.
+- Webhooks (App menu → **Webhooks and watches**) use this call too. A post to a hook and an event from the relay reach Pi the same way.
 
 ## An example
 

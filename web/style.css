@@ -4915,9 +4915,23 @@ pre.diff .del {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding-left: 4px;
+    min-height: 36px;
+    margin: 0;
+    padding: 4px 8px 4px 4px;
+    border: 0;
+    border-radius: var(--r-row);
+    background: none;
+    font: inherit;
     font-size: 13.5px;
     color: var(--text);
+    text-align: left;
+    cursor: pointer;
+}
+
+@media (hover: hover) {
+    .side-me:hover {
+        background: var(--hover);
+    }
 }
 
 .side-avatar {
@@ -15250,6 +15264,11 @@ textarea.notes {
         border-radius: calc(var(--r-window) + 2px);
         box-shadow: var(--pop);
         animation: pop 0.25s var(--ease-out);
+    }
+    /* The app menu opens up from the sidebar's foot. */
+    .nav-menu.nav-menu-up {
+        top: auto;
+        bottom: var(--menu-bottom, 64px);
     }
     .nav-menu .sheet-head {
         height: auto;

@@ -1,4 +1,5 @@
-// The menu: what can be done in this session and in the app.
+// The menus: the session menu (the top bar's ⋯: what can be done in this conversation) and the app menu (the
+// sidebar's foot, your name: providers, versions, notifications, and the rest of the app).
 import { useLayoutEffect, useRef } from "preact/hooks";
 import { browserAvailable, displayUrl, setBrowserOpen } from "../browser.js";
 import { schedulesAvailable, triggersOn, watchAvailable, watchPr } from "../commands.js";
@@ -99,17 +100,30 @@ function BesideRows({ changes = null }) {
 }
 
 /** Keep Sheet's Esc, drag, and focus handling; the sheet trail already owns its back-stack layer. */
-function MenuFrame({ title, children }) {
+function MenuFrame({ title, children, anchor = '.topbar [aria-label="Menu"]', up = false }) {
     const host = useRef(null);
 
     useLayoutEffect(() => {
         const element = host.current;
-        const button = document.querySelector('.topbar [aria-label="Menu"]');
+        const button = document.querySelector(anchor);
         const active = document.activeElement;
         const opener = active === document.body ? button : active;
 
         const place = () => {
             const rect = button?.getBoundingClientRect();
+
+            // Up from the sidebar's foot, at its left edge.
+            if (up && rect !== undefined && rect.width > 0) {
+                element.style.setProperty(
+                    "--menu-left",
+                    `${Math.max(8, Math.min(rect.left, innerWidth - 368))}px`,
+                );
+                element.style.setProperty("--menu-bottom", `${innerHeight - rect.top + 6}px`);
+                element.style.setProperty("--menu-height", `${Math.max(100, rect.top - 14)}px`);
+
+                return;
+            }
+
             const top = (rect?.bottom ?? 58) + 6;
             const bottom =
                 (visualViewport?.offsetTop ?? 0) + (visualViewport?.height ?? innerHeight);
@@ -209,7 +223,11 @@ function MenuFrame({ title, children }) {
     };
 
     return html`<div class="nav-menu-host" data-part="menu" ref=${host} onKeyDown=${onKey}>
-        <${Sheet} title=${title} onClose=${closeSheet} className="nav-menu">
+        <${Sheet}
+            title=${title}
+            onClose=${closeSheet}
+            className=${up ? "nav-menu nav-menu-up" : "nav-menu"}
+        >
             ${children}
         <//>
     </div>`;
@@ -244,17 +262,18 @@ function trustHint() {
     return info.trusted ? "trusted" : "not trusted";
 }
 
-/** The menu. */
+/** The session menu: what can be done in this conversation. With none open, the app menu stands in. */
 export function MenuSheet() {
-    const { view, me, server } = store.state;
+    const { view, server } = store.state;
     const conversation = view.conversation;
     const steer = canSteer();
     const session = conversation?.kind === "session";
 
-    // The embedder this page runs in adds its own group at the end, below App, under its own title (`embedder.js`).
-    const embedder = hostMenu();
+    if (!conversation) {
+        return html`<${AppMenuSheet} />`;
+    }
 
-    return html`<${MenuFrame} title=${conversation?.title ?? "Menu"}>
+    return html`<${MenuFrame} title=${conversation.title ?? "Session"}>
         <${Beside} />
         <div class="menu-session">
             ${session && steer && item("Rename", () => openSheet({ type: "rename" }))}
@@ -366,8 +385,26 @@ export function MenuSheet() {
                 )}
             </div>`
         }
+        ${
+            conversation &&
+            html`<div class="group">
+                ${item("Background", () => openSheet({ type: "background" }), "what commands print as they run")}
+            </div>`
+        }
+    <//>`;
+}
+
+/** The app menu, opened from your name at the sidebar's foot: the app, not the conversation. */
+export function AppMenuSheet() {
+    const { me, server } = store.state;
+
+    // The embedder this page runs in adds its own group at the end, under its own title (`embedder.js`).
+    const embedder = hostMenu();
+
+    return html`<${MenuFrame} title=${me?.name ?? "Pi Talaria"} anchor=".side-me" up=${true}>
         <div class="group">
-            <div class="group-title">App</div>
+            ${me?.role === "owner" && server?.sandbox === undefined && item("Versions", () => openSheet({ type: "versions" }), "update, go back, dev instances")}
+            ${me?.role === "owner" && item("Providers", () => openSheet({ type: "providers" }))}
             ${item("Appearance", () => openSheet({ type: "appearance" }), lookLabel())}
             ${!touch && item("Keyboard shortcuts", () => openSheet({ type: "shortcuts" }), "?")}
             ${
@@ -383,14 +420,11 @@ export function MenuSheet() {
             ${item("Sign in another device", () => openSheet({ type: "device" }))}
             ${item("Notifications", () => openSheet({ type: "notifications" }), "Pi finished, approvals")}
             ${item("Running now", openRunning, "everything Pi is doing")}
-            ${view.conversation && item("Background", () => openSheet({ type: "background" }), "what commands print as they run")}
             ${item("Spend", () => openSheet({ type: "spend" }), me?.role === "owner" ? "by person and session, limits" : "yours")}
             ${triggersOn() && me?.role !== "viewer" && item("Webhooks and watches", () => openSheet({ type: "hooks" }), "GitHub, other services")}
-            ${me?.role === "owner" && item("Providers", () => openSheet({ type: "providers" }))}
             ${modelRefreshAvailable() && item("Refresh models", refreshModels, store.state.modelRefresh.loading ? "refreshing…" : "models.json and providers")}
             ${extensionMenuItems().map((each) => item(each.label, each.run, each.hint))}
             ${item("Extensions", () => openSheet({ type: "extensions" }), extensionsHint())}
-            ${me?.role === "owner" && server?.sandbox === undefined && item("Versions", () => openSheet({ type: "versions" }), "update, go back")}
             ${
                 me?.role === "owner" &&
                 server?.supervised &&

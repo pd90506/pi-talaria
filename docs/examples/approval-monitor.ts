@@ -1,6 +1,6 @@
 /**
  * Reports approval waits, then shows a notice when a wait starts or ends. Copy this drop-in into
- * `~/.pi-pocket/extensions/` and turn it on in Menu → Extensions. Call `approval_status` in a source session first.
+ * `~/.pi-pocket/extensions/` and turn it on in App menu → Extensions. Call `approval_status` in a source session first.
  */
 import { obj } from "@earendil-works/pi-schema";
 import { type ConversationId, defineExtension, defineTool } from "@earendil-works/pi-durable";
