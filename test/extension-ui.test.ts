@@ -431,11 +431,22 @@ test(
 
         await inPage(`(await import("/store.js")).navigate(${session}); return "null";`);
         await until(() => has(".composer"), "the session opens");
-        await openMenu();
+        // In a session, the top bar's menu is the session's; App rows are in the app menu (the sidebar's foot).
+        await inPage(`(await import("/store.js")).openSheet({ type: "app-menu" }); return "null";`);
+        await until(() => hasLabel("App row"), "the App row in the app menu");
+        assert.equal(await hasLabel("Session row"), false, "Session rows stay in the session menu");
+        await inPage(`(await import("/store.js")).closeSheet(); return "null";`);
         await until(
-            async () => (await hasLabel("App row")) && (await hasLabel("Session row")),
-            "both menu groups",
+            async () =>
+                (await inPage<number>(
+                    `return JSON.stringify(history.state?.pocket?.layers ?? 0)`,
+                )) === 0,
+            "the sheet's history entry to go",
+            30_000,
         );
+        await openMenu();
+        await until(() => hasLabel("Session row"), "the Session row");
+        assert.equal(await hasLabel("App row"), false, "App rows are not in the session menu");
         await inPage(
             `[...document.querySelectorAll(".sheet .list-item")].find((each) => each.textContent.trim().startsWith("Session row")).click(); return "null";`,
         );
@@ -454,7 +465,6 @@ test(
         assert.equal(await hasLabel("Session row"), false);
         await withMeter(`globalThis.sessionMenu.remove(); return "null";`);
         await until(async () => !(await hasLabel("Session updated")), "the removed Session row");
-        assert.equal(await hasLabel("App row"), true, "the App row remains");
         await withMeter(`globalThis.appMenu.remove(); return "null";`);
     },
 );

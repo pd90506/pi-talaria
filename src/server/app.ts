@@ -356,7 +356,7 @@ export interface OpenOptions {
     browser?: string | null;
     /** The home folder, whose `.agents/skills/` every session has. Undefined is Pi's: `$HOME`. Tests use their own. */
     home?: string;
-    /** Restart the server, as Menu → Restart server does (`main.ts`); undefined where nothing can (tests). */
+    /** Restart the server, as App menu → Restart server does (`main.ts`); undefined where nothing can (tests). */
     restart?: () => void;
     /** Where Pi Pocket's own code is, for its updates; tests give a checkout of their own. */
     appRoot?: string;

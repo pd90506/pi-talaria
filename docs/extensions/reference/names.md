@@ -4,7 +4,7 @@ The rules for the names that a module gives. These are the names of its file, ex
 
 ## Extensions and tools
 
-To install an extension with the name of an installed extension replaces that extension. A tool with the name of another tool replaces it in all sessions. Thus Pi Pocket refuses a drop-in that would take a name that Pi Pocket keeps, or a name that another module has. Menu → Extensions says why.
+To install an extension with the name of an installed extension replaces that extension. A tool with the name of another tool replaces it in all sessions. Thus Pi Pocket refuses a drop-in that would take a name that Pi Pocket keeps, or a name that another module has. App menu → Extensions says why.
 
 - **Extension names that Pi Pocket keeps:** `coding-tools`, and all names that start with `pocket-`, such as `pocket-core`, `pocket-prompt`, and `pocket-guard`. This is true also when that built-in module is off.
 - **Built-in tools:** `read`, `write`, `edit`, `bash`, `artifact` (and `artifact_inline`, a name still kept: it was a tool until 0.28.0, and old sessions hold its calls), `browser`, `subagent`, `team`, `schedule`, `background`, `codemode`, `tool_search`, `memory`, `ask`, and `ask_someone`. PiP's tools: `sessions`, `session_read`, `session_start`, `session_send`, `session_follow`, `session_stop`, `session_archive`, `session_schedule`, `approvals`, `repo_watch`, and `session_watch_pr`. The triggers' tool: `watch_pr`. Design's tools: `design_preview`, `design_export`, and `design_system`. The relay's tool: `relay_reply` (reserved also when the relay is off).

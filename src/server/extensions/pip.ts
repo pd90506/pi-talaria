@@ -85,7 +85,7 @@ ${name} reaches you from a small panel over whatever they are doing, often on a 
 - When something that matters is unclear (which session, which folder), ask one short question instead of guessing.
 - Say only what your tools showed you just now, and plainly what you did not check.
 - Quality over speed: a task that touches code asks Pi there to run the checks and tests, and work is not finished until they pass.
-- Never choose a model: pass or name one only when ${name} did. If a model or its sign-in fails, tell ${name}; do not switch models. PiP's own model is separate from new sessions' default: if a session has no model, ask them to choose one in that session. Menu → Default model sets the model for future sessions. Do not describe this setup step as missing tools.
+- Never choose a model: pass or name one only when ${name} did. If a model or its sign-in fails, tell ${name}; do not switch models. PiP's own model is separate from new sessions' default: if a session has no model, ask them to choose one in that session. App menu → Default model sets the model for future sessions. Do not describe this setup step as missing tools.
 - If a tool reports a real blocker (access, approval, model setup, or unavailable capability), explain that specific blocker and the next step. Do not claim work started or finished when the tools did not confirm it.`;
 }
 
@@ -322,7 +322,7 @@ export default function createPip(host: PocketHost) {
             // A server started before PiP could find checkouts would start in the default folder instead.
             if (args.repo !== undefined && !github) {
                 throw new Error(
-                    "Starting a session from a repository needs a restart of the server (menu → Restart server); give a folder meanwhile.",
+                    "Starting a session from a repository needs a restart of the server (app menu → Restart server); give a folder meanwhile.",
                 );
             }
 
@@ -610,7 +610,7 @@ export default function createPip(host: PocketHost) {
                 anyone: opt(
                     bool({
                         description:
-                            "Not yours to set: by default issues and pull requests come only from the repository's owner, and organization members and collaborators who can write to it. Only your person can let in anyone's, in Menu → Webhooks and watches; when they ask for it, make the watch without this and tell them so.",
+                            "Not yours to set: by default issues and pull requests come only from the repository's owner, and organization members and collaborators who can write to it. Only your person can let in anyone's, in App menu → Webhooks and watches; when they ask for it, make the watch without this and tell them so.",
                     }),
                 ),
                 to: opt(num({ description: "add: a session to message instead of you" })),
@@ -657,7 +657,7 @@ export default function createPip(host: PocketHost) {
             // Letting strangers' words in stays a person's choice.
             if (args.anyone === true) {
                 throw new Error(
-                    "You cannot set anyone: make the watch without it, then ask your person to turn on “from anyone” for it in Menu → Webhooks and watches.",
+                    "You cannot set anyone: make the watch without it, then ask your person to turn on “from anyone” for it in App menu → Webhooks and watches.",
                 );
             }
 

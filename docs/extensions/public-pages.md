@@ -79,7 +79,7 @@ Everyone on the internet who has the link can read the page and send the form.
 - **Show only what the link is for.** Do not put the session's transcript, files, or names on the page unless the person who made the link chose to share them.
 - **Give links a short life and few uses.** Let the people who made them see and end them.
 
-The owner sees "pages for anyone with a link, no sign-in" for the module in Menu → Extensions.
+The owner sees "pages for anyone with a link, no sign-in" for the module in App menu → Extensions.
 
 ## Limits
 

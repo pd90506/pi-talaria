@@ -1301,7 +1301,7 @@ export class Pip {
         // Strangers' issues and pull requests are let in by a person, in the hooks sheet, never by PiP.
         if (rest.anyone === true) {
             throw new Error(
-                "Only your person can let a watch take issues and pull requests from anyone: ask them to turn it on in Menu → Webhooks and watches once the watch is made.",
+                "Only your person can let a watch take issues and pull requests from anyone: ask them to turn it on in App menu → Webhooks and watches once the watch is made.",
             );
         }
 

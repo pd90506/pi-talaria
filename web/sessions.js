@@ -2768,17 +2768,23 @@ function Nav() {
     </nav>`;
 }
 
-/** The sidebar's foot: who you are, then devices, model providers, and Appearance. */
+/** The sidebar's foot: you, which opens the app menu, then devices, model providers, and Appearance. */
 function Foot() {
     const { me } = store.state;
 
     return html`<div class="side-foot" data-part="side-foot">
-        <span class="side-me" title=${me?.name ?? ""}>
+        <button
+            class="side-me"
+            title="App menu: versions, providers, notifications, and more"
+            aria-label=${`${me?.name ?? "You"}: app menu`}
+            aria-haspopup="dialog"
+            onClick=${() => openSheet({ type: "app-menu" })}
+        >
             <span class="side-avatar" aria-hidden="true">
                 ${(me?.name ?? "You").trim().charAt(0).toUpperCase()}
             </span>
             <span class="side-name">${me?.name ?? "You"}</span>
-        </span>
+        </button>
         <button
             class="icon-button"
             title="Sign in another device"

@@ -86,7 +86,7 @@ A mode of a session where Pi makes a plan and does not change files. Only tools 
 
 ### module
 
-One `.ts` file that default-exports a setup function. Menu → Extensions lists modules. The browser module is a different file.
+One `.ts` file that default-exports a setup function. App menu → Extensions lists modules. The browser module is a different file.
 
 ### extension
 
@@ -118,7 +118,7 @@ What one load of a module made: its extensions, routes, browser module, and comm
 
 ### turn on, turn off
 
-What the owner does to a module in Menu → Extensions. A module that is off does not load.
+What the owner does to a module in App menu → Extensions. A module that is off does not load.
 
 ### host
 
@@ -192,7 +192,7 @@ A view that a module adds in the place of the session.
 
 ### sheet
 
-A panel over the app, such as Menu → Extensions. A module can add sheets.
+A panel over the app, such as App menu → Extensions. A module can add sheets.
 
 ### notice
 
@@ -240,7 +240,7 @@ To run a tool call again after a restart cut it off. Only a tool with `replay: "
 
 ### gallery
 
-The list of drop-ins that other people wrote: Menu → Extensions → **Find extensions**.
+The list of drop-ins that other people wrote: App menu → Extensions → **Find extensions**.
 
 ### index
 

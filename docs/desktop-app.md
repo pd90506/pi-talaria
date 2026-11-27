@@ -41,7 +41,7 @@ On Windows the one-time link is on Edge's command line, and only there: it is sp
 
 ## What the apps rely on
 
-A newer installer replaces the app and its package; Menu → **Update Pi Pocket** replaces only the package. So an installed app runs against newer `pi-pocket` packages, never older ones (it refuses them), and these stay as they are: `--desktop`, `launcher-running.json` (its fields only grow), `/api/pocket/info`, `/api/sign-in-link`, `/login?once=`, and `/api/restart`.
+A newer installer replaces the app and its package; App menu → **Update Pi Pocket** replaces only the package. So an installed app runs against newer `pi-pocket` packages, never older ones (it refuses them), and these stay as they are: `--desktop`, `launcher-running.json` (its fields only grow), `/api/pocket/info`, `/api/sign-in-link`, `/login?once=`, and `/api/restart`.
 
 ## What the window does not do yet
 

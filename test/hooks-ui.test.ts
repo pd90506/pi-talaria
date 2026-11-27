@@ -41,7 +41,9 @@ const hooks = async (): Promise<HookView[]> => (await (await request("hooks")).j
 async function openHooks(id: ConversationId): Promise<void> {
     await page.navigate(`${base}/s/${id}`);
     assert.ok(await page.waitFor({ selector: '.topbar [aria-label="Menu"]' }));
-    await page.click({ selector: '.topbar [aria-label="Menu"]' });
+    // Webhooks are the app's, in the app menu (the sidebar's foot, which a phone shows on its session list).
+    await page.evaluate(`(await import("/store.js")).openSheet({ type: "app-menu" })`);
+    await page.waitFor({ ms: 200 });
     await page.evaluate(`
         [...document.querySelectorAll('.sheet button')]
             .find((button) => button.textContent.includes('Webhooks and watches')).click();

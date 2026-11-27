@@ -33,7 +33,7 @@ Your data (sessions, sign-ins, settings, extensions) stays in `%USERPROFILE%\.pi
 
 Setup also makes:
 
-- a Start menu entry, **Pi Pocket**, the desktop app. It opens Pi Pocket in a window of its own, already signed in, with no console window, and puts Pi Pocket's icon in the notification area: click it to open the window, or right-click it for **Open Pi Pocket**, **Restart server**, and **Quit Pi Pocket**. The server listens on this PC only. To sign in your phone, use Menu → **Sign in another device** in the window. Opening Pi Pocket again shows the window that runs; a second server never starts. The window is Microsoft Edge in app mode, with a profile of its own; without Edge, your default browser opens Pi Pocket. [desktop-app.md](desktop-app.md) says how it works.
+- a Start menu entry, **Pi Pocket**, the desktop app. It opens Pi Pocket in a window of its own, already signed in, with no console window, and puts Pi Pocket's icon in the notification area: click it to open the window, or right-click it for **Open Pi Pocket**, **Restart server**, and **Quit Pi Pocket**. The server listens on this PC only. To sign in your phone, use App menu → **Sign in another device** in the window. Opening Pi Pocket again shows the window that runs; a second server never starts. The window is Microsoft Edge in app mode, with a profile of its own; without Edge, your default browser opens Pi Pocket. [desktop-app.md](desktop-app.md) says how it works.
 - a Start menu entry, **Pi Pocket (console)**, which opens the launcher in a console window, as before: there you choose how other devices reach Pi Pocket (the local network, a Cloudflare tunnel, Tailscale), and it shows the sign-in link and its QR code. Close the console window, or press **q** in it, to stop it. When it runs, the app uses its server instead of starting one.
 - with the task **Start Pi Pocket when I sign in to Windows** (off by default), a shortcut in your Startup folder. It starts the app with its icon only, without a window.
 
@@ -54,7 +54,7 @@ Some enterprise policies refuse links and junctions. Drop-in extensions work the
 
 ## Updates
 
-Menu → **Update Pi Pocket** updates the package in `app\`, as for any global npm install, and restarts; it needs npm's registry. The Node.js in `node\` stays the one that Setup installed. A newer installer brings a newer Node.js and its own package; run it over the old install. It stops a running Pi Pocket first (it asks), and it keeps a newer package that the app already updated to.
+App menu → **Update Pi Pocket** updates the package in `app\`, as for any global npm install, and restarts; it needs npm's registry. The Node.js in `node\` stays the one that Setup installed. A newer installer brings a newer Node.js and its own package; run it over the old install. It stops a running Pi Pocket first (it asks), and it keeps a newer package that the app already updated to.
 
 The desktop app checks the package before it starts it: when `app\` holds an older `pi-pocket` than the app itself (an install that did not finish), it says so in a message and starts nothing. Run the same Setup again to put its package back.
 

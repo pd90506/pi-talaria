@@ -56,7 +56,7 @@ A page in an Electron window keeps running at full speed while the window hides 
 
 ### Notifications
 
-The server decides as for Web Push (`alerts.ts`): who can see the session, the kinds each person turned on in Menu → Notifications, and whether they are looking at it. Then it sends the message through Web Push to their subscribed devices, and to each of their embedders' connections (`PocketApp.notifyEmbedders`). An embedder that is not running gets nothing: nothing waits for it.
+The server decides as for Web Push (`alerts.ts`): who can see the session, the kinds each person turned on in App menu → Notifications, and whether they are looking at it. Then it sends the message through Web Push to their subscribed devices, and to each of their embedders' connections (`PocketApp.notifyEmbedders`). An embedder that is not running gets nothing: nothing waits for it.
 
 ```js
 {
