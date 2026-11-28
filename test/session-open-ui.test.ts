@@ -230,13 +230,6 @@ test(
             assert.equal(early.me, false, "/api/me is still held");
             assert.equal(early.boot, false, "no static or app boot-screen flash");
             assert.equal(early.rows, true);
-            assert.equal(
-                await inPage<boolean>(
-                    `return JSON.stringify(document.querySelector('.title-open').disabled)`,
-                ),
-                true,
-                "the session menu waits for /api/me",
-            );
         } finally {
             me.release();
         }

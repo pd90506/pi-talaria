@@ -1248,7 +1248,7 @@ kbd {
     }
 }
 
-/* The title and its line under it open the menu, all but the branch, which opens the branch picker. */
+/* The title and its line under it: the folder, the branch (its picker), and the way back to where it started. */
 .title {
     position: relative;
     flex: 1;
@@ -1260,23 +1260,6 @@ kbd {
     margin-left: 12px;
     border-radius: var(--r-row);
     transition: background-color var(--t-hover) var(--ease-out);
-}
-
-@media (hover: hover) {
-    .title:has(> .title-open:hover) {
-        background: var(--hover);
-    }
-}
-
-/* Over the whole title, under the branch. */
-.title-open {
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-}
-
-.title-open:focus-visible {
-    outline-offset: -1px;
 }
 
 .title-main {
@@ -1451,7 +1434,7 @@ kbd {
 /*
  * A thumb's height on a touch screen, with its look kept: a layer past the branch takes the tap. The line under the
  * title is a little taller there, so that room stays in the top bar; the layer reaches into the bottom of the title's
- * line above (its descenders), and the rest of the title opens the menu.
+ * line above (its descenders).
  */
 @media (pointer: coarse) {
     .title {
