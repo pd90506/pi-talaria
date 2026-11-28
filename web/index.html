@@ -10,6 +10,8 @@
         <meta name="theme-color" content="#262624" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
+        <!-- Not black-translucent: that draws the page under the status bar, where iOS 26 blurs it. -->
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <title>Pi Pocket</title>
         <link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials" />
         <link rel="icon" href="/icon.svg" type="image/svg+xml" />
@@ -77,6 +79,8 @@
         </script>
     </head>
     <body>
+        <!-- The status bar's ground, in the window's color (style.css): iOS 26 takes the bar's color from it, not blurred. -->
+        <div class="status-cover" aria-hidden="true"></div>
         <!-- The same boot screen the app shows while it starts (Boot in ui.js), so nothing jumps when the script takes over. -->
         <div id="app">
             <div class="boot" data-part="boot" role="status">
