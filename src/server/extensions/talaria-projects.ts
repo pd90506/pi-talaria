@@ -157,6 +157,8 @@ interface ProjectFile {
     upstream?: string;
     /** The local checkout of `repository` that the project's threads work in, once bound (`project_repo`). */
     checkout?: string;
+    /** False: threads work in the folder itself, not each in a git worktree of their own. */
+    worktrees?: boolean;
 }
 
 const MAX_NAME = 80;
@@ -278,7 +280,7 @@ function readProjectFile(path: string): ProjectFile {
         const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
 
         if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
-            const { name, folders, repository, upstream, checkout } = parsed as Record<
+            const { name, folders, repository, upstream, checkout, worktrees } = parsed as Record<
                 string,
                 unknown
             >;
@@ -300,6 +302,7 @@ function readProjectFile(path: string): ProjectFile {
                 ...(repo(repository) === undefined ? {} : { repository: repo(repository)! }),
                 ...(repo(upstream) === undefined ? {} : { upstream: repo(upstream)! }),
                 ...(typeof checkout === "string" && isAbsolute(checkout) ? { checkout } : {}),
+                ...(worktrees === false ? { worktrees: false } : {}),
             };
         }
     } catch {
@@ -445,9 +448,20 @@ function threadRules(project: { id: string; file: ProjectFile }): string {
 }
 
 /** A thread's first message: the coordinator's task, and the person's words it carries. */
-function threadBrief(name: string, folder: string, task: string, cited: string): string {
+function threadBrief(
+    name: string,
+    folder: string,
+    task: string,
+    cited: string,
+    isolated: boolean,
+): string {
     return [
         `Task for a new thread of the project ${JSON.stringify(name)}, in ${JSON.stringify(folder)}, from its coordinator:`,
+        ...(isolated
+            ? [
+                  "When that folder is in a git repository, you work in a worktree of it of your own, on a branch of your own (your working directory): change and commit there, push that branch, and open its pull request from it. Do not change the folder above, which other threads share.",
+              ]
+            : []),
         envelope("coordinator", name, task, cited),
     ].join("\n");
 }
@@ -1356,19 +1370,24 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
                 }
 
                 const cited = await quoted();
-                const { address } = await linked.start(
+                const isolated = project.file.worktrees !== false;
+                const { address, session } = await linked.start(
                     source,
                     {
                         title: args.title?.trim() || undefined,
-                        message: threadBrief(name, folder, args.message, cited),
+                        message: threadBrief(name, folder, args.message, cited, isolated),
                         cwd: folder,
                         thread: true,
+                        ...(isolated ? { worktree: true } : {}),
                     },
                     key,
                 );
+                const cwd = host.cwdOf(session);
+                const where =
+                    cwd === folder ? folder : `its own worktree ${cwd} (a branch of ${folder})`;
 
                 return reply(
-                    `Started thread ${address} in ${folder}. Its report comes back by itself when its run ends: end your turn and wait; do not poll.`,
+                    `Started thread ${address} in ${where}. Its report comes back by itself when its run ends: end your turn and wait; do not poll.`,
                 );
             }
 
@@ -1424,14 +1443,16 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
                 );
             }
 
-            const { archived } = await linked.archive(
+            const { archived, worktree } = await linked.archive(
                 source,
-                { to: args.to, archived: args.action === "resolve" },
+                { to: args.to, archived: args.action === "resolve", tidy: true },
                 key,
             );
 
             return reply(
-                archived ? `Thread ${args.to} is resolved.` : `Thread ${args.to} is open again.`,
+                archived
+                    ? `Thread ${args.to} is resolved.${worktree === undefined ? "" : ` ${worktree}`}`
+                    : `Thread ${args.to} is open again.`,
             );
         },
     });

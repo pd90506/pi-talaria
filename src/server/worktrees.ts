@@ -71,6 +71,7 @@ export async function createWorktree(
     cwd: string,
     folder: string,
     label: string,
+    options: { clean?: boolean } = {},
 ): Promise<{ worktree: Worktree; cwd: string; skipped: string[] }> {
     if (workspaceScheme(cwd) !== undefined) {
         throw new HttpError(400, "Remote workspaces do not support worktrees.");
@@ -108,6 +109,11 @@ export async function createWorktree(
 
     mkdirSync(folder, { recursive: true });
     await git(root, ["worktree", "add", "-b", worktree.branch, worktree.path, "HEAD"]);
+
+    if (options.clean === true) {
+        // Only the last commit: another session's work in progress in the folder stays out.
+        return { worktree, cwd: resolve(worktree.path, within), skipped: [] };
+    }
 
     try {
         // Uncommitted changes to tracked files, as a commit object that changes nothing here; empty when there are none.
@@ -194,6 +200,41 @@ export async function removeWorktree(worktree: Worktree, force: boolean): Promis
 
         throw new HttpError(500, `The worktree could not be removed: ${message}`);
     }
+}
+
+/**
+ * Whether the worktree's branch has nothing that is not merged: no commits past `HEAD` of the folder it came from, or
+ * past the default branch of its `origin` (fetched first, when it can be). A squash merge on GitHub leaves commits
+ * that git does not see as merged: `merged` then asks the forge (a merged pull request of the branch).
+ */
+export async function branchMerged(
+    worktree: Worktree,
+    merged?: (branch: string, root: string) => Promise<boolean>,
+): Promise<boolean> {
+    const root = await repositoryOf(worktree.source);
+
+    if (root === undefined) {
+        return false;
+    }
+
+    await git(root, ["fetch", "--quiet", "origin"], { timeoutMs: 30_000 }).catch(() => undefined);
+
+    for (const target of ["HEAD", "origin/HEAD", "origin/main", "origin/master"]) {
+        const ahead = await git(root, [
+            "rev-list",
+            "--count",
+            `${target}..${worktree.branch}`,
+        ]).then(
+            (out) => Number(out.trim()),
+            () => undefined,
+        );
+
+        if (ahead === 0) {
+            return true;
+        }
+    }
+
+    return merged === undefined ? false : await merged(worktree.branch, root).catch(() => false);
 }
 
 /** Undo a worktree that a session never got: its folder and its branch. */

@@ -3,6 +3,7 @@
  * at the target's next pause, and each one's final answer carried back to the session that started it.
  */
 import { createHash, randomUUID } from "node:crypto";
+import { join } from "node:path";
 import type { Context } from "@earendil-works/chord/context";
 import type { AssistantMessage, ModelThinkingLevel } from "@earendil-works/pi-ai";
 import { BACKGROUND_CONTEXT, withAbortSignal } from "@earendil-works/chord/context";
@@ -26,6 +27,9 @@ import type {
 import type { RequestActor } from "./extension-request.ts";
 import { LinkedSessionCallsDoc, LinkedSessionPeersDoc, PlanDoc, SessionsDoc } from "./docs.ts";
 import { ChooseModelError, describe, HttpError } from "./errors.ts";
+import { runGh } from "./github.ts";
+import { git } from "./git.ts";
+import { branchMerged, createWorktree, discardWorktree, type Worktree } from "./worktrees.ts";
 import { defang, INVISIBLE_CLASS } from "./fence.ts";
 import { isThinkingLevel, levelFor, resolveModel, THINKING_LEVELS } from "./models.ts";
 import { requestFor } from "./requests.ts";
@@ -781,6 +785,7 @@ export class LinkedSessions implements LinkedSessionsApi {
             thinking?: string;
             cwd?: string;
             thread?: boolean;
+            worktree?: boolean;
         },
         key: string,
     ): Promise<{ session: ConversationId; address: string; answers: boolean }> {
@@ -796,6 +801,7 @@ export class LinkedSessions implements LinkedSessionsApi {
             thinking?: string;
             cwd?: string;
             thread?: boolean;
+            worktree?: boolean;
         },
         key: string,
         actor?: RequestActor,
@@ -977,6 +983,7 @@ export class LinkedSessions implements LinkedSessionsApi {
             thinking?: string;
             cwd?: string;
             thread?: boolean;
+            worktree?: boolean;
         },
         token: string,
         actor?: RequestActor,
@@ -1007,8 +1014,78 @@ export class LinkedSessions implements LinkedSessionsApi {
             throw new HttpError(400, `The model ${spec} cannot be used now: ${problem}.`);
         }
 
-        const cwd = approved?.cwd ?? (await this.#directory(source, user, agent, request.cwd));
+        const folder = approved?.cwd ?? (await this.#directory(source, user, agent, request.cwd));
+        // Only an extension's own call gets a worktree: a thread that changes code works on a branch of its own.
+        const made =
+            request.worktree === true && actor === undefined
+                ? await this.#worktreeFor(folder, title)
+                : undefined;
+        const cwd = made?.cwd ?? folder;
         const now = Date.now();
+
+        try {
+            return await this.#commitCreate(source, user, request, token, actor, agent, {
+                title,
+                model,
+                thinking,
+                cwd,
+                now,
+                ...(made === undefined ? {} : { worktree: made.worktree }),
+            });
+        } catch (error) {
+            if (made !== undefined) {
+                await discardWorktree(made.worktree).catch((cleanup: unknown) =>
+                    app.log(`worktree ${made.worktree.path} left behind: ${describe(cleanup)}`),
+                );
+            }
+
+            throw error;
+        }
+    }
+
+    /**
+     * A clean worktree of \`folder\`'s repository for a new thread, on a branch of its own; undefined when \`folder\` is
+     * not in a git repository (or one with no commits), where the thread works in \`folder\` as before.
+     */
+    async #worktreeFor(
+        folder: string,
+        title: string,
+    ): Promise<{ worktree: Worktree; cwd: string } | undefined> {
+        if (this.#app.workspaceScheme(folder) !== undefined) {
+            return undefined;
+        }
+
+        try {
+            return await createWorktree(folder, join(this.#app.dataDir, "worktrees"), title, {
+                clean: true,
+            });
+        } catch (error) {
+            if (error instanceof HttpError && error.status === 400) {
+                return undefined;
+            }
+
+            throw error;
+        }
+    }
+
+    async #commitCreate(
+        source: ConversationId,
+        user: User,
+        request: { model?: string; thinking?: string; thread?: boolean },
+        token: string,
+        actor: RequestActor | undefined,
+        agent: AgentState,
+        made: {
+            title: string;
+            model: ModelRef;
+            thinking: ModelThinkingLevel;
+            cwd: string;
+            now: number;
+            worktree?: Worktree;
+        },
+    ): Promise<ConversationId> {
+        const app = this.#app;
+        const { title, model, thinking, cwd, now } = made;
 
         return app.harness.commit(async (tx) => {
             let inherited = agent;
@@ -1061,6 +1138,7 @@ export class LinkedSessions implements LinkedSessionsApi {
                 updatedAt: now,
                 createdBy: user.id,
                 linkedFrom: { id: Number(source) },
+                ...(made.worktree === undefined ? {} : { worktree: made.worktree }),
                 // Only an extension's own call makes a thread, and only a session that is not linked leads one.
                 ...(request.thread === true &&
                 actor === undefined &&
@@ -1312,6 +1390,59 @@ export class LinkedSessions implements LinkedSessionsApi {
      * `key` changes nothing again, and returns the state the first call left.
      */
     async archive(
+        source: ConversationId,
+        request: { to: string; archived?: boolean; tidy?: boolean },
+        key: string,
+    ): Promise<{ archived: boolean; repeating: number; worktree?: string }> {
+        const result = await this.#archive(source, request, key);
+
+        if (!result.archived || request.tidy !== true) {
+            return result;
+        }
+
+        const { id, user } = await this.#addressed(source, request.to, `${key}:tidy`);
+
+        return { ...result, worktree: await this.#tidy(id, user) };
+    }
+
+    /**
+     * Remove an archived thread's worktree and its branch, only when the branch is merged and nothing is left
+     * uncommitted; otherwise both stay. Says what happened, in a few words.
+     */
+    async #tidy(id: ConversationId, user: User): Promise<string | undefined> {
+        const app = this.#app;
+        const worktree = app.sessionMeta(id)?.worktree;
+
+        if (worktree === undefined) {
+            return undefined;
+        }
+
+        const kept = `Its worktree ${worktree.path} and branch ${worktree.branch} stay`;
+
+        const fromGitHub = async (branch: string, root: string) =>
+            (
+                await runGh(
+                    ["pr", "list", "--head", branch, "--state", "merged", "--json", "number"],
+                    root,
+                )
+            ).trim() !== "[]";
+
+        if (!(await branchMerged(worktree, fromGitHub))) {
+            return `${kept}: the branch is not merged.`;
+        }
+
+        try {
+            await app.commands.removeWorktree(id, user, false);
+        } catch (error) {
+            return `${kept}: ${describe(error)}`;
+        }
+
+        await git(worktree.source, ["branch", "-D", worktree.branch]).catch(() => undefined);
+
+        return `Its branch ${worktree.branch} was merged: its worktree and branch are removed.`;
+    }
+
+    async #archive(
         source: ConversationId,
         request: { to: string; archived?: boolean },
         key: string,

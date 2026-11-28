@@ -223,3 +223,83 @@ test("a worktree another session works in stays, and a session's subagents leave
     assert.equal(app.cwdOf(id), join(repo, "app"));
     assert.equal(app.cwdOf(helper), join(repo, "app"), "the helper went back with it");
 });
+
+test("each thread started with a worktree works on a clean branch of its own; resolving removes it only once merged", async () => {
+    const lead = await newSession(app);
+
+    await app.commands.configure(lead, owner(app), {
+        model: { provider: "faux", modelId: "faux-1" },
+    });
+    await say(app, lead, "hello");
+    const start = (title: string) =>
+        app.linkedSessions.start(
+            lead,
+            { title, message: "a task", cwd: join(repo, "app"), thread: true, worktree: true },
+            `thread-${title}`,
+        );
+    const one = await start("One");
+    const two = await start("Two");
+    const first = app.sessionMeta(one.session)!.worktree!;
+    const second = app.sessionMeta(two.session)!.worktree!;
+
+    assert.notEqual(first.path, second.path);
+    assert.notEqual(first.branch, second.branch);
+    assert.equal(app.cwdOf(one.session), join(first.path, "app"));
+    assert.equal(
+        readFileSync(join(first.path, "app", "main.ts"), "utf8"),
+        "export const answer = 1;\n",
+        "the last commit only: the folder's uncommitted work stays out",
+    );
+    assert.equal(existsSync(join(first.path, "app", "notes.md")), false);
+    assert.equal((await start("One")).session, one.session, "a repeat makes no second worktree");
+
+    await until(async () => !app.busyConversations().includes(one.session), "thread one idle");
+    await until(async () => !app.busyConversations().includes(two.session), "thread two idle");
+
+    // Thread one commits work nobody merged: resolving it keeps the worktree and the branch.
+    writeFileSync(join(first.path, "app", "one.ts"), "1\n");
+    gitIn(first.path, "add", "-A");
+    gitIn(first.path, "commit", "-qm", "one");
+    const kept = await app.linkedSessions.archive(
+        lead,
+        { to: one.address, archived: true, tidy: true },
+        "resolve-one",
+    );
+
+    assert.equal(kept.archived, true);
+    assert.match(kept.worktree ?? "", /not merged/);
+    assert.ok(existsSync(first.path));
+
+    // Thread two has nothing unmerged: its worktree and branch go, and it is back in the folder.
+    const gone = await app.linkedSessions.archive(
+        lead,
+        { to: two.address, archived: true, tidy: true },
+        "resolve-two",
+    );
+
+    assert.match(gone.worktree ?? "", /removed/);
+    assert.equal(existsSync(second.path), false);
+    assert.equal(gitIn(repo, "branch", "--list", second.branch), "");
+    assert.equal(app.sessionMeta(two.session)?.worktree, undefined);
+    assert.equal(app.cwdOf(two.session), join(repo, "app"));
+});
+
+test("a thread asked for a worktree in a folder outside git works in the folder", async () => {
+    const plain = join(root, "plain");
+
+    mkdirSync(plain, { recursive: true });
+    const lead = await newSession(app);
+
+    await app.commands.configure(lead, owner(app), {
+        model: { provider: "faux", modelId: "faux-1" },
+    });
+    await say(app, lead, "hello");
+    const { session } = await app.linkedSessions.start(
+        lead,
+        { message: "a task", cwd: plain, thread: true, worktree: true },
+        "plain-thread",
+    );
+
+    assert.equal(app.cwdOf(session), plain);
+    assert.equal(app.sessionMeta(session)?.worktree, undefined);
+});
