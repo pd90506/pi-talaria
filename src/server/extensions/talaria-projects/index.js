@@ -656,8 +656,8 @@ export default function setup(pocket) {
 
     /**
      * A thread in the Threads panel, as Claude's projects show one: a head with Back, its title, a done check that
-     * resolves it, and a ⋯ menu (open it in full, reopen it, its helpers); then the thread itself, in a frame of the
-     * app (`?frame=thread`): its conversation, and a box to steer it.
+     * resolves it, a button that opens it in full view, and a ⋯ menu (reopen it, its helpers; a helper has none); then
+     * the thread itself, in a frame of the app (`?frame=thread`): its conversation, and a box to steer it.
      */
     function ThreadView({ thread, helper }) {
         const [menu, setMenu] = useState(false);
@@ -714,27 +714,34 @@ export default function setup(pocket) {
                 }
                 <button
                     type="button"
-                    class=${`icon-button ${menu ? "on" : ""}`}
-                    aria-label="More"
-                    aria-haspopup="menu"
-                    aria-expanded=${menu}
-                    onClick=${() => setMenu(!menu)}
+                    class="icon-button talaria-full"
+                    aria-label="Open in full view"
+                    title="Open in full view"
+                    onClick=${() => {
+                        setMenu(false);
+                        pocket.openConversation(shown.id);
+                    }}
                 >
-                    <${Icon} name="more" size=${18} />
+                    <${Icon} name="fit" size=${18} />
                 </button>
                 ${
+                    !helper &&
+                    html`<button
+                        type="button"
+                        class=${`icon-button ${menu ? "on" : ""}`}
+                        aria-label="More"
+                        title="More"
+                        aria-haspopup="menu"
+                        aria-expanded=${menu}
+                        onClick=${() => setMenu(!menu)}
+                    >
+                        <${Icon} name="more" size=${18} />
+                    </button>`
+                }
+                ${
                     menu &&
+                    !helper &&
                     html`<div class="talaria-menu" role="menu">
-                        <button
-                            type="button"
-                            role="menuitem"
-                            onClick=${() => {
-                                setMenu(false);
-                                pocket.openConversation(shown.id);
-                            }}
-                        >
-                            Open in full view
-                        </button>
                         ${
                             !helper &&
                             thread.resolved &&
