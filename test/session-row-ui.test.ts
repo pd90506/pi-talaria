@@ -521,13 +521,13 @@ test(
     async () => {
         await fresh();
         const edge = await inPage<{ x: number; y: number; to: number; width: number }>(`
-        const box = document.querySelector(".sidebar .resize-handle").getBoundingClientRect();
+        const box = document.querySelector(".sidebar-gutter .resize-handle").getBoundingClientRect();
         const sidebar = document.querySelector(".sidebar").getBoundingClientRect();
         window.rootChanges = 0;
         new MutationObserver((records) => (window.rootChanges += records.length)).observe(
             document.documentElement, { attributeFilter: ["style", "class"] });
-        return JSON.stringify({ x: box.left + 4, y: box.top + box.height / 2,
-            to: Math.round(box.left + 64 - sidebar.left), width: Math.round(sidebar.width) });
+        return JSON.stringify({ x: box.left + box.width / 2, y: box.top + box.height / 2,
+            to: Math.round(sidebar.width + 60), width: Math.round(sidebar.width) });
     `);
         const at = (dx: number) => ({ x: edge.x + dx, y: edge.y });
         const sidebar = () =>
@@ -552,8 +552,8 @@ test(
         assert.equal((await sidebar()).root, `${edge.to}px`, "the root takes the width once");
         // Let go outside the page: the next move, with no button down, ends the drag.
         const now = await inPage<{ x: number; y: number }>(`
-            const box = document.querySelector(".sidebar .resize-handle").getBoundingClientRect();
-            return JSON.stringify({ x: box.left + 4, y: box.top + box.height / 2 });
+            const box = document.querySelector(".sidebar-gutter .resize-handle").getBoundingClientRect();
+            return JSON.stringify({ x: box.left + box.width / 2, y: box.top + box.height / 2 });
         `);
         const veiled = () =>
             inPage<boolean>(`return String(!!document.querySelector(".resize-veil"))`);

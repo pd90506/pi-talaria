@@ -35,7 +35,6 @@ import {
     store,
 } from "./store.js";
 import { askPipFrom, openPip } from "./pip.js";
-import { DockEdge } from "./dock-edge.js";
 import { DockHead, isDockTab } from "./side-dock.js";
 import { fromExtensions, SLOTS, slotsChanged } from "./slots.js";
 import { setCallSummary } from "./turns.js";
@@ -2932,7 +2931,7 @@ export function ExtensionPanel({ leaving = false }) {
     const title = spec?.title ?? record?.title ?? "Extension";
     const close = useMemo(() => panelCloser(record, target?.id), [record, target?.id]);
     const beside = panelsBeside();
-    // One of the side dock's tabs (a project's Threads): it shares the dock's width and its edge.
+    // One of the side dock's tabs (a project's Threads): it shares the dock's width.
     const docked = beside && target && isDockTab(target.module, target.id);
 
     useBack(!beside && !leaving, closeExtPanel);
@@ -2989,6 +2988,5 @@ export function ExtensionPanel({ leaving = false }) {
         <div class="ext-panel-body">
             <${Body} record=${record} spec=${spec} title=${title} props=${{}} close=${close} />
         </div>
-        ${docked && html`<${DockEdge} className="ext-panel-resize" />`}
     </section>`;
 }

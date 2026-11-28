@@ -8,7 +8,6 @@ import { useBack } from "./back.js";
 import { DiffReview, KIND_LETTERS, reloadChanges, useChanges, useWidth } from "./diff.js";
 import { loadFiles, suggestFiles } from "./files.js";
 import { FileView } from "./sheets/file.js";
-import { DockEdge } from "./dock-edge.js";
 import { DockHead } from "./side-dock.js";
 import { actions, canSteer, panelsBeside, store } from "./store.js";
 import {
@@ -634,7 +633,6 @@ function FilesPanelContent({ leaving = false }) {
         tabindex="-1"
         inert=${leaving}
     >
-        <${DockEdge} className="files-resize" />
         ${beside && html`<${DockHead} counts=${{ changes: count }} />`}
         <header class="files-bar">
             ${

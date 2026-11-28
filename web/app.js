@@ -17,6 +17,7 @@ import {
 } from "./files-panel.js";
 import { ExtensionPage, ExtensionPanel, extPanelShown } from "./extension-ui.js";
 import { startEdgeBack, startSwipes, useDragToClose } from "./gestures.js";
+import { DockEdge } from "./dock-edge.js";
 import { Splash } from "./home.js";
 import { Launcher } from "./launcher.js";
 import "./embedder.js";
@@ -39,6 +40,7 @@ import { QuoteReplyButton } from "./quote-reply.js";
 import { Sheets } from "./sheets.js";
 import { defineItem, slotItems } from "./slots.js";
 import { branchAvailable, headLabel } from "./sheets/branch.js";
+import { isDockTab } from "./side-dock.js";
 import { SignIn } from "./signin.js";
 import { openSubagents } from "./subagents.js";
 import { RunningBoard } from "./running-board.js";
@@ -550,6 +552,9 @@ function App() {
     const filing = !placed && filesShown(state);
     // An extension's panel, in the same place: one panel at a time, so opening one closes the others.
     const paneling = !placed && !browsing && !filing && extPanelShown(state);
+    // A panel of the side dock beside the conversation: the gap left of it drags its width (dock-edge.js).
+    const docking =
+        browsing || filing || (paneling && isDockTab(state.extPanel.module, state.extPanel.id));
 
     return html`<div
         class=${`layout ${inConversation || placed ? "" : "home"} ${browsing ? "browsing" : ""} ${filing ? "filing" : ""} ${paneling ? "paneling" : ""}`}
@@ -559,11 +564,11 @@ function App() {
             ${
                 sidebar &&
                 html`<div class="sidebar-clip">
-                        <${Sidebar} />
-                    </div>
-                    <${ResizeHandle} />`
+                    <${Sidebar} />
+                </div>`
             }
         </aside>
+        ${sidebar && html`<div class="gutter sidebar-gutter"><${ResizeHandle} /></div>`}
         <div class=${`pane window ${placed ? "boarded" : ""}`} data-part="pane">
             ${
                 board === "running"
@@ -589,6 +594,7 @@ function App() {
                       ${sidebar && html`<${Splash} />`}`
             }
         </div>
+        ${docking && html`<div class="gutter dock-gutter"><${DockEdge} /></div>`}
         <${PanelHost}
             key=${`browser:${state.conversationId}`}
             shown=${browsing}

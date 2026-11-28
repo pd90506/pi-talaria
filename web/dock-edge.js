@@ -1,4 +1,4 @@
-// The side dock's left edge: drag it to resize whichever panel shows beside the conversation (Threads, Files, Changes,
+// The side dock's left edge, in the gap between the conversation's card and the panel's (app.js): drag it to resize whichever panel shows beside the conversation (Threads, Files, Changes,
 // Browser). They share one width (`--dock-w`), kept in this browser, so switching tabs does not jump; a double click
 // puts each panel back to its own usual width.
 import { dragWidth, html } from "./ui.js";
@@ -44,30 +44,41 @@ function dockMax(panel) {
     return Math.max(DOCK_MIN, right - left - PANE_MIN);
 }
 
-/** Drag the panel's left edge to resize it on wide screens; double-click goes back to its usual width. */
-export function DockEdge({ className = "" }) {
+/** The panel the side dock shows now, beside the conversation. */
+const shownPanel = () =>
+    document.querySelector(".layout > :is(.files-tile, .browser, .ext-panel.docked):not(.leaving)");
+
+/** Drag the dock's left edge to resize it on wide screens; double-click goes back to its usual width. */
+export function DockEdge() {
     const start = (event) => {
         if (event.button !== 0) {
             return;
         }
 
+        const panel = shownPanel();
+
+        if (panel === null) {
+            return;
+        }
+
         event.preventDefault();
-        const panel = event.currentTarget.parentElement;
-        const right = panel.getBoundingClientRect().right;
+        // From where the press was: the panel does not jump to the pointer, a few pixels off its edge in the gap.
+        const from = panel.getBoundingClientRect().width + event.clientX;
         const max = dockMax(panel);
 
         dragWidth(event, {
             element: panel,
             property: "flex-basis",
-            widthAt: (each) => Math.round(Math.min(max, Math.max(DOCK_MIN, right - each.clientX))),
+            widthAt: (each) => Math.round(Math.min(max, Math.max(DOCK_MIN, from - each.clientX))),
             done: (width) => keep(width),
         });
     };
 
     return html`<div
-        class=${`resize-handle dock-resize ${className}`}
+        class="resize-handle"
         role="separator"
         aria-orientation="vertical"
+        aria-label="Resize the panel"
         title="Drag to resize"
         onPointerDown=${start}
         onDblClick=${() => keep(null)}

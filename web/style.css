@@ -963,29 +963,48 @@ kbd {
     }
 }
 
-/* Drag the sidebar's edge to resize it; double-click puts it back. Inside the window, which cuts off what is past it. */
+/* The gap between two cards, where a drag resizes the one beside it (the sidebar's gap, the side dock's): no width of
+ * its own, and its margins take back the gap the layout puts around it, so the cards keep one gap between them. Its
+ * handle is centered in that gap and a little wider, for an easier hold. Only where the cards sit side by side. */
+.gutter {
+    display: none;
+    position: relative;
+    flex: none;
+    width: 0;
+}
+
+:root[data-tiling="on"] .gutter {
+    margin-inline: calc(var(--gap-in) * -1);
+}
+
+@media (min-width: 960px) {
+    .sidebar-gutter {
+        display: block;
+    }
+}
+
+@media (min-width: 1100px) {
+    .dock-gutter {
+        display: block;
+    }
+}
+
 .resize-handle {
     position: absolute;
     top: 0;
     bottom: 0;
-    right: 0;
-    width: 8px;
+    left: -6px;
+    width: 12px;
     cursor: col-resize;
     z-index: 7;
     touch-action: none;
-}
-
-/* A sidebar a theme put on the right: its handle is on its left edge (`useSide`). */
-.resize-handle.at-left {
-    left: 0;
-    right: auto;
 }
 
 .resize-handle::before {
     content: "";
     position: absolute;
     top: 50%;
-    left: 3px;
+    left: 5px;
     width: 2px;
     height: 36px;
     margin-top: -18px;
@@ -998,7 +1017,8 @@ kbd {
         transform var(--t-in) var(--ease-out);
 }
 
-.resizing > .resize-handle::before {
+.sidebar.resizing + .sidebar-gutter > .resize-handle::before,
+.dock-gutter:has(~ .resizing) > .resize-handle::before {
     opacity: 1;
     transform: none;
 }
@@ -13697,10 +13717,6 @@ textarea.notes {
     animation: popin var(--t-in) var(--ease-out);
 }
 
-.files-resize {
-    display: none;
-}
-
 /* Over the conversation, below 1100px: no frame of its own. */
 @media (max-width: 1099px) {
     :root[data-tiling="on"] .files-tile.window {
@@ -13725,12 +13741,6 @@ textarea.notes {
     :root[data-tiling="on"] .layout.filing .files-tile {
         height: auto;
     }
-
-    .files-resize {
-        display: block;
-        left: 0;
-        right: auto;
-    }
 }
 
 /* ─── Extension panels ─────────────────────────────────────── */
@@ -13745,10 +13755,6 @@ textarea.notes {
     flex-direction: column;
     background: var(--bg);
     animation: popin var(--t-in) var(--ease-out);
-}
-
-.ext-panel-resize {
-    display: none;
 }
 
 /* Over the conversation, below 1100px: no frame of its own. */
@@ -13778,14 +13784,9 @@ textarea.notes {
     .layout.paneling .ext-panel.wide {
         --ext-panel-w: 44%;
     }
-    /* A side dock tab: the dock's width, which its left edge drags (dock-edge.js). */
+    /* A side dock tab: the dock's width, which the gap left of it drags (dock-edge.js). */
     .layout.paneling .ext-panel.docked {
         flex-basis: var(--dock-w, var(--ext-panel-w, 400px));
-    }
-    .ext-panel-resize {
-        display: block;
-        left: 0;
-        right: auto;
     }
 }
 
@@ -14269,10 +14270,6 @@ textarea.notes {
     animation: popin var(--t-in) var(--ease-out);
 }
 
-.browser-resize {
-    display: none;
-}
-
 /* Over the conversation, below 1100px: no frame of its own. */
 @media (max-width: 1099px) {
     :root[data-tiling="on"] .browser.window {
@@ -14296,12 +14293,6 @@ textarea.notes {
     }
     :root[data-tiling="on"] .layout.browsing .browser {
         height: auto;
-    }
-
-    .browser-resize {
-        display: block;
-        left: 0;
-        right: auto;
     }
 }
 
