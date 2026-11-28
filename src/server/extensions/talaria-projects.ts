@@ -22,6 +22,20 @@ import type { ExtensionWeb, PocketHost, WebHandler } from "../host.ts";
 import type { SessionMessage } from "../session-messages.ts";
 import { PROJECTS_PIP_EXTENSION } from "../pip.ts";
 import { literal } from "../tool-schema.ts";
+import { parseRepo, runGh } from "../github.ts";
+import {
+    cloneCheckout,
+    defaultClonePlace,
+    developAgents,
+    developKickoff,
+    DEVELOP_NAME,
+    expandPath,
+    findCheckouts,
+    githubCopy,
+    notACheckout,
+    updateProjectJson,
+    upstreamRepo,
+} from "../talaria-develop.ts";
 import {
     deleteMemory,
     FILE_BYTES,
@@ -137,6 +151,12 @@ interface ProjectFile {
     name?: string;
     /** Folders that the project's threads may work in, besides the project's own folder. */
     folders?: string[];
+    /** The GitHub repository the project works on, `owner/name` (Develop's project: pi-talaria, or a fork of it). */
+    repository?: string;
+    /** pi-talaria's repository, when `repository` is a fork of it. */
+    upstream?: string;
+    /** The local checkout of `repository` that the project's threads work in, once bound (`project_repo`). */
+    checkout?: string;
 }
 
 const MAX_NAME = 80;
@@ -258,7 +278,12 @@ function readProjectFile(path: string): ProjectFile {
         const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
 
         if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
-            const { name, folders } = parsed as Record<string, unknown>;
+            const { name, folders, repository, upstream, checkout } = parsed as Record<
+                string,
+                unknown
+            >;
+            const repo = (value: unknown) =>
+                typeof value === "string" && parseRepo(value) === value ? value : undefined;
 
             file = {
                 ...(typeof name === "string" ? { name } : {}),
@@ -272,6 +297,9 @@ function readProjectFile(path: string): ProjectFile {
                               .slice(0, MAX_FOLDERS),
                       }
                     : {}),
+                ...(repo(repository) === undefined ? {} : { repository: repo(repository)! }),
+                ...(repo(upstream) === undefined ? {} : { upstream: repo(upstream)! }),
+                ...(typeof checkout === "string" && isAbsolute(checkout) ? { checkout } : {}),
             };
         }
     } catch {
@@ -356,6 +384,7 @@ function coordinatorRules(project: { id: string; folder: string; file: ProjectFi
     return [
         `You are the coordinator of the project ${JSON.stringify(name)}: the one ongoing conversation where the person sends all of this project's work. You organize; threads do the work. Like a lead who delegates, you never do the task yourself.`,
         `Threads may work in: ${folders.map((each) => JSON.stringify(each)).join(", ")}. To allow another folder, add it to "folders" in ${JSON.stringify(join(project.folder, "project.json"))}, only when the person says which.`,
+        ...repositoryRules(project.file),
         "",
         "## How you coordinate",
         `- In this conversation, tools that run commands, change files, or hand work to other agents (${COORDINATOR_WITHOUT.join(", ")}) are refused. Use threads. You may read a file or two, look something up, and keep project memory.`,
@@ -377,6 +406,22 @@ function coordinatorRules(project: { id: string; folder: string; file: ProjectFi
         '- Preferences such as "propose before starting" or "at most two threads at a time" go into project memory; follow them.',
         "- Write in the language the person writes in.",
     ].join("\n");
+}
+
+/** What a coordinator is told of its project's repository and checkout, when it has one. */
+function repositoryRules(file: ProjectFile): string[] {
+    if (file.repository === undefined) {
+        return [];
+    }
+
+    const fork = file.upstream === undefined ? "" : ` (a fork of ${file.upstream})`;
+
+    return [
+        `Repository: ${file.repository}${fork}.`,
+        file.checkout === undefined
+            ? "It has no local checkout yet. Before work in it, ask the person (with the ask tool) whether to bind a checkout this machine has (project_repo find lists them) or let the app clone it (project_repo clone, to a place they pick); do it with project_repo bind or clone once they answer, never before."
+            : `Its local checkout is ${JSON.stringify(file.checkout)}: start threads that change the code there. To use another one, project_repo bind or clone, when the person asks.`,
+    ];
 }
 
 /** The rules a thread gets in its system prompt. */
@@ -429,7 +474,12 @@ function refusal(name: string, folders: string[]): string | undefined {
 }
 
 /** A new project's folder and files, under an id no project has yet: `name`, or `name-2`, and so on. */
-function makeFolder(name: string, folders: string[], taken: ReadonlySet<string>) {
+function makeFolder(
+    name: string,
+    folders: string[],
+    taken: ReadonlySet<string>,
+    extra: { file?: Partial<ProjectFile>; agents?: string } = {},
+) {
     const projects = join(pipRoot(), "projects");
     const base = projectId(name) || "project";
     let id = base;
@@ -442,10 +492,12 @@ function makeFolder(name: string, folders: string[], taken: ReadonlySet<string>)
 
     mkdirSync(join(pipRoot(), "home"), { recursive: true });
     mkdirSync(join(folder, "memory"), { recursive: true, mode: 0o700 });
-    writeFileSync(join(folder, "project.json"), `${JSON.stringify({ name, folders }, null, 4)}\n`, {
-        flag: "wx",
-    });
-    writeFileSync(join(folder, "AGENTS.md"), agentsTemplate(name), { flag: "wx" });
+    writeFileSync(
+        join(folder, "project.json"),
+        `${JSON.stringify({ name, folders, ...extra.file }, null, 4)}\n`,
+        { flag: "wx" },
+    );
+    writeFileSync(join(folder, "AGENTS.md"), extra.agents ?? agentsTemplate(name), { flag: "wx" });
 
     return { id, folder };
 }
@@ -824,6 +876,90 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
             web.send("changed");
 
             return record;
+        });
+
+        // Versions → Develop: the project for developing pi-talaria, made once, on the person's GitHub copy of it.
+        web.route("POST", "develop", async (request) => {
+            if (typeof request.createSession !== "function") {
+                throw web.error(503, "Projects need a server restart before they can be made.");
+            }
+
+            const upstream = await upstreamRepo(host.dataDir);
+            const items = (await request.snapshot(Projects, request.context))?.items ?? {};
+            const mine = Object.values(items).find((each) => {
+                const file = projectAt(each.folder)?.file;
+
+                return (
+                    each.status === "active" &&
+                    file !== undefined &&
+                    [file.repository, file.upstream].some(
+                        (repo) => repo?.toLowerCase() === upstream.toLowerCase(),
+                    )
+                );
+            });
+
+            if (mine !== undefined) {
+                return { ...mine, existing: true };
+            }
+
+            const copy = await githubCopy(runGh, upstream).catch((error: unknown) => {
+                const status = (error as { status?: unknown }).status;
+
+                throw web.error(
+                    typeof status === "number" ? status : 502,
+                    error instanceof Error ? error.message : String(error),
+                );
+            });
+            const repos = {
+                repository: copy.repository,
+                ...(copy.upstream === undefined ? {} : { upstream: copy.upstream }),
+            };
+            const { id, folder } = makeFolder(DEVELOP_NAME, [], new Set(Object.keys(items)), {
+                file: repos,
+                agents: developAgents(repos),
+            });
+            const { id: coordinator } = await request.createSession({
+                cwd: folder,
+                title: DEVELOP_NAME,
+            });
+            const record: ProjectRecord = {
+                id,
+                name: DEVELOP_NAME,
+                folder,
+                coordinator,
+                status: "active",
+                createdAt: Date.now(),
+            };
+
+            await request.commit(async (tx) => {
+                (await tx.doc(Projects)).items[id] = record;
+            });
+            web.send("changed");
+
+            // The coordinator speaks first: it asks which checkout to use.
+            const found = await findCheckouts(host.dataDir, repos);
+            const kickoff = developKickoff(
+                { ...repos, forked: copy.forked },
+                found,
+                defaultClonePlace(repos.repository),
+            );
+
+            await host.inbox
+                ?.deliver(coordinator as unknown as ConversationId, {
+                    by: request.user.id,
+                    via: "Versions",
+                    key: `talaria-develop:${id}`,
+                    tag: "develop-project",
+                    ...kickoff,
+                })
+                .catch((error: unknown) =>
+                    host.notice(
+                        "warning",
+                        `Develop: the first message did not go: ${String(error)}`,
+                    ),
+                );
+
+            return { ...record, ...repos, forked: copy.forked };
         });
     }
 
@@ -1911,6 +2047,100 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
         },
     });
 
+    const projectRepo = defineTool({
+        name: "project_repo",
+        description:
+            "The project's repository and its local checkout, for its coordinator. find: the checkouts of it this machine has, and where a clone would go. " +
+            "bind (folder): use an existing checkout; its threads work there. clone (folder, optional; default the suggested place): clone the repository to a folder that is not there yet, then bind it. " +
+            "Bind or clone only after the person chose it.",
+        parameters: obj({
+            action: union([literal("find"), literal("bind"), literal("clone")]),
+            folder: opt(
+                str({
+                    description:
+                        "bind: the checkout's top folder; clone: where the clone goes (absolute or ~/…)",
+                }),
+            ),
+        }),
+        // A clone cut off by a restart is not run again: the model sees it stopped, and can look with find.
+        replay: "unsafe",
+        execute: async (args, api, context) => {
+            const found = await roleOf(api.conversationId, () => api.snapshot(Projects, context));
+
+            if (found?.role !== "coordinator") {
+                throw new Error("project_repo works in a project's coordinator.");
+            }
+
+            const { file, folder: home } = found.project;
+
+            if (file.repository === undefined) {
+                throw new Error(
+                    `This project names no repository: "repository" in ${join(home, "project.json")} is "owner/name".`,
+                );
+            }
+
+            const repos = {
+                repository: file.repository,
+                ...(file.upstream === undefined ? {} : { upstream: file.upstream }),
+            };
+            const checkouts = await findCheckouts(host.dataDir, repos, [
+                ...(file.checkout === undefined ? [] : [file.checkout]),
+                ...threadFolders(found.project).slice(1),
+            ]);
+            const place = defaultClonePlace(repos.repository);
+
+            if (args.action === "find") {
+                return reply(
+                    [
+                        `Repository: ${repos.repository}${repos.upstream === undefined ? "" : ` (a fork of ${repos.upstream})`}`,
+                        `Bound checkout: ${file.checkout ?? "none yet"}`,
+                        `Checkouts on this machine: ${checkouts.length === 0 ? "none" : checkouts.join(", ")}`,
+                        `A clone would go to: ${place}${checkouts.length === 0 ? " (from GitHub)" : ` (copied from ${checkouts[0]!}, then fetched from GitHub)`}`,
+                    ].join("\n"),
+                );
+            }
+
+            const requester = host.requesterOf(api.conversationId);
+
+            if (requester === undefined || host.roleOf(requester) !== "owner") {
+                throw new Error("Only the owner binds or clones the project's repository.");
+            }
+
+            const given = args.folder?.trim();
+            const target = given ? resolve(expandPath(given)) : place;
+
+            if (args.action === "clone") {
+                await cloneCheckout(runGh, repos, target, checkouts[0]);
+            } else {
+                if (!given) {
+                    throw new Error("bind needs folder: the checkout's top folder.");
+                }
+
+                const refused = await notACheckout(target, repos);
+
+                if (refused !== undefined) {
+                    throw new Error(refused);
+                }
+            }
+
+            updateProjectJson(home, (json) => {
+                const folders = Array.isArray(json.folders)
+                    ? json.folders.filter((each): each is string => typeof each === "string")
+                    : [];
+
+                json.folders = folders.some((each) => resolve(home, expandPath(each)) === target)
+                    ? folders
+                    : [...folders, target];
+                json.checkout = target;
+            });
+            web?.send("changed");
+
+            return reply(
+                `${args.action === "clone" ? "Cloned" : "Bound"} ${repos.repository} at ${target}: it is the project's checkout now, and its threads may work there. Tell the person in a line, and what they can ask for next.`,
+            );
+        },
+    });
+
     const projectSearch = defineTool({
         name: "search_history",
         description:
@@ -1982,7 +2212,7 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
         }),
         defineExtension({
             name: "talaria-projects",
-            tools: [thread, projectMemoryTool, projectSearch],
+            tools: [thread, projectMemoryTool, projectSearch, projectRepo],
             wraps: readOnly,
             sections: [
                 section("talaria-project", async ({ conversationId, read }, context) => {

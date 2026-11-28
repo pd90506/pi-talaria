@@ -1,7 +1,7 @@
 // Versions: the releases of pi-talaria that this server keeps, updates from the release source, and going back
 // (`src/server/release-manager.ts`, `/api/releases`). The owner's.
 import { useEffect, useState } from "preact/hooks";
-import { api, attempt, closeSheet, notify } from "../store.js";
+import { api, attempt, closeSheet, navigate, notify } from "../store.js";
 import { formatWhen, html, Loader, Sheet, timeAgo } from "../ui.js";
 
 const short = (sha) => sha.slice(0, 7);
@@ -87,6 +87,48 @@ function DevRow({ instance, act }) {
                 </button>`
             }
         </span>
+    </div>`;
+}
+
+/**
+ * Develop: the project for working on pi-talaria from inside it (`talaria-develop.ts`), on the owner's GitHub copy of
+ * the repository: theirs when they can push to it, else a fork made now. Opens its coordinator, which asks first which
+ * local checkout to use.
+ */
+function Develop() {
+    const [making, setMaking] = useState(false);
+    const develop = () =>
+        attempt(async () => {
+            setMaking(true);
+
+            try {
+                const made = await api("x/talaria-projects/develop", {});
+
+                if (made.forked) {
+                    notify("info", `Forked pi-talaria to ${made.repository} on GitHub.`);
+                }
+
+                navigate(made.coordinator);
+            } finally {
+                setMaking(false);
+            }
+        });
+
+    return html`<div class="group">
+        <div class="group-title">Develop</div>
+        <div class="version-card">
+            <p class="muted small">
+                Change pi-talaria from inside it, in a project of its own. It works on your GitHub copy
+                of the repository (a fork, if you cannot push to it), and asks first which local checkout
+                to use. Each change is tried on a dev instance, merged, then installed here with Update.
+            </p>
+            ${making && html`<${Loader} label="Setting up the project" />`}
+            <div class="version-actions">
+                <button class="button small" disabled=${making} onClick=${develop}>
+                    Develop pi-talaria
+                </button>
+            </div>
+        </div>
     </div>`;
 }
 
@@ -283,6 +325,8 @@ export function VersionsSheet() {
                 </div>
             </div>`
         }
+
+        <${Develop} />
 
         ${
             status.slots.length > 0 &&
