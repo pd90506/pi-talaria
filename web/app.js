@@ -245,14 +245,7 @@ function Topbar() {
             ${waiting > 0 && html`<span class="badge warn">${waiting}</span>`}
         </button>
         <div class="title">
-            <button
-                class="title-open"
-                aria-label=${`${title}${folder ? `, in ${folder}` : ""}: session menu`}
-                title=${cwd ? `${shortPath(cwd, server?.home)}\nSession menu` : "Session menu"}
-                disabled=${!conversation || store.state.me == null}
-                onClick=${() => openSheet({ type: "menu" })}
-            ></button>
-            <span class="title-main" data-part="topbar-title" aria-hidden="true">${title}</span>
+            <span class="title-main" data-part="topbar-title" title=${cwd ? shortPath(cwd, server?.home) : ""}>${title}</span>
             <span class="title-sub" data-part="topbar-sub">
                 ${
                     folder &&
