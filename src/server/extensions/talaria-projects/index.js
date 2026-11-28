@@ -895,6 +895,8 @@ export default function setup(pocket) {
             component: ProjectPanel,
             // A tab of the dock beside a project's sessions, before Files.
             tab: () => projectOf(latest, pocket.conversationId()) !== undefined,
+            // Outside a project it has nothing to show: the dock's button opens it where it is a tab.
+            topbar: false,
         });
 
         // A project's coordinator opens with its threads beside it, where there is room; once a tab, for each.

@@ -45,6 +45,40 @@ export function dockTabs(state = store.state) {
     return tabs;
 }
 
+/** The tab the side dock showed last: its button opens the dock there again. */
+let lastTab = null;
+
+/**
+ * The top bar's one button for the side dock, as Claude's desktop app has: it opens the dock on the tab it showed last
+ * (the first tab, at first), and closes it. Out of the top bar where its pane is narrow (`top-toggle`): the menu's rows
+ * open each tab there.
+ */
+export function DockButton() {
+    const tabs = dockTabs();
+
+    if (tabs.length === 0) {
+        return null;
+    }
+
+    const shown = tabs.find((tab) => tab.on);
+
+    if (shown !== undefined) {
+        lastTab = shown.key;
+    }
+
+    const open = () => (tabs.find((tab) => tab.key === lastTab) ?? tabs[0]).open();
+
+    return html`<button
+        class=${`icon-button top-toggle ${shown ? "on" : ""}`}
+        aria-label="Side panel"
+        aria-pressed=${shown !== undefined}
+        title=${`Side panel: ${tabs.map((tab) => tab.label).join(", ")}`}
+        onClick=${() => (shown ? closeDock() : open())}
+    >
+        <${Icon} name="dock" size=${18} />
+    </button>`;
+}
+
 /** Close whatever panel the side dock shows. */
 export function closeDock() {
     store.set({ filesOpen: false, browserOpen: false, extPanel: null });

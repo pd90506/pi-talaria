@@ -1018,27 +1018,3 @@ export function BrowserPanel({ leaving = false }) {
         }
     </section>`;
 }
-
-/** The top bar's button: shows and hides the panel, marked while a page is open. */
-export function BrowserButton() {
-    const { browser: state, browserOpen } = store.state;
-
-    if (!browserAvailable()) {
-        return null;
-    }
-
-    const live = state?.open && state.url !== "" && state.url !== "about:blank";
-
-    // Quiet with no page open: the menu has the browser. On a phone it shows only while a page is open, so the top
-    // bar keeps room.
-    return html`<button
-        class=${`icon-button badge-host ${browserOpen ? "on" : live ? "quiet-phone" : "quiet"}`}
-        aria-label="Browser"
-        aria-pressed=${browserOpen}
-        title="Browser (Alt+B)"
-        onClick=${toggleBrowser}
-    >
-        <${Icon} name="globe" />
-        ${live && html`<span class="browser-dot" aria-hidden="true"></span>`}
-    </button>`;
-}

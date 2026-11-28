@@ -226,6 +226,8 @@ export default function setup(pocket) {
         iconPath: DESIGN_PATH,
         component: Panel,
         wide: true,
+        // The sidebar's Design row opens it: no button of its own in the top bar.
+        topbar: false,
     });
     pocket.rail({ id: "design", title: "Design", iconPath: DESIGN_PATH, panel: "design" });
     pocket.launcher({

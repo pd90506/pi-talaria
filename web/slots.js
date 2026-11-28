@@ -1,5 +1,5 @@
 // Slots: places in the app built from named items, the app's own and extensions' alike, in one order that extensions can
-// change. The app's items have `core:` names (`core:files`, `core:cache`), extensions' `ext:<module>:<id>`. What shows,
+// change. The app's items have `core:` names (`core:dock`, `core:cache`), extensions' `ext:<module>:<id>`. What shows,
 // and where, comes in layers: each item's default place, then where an extension asked to put its own item (`before`,
 // `after`), then what extensions arranged (`pocket.arrange`). Fixed items (the menu, the connection's warning) always show, in their
 // own place.

@@ -686,23 +686,3 @@ function FilesPanelContent({ leaving = false }) {
         </div>
     </section>`;
 }
-
-/** The top bar's button while the tile is open: hides it. Closed, the tile opens from the menu's tiles and Alt+E. */
-export function FilesButton() {
-    const { filesOpen } = store.state;
-
-    if (!filesAvailable()) {
-        return null;
-    }
-
-    // Out of the top bar where its pane is narrow (a phone's): the menu's tiles, Alt+E, and a swipe left open it.
-    return html`<button
-        class=${`icon-button top-toggle ${filesOpen ? "on" : ""}`}
-        aria-label="Files"
-        aria-pressed=${filesOpen}
-        title="Files and changes (Alt+E)"
-        onClick=${() => toggleFiles()}
-    >
-        <${Icon} name="folder" size=${18} />
-    </button>`;
-}
