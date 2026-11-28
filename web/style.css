@@ -3697,17 +3697,18 @@ pre.diff .del {
 
 /* ─── Composer ─────────────────────────────────────────────── */
 
-/*
- * Its foot: the usual gap, or room for the home indicator where there is one. Not the two added up: the inset is
- * already more than a gap (34px on an iPhone), and the status line's small text may sit beside the indicator.
- */
 .composer-wrap {
     padding: 4px calc(24px * var(--space-x) + var(--inset-r))
-        max(12px * var(--space-y), env(safe-area-inset-bottom, 0px) - 12px)
+        calc(env(safe-area-inset-bottom) + 12px * var(--space-y))
         calc(24px * var(--space-x) + var(--inset-l));
     max-width: var(--composer-width);
     width: 100%;
     margin: 0 auto;
+}
+
+/* Over a phone's keyboard there is no home indicator to keep clear of. */
+:root[data-keyboard] .composer-wrap {
+    padding-bottom: calc(8px * var(--space-y));
 }
 
 @media (max-width: 699px) {
@@ -4062,9 +4063,10 @@ pre.diff .del {
         padding: calc(13px * var(--space-y)) calc(15px * var(--space-x)) 2px;
         font-size: 16px;
     }
-    /* The status line's own room below it is enough. */
+    /* The status line's own room below it is enough. Where a home indicator is (34px of inset on an iPhone, the bar
+     * itself 5px, 8px up), the status line's small text may come down beside it: not the whole inset below it. */
     .composer-wrap {
-        padding-bottom: calc(env(safe-area-inset-bottom) + 2px);
+        padding-bottom: max(2px, env(safe-area-inset-bottom, 0px) - 16px);
     }
 }
 
