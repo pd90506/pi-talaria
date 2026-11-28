@@ -751,7 +751,8 @@ export interface PocketHost {
      */
     devInstances(): DevInstances | undefined;
     /** Sessions' watches of their pull requests: Pi's watch_pr tool starts and stops them. */
-    readonly watches: Pick<Watches, "task" | "start" | "stop" | "get">;
+    readonly watches: Pick<Watches, "task" | "start" | "stop" | "get"> &
+        Partial<Pick<Watches, "onEnded">>;
     /** Repository watches: the triggers extension runs their task; PiP's repo_watch tool sets them up. */
     readonly repoWatches: Pick<RepoWatches, "task">;
     /**

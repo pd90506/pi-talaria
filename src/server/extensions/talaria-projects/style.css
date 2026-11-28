@@ -53,6 +53,7 @@
 }
 
 .talaria-waiting,
+.talaria-pr-closed,
 .talaria-failed {
     color: var(--err);
     opacity: 1;
