@@ -713,3 +713,85 @@ test("project models: the owner sets the coordinator's and the threads' default;
         undefined,
     );
 });
+
+test("a thread's PR sets its state: pr-open while watched, pr-closed when closed unmerged, resolved when merged", async () => {
+    const pr = { number: 7, status: "watching" as const, checks: "failed" as const };
+
+    assert.deepEqual(threadState({}, undefined, 0, pr), {
+        state: "pr-open",
+        note: "PR #7: checks failed",
+    });
+    // A failed check or a review wakes it: while it works, it shows as working.
+    assert.equal(threadState({ busy: true }, undefined, 0, pr).state, "working");
+    assert.deepEqual(threadState({}, undefined, 0, { number: 7, status: "closed" }), {
+        state: "pr-closed",
+        note: "PR #7 was closed without a merge",
+    });
+    assert.equal(threadState({ archived: true }, undefined, 0, pr).state, "resolved");
+
+    // Live: a thread watches its PR; the page shows it open, then closed; reopened and merged, the thread resolves.
+    const gh = { state: "OPEN", checks: [] as object[] };
+
+    app.watches.gh = async (args) => {
+        if (args[0] === "api" && args[1] === "user") {
+            return "me\n";
+        }
+
+        if (args[0] === "config") {
+            return "me\n";
+        }
+
+        if (args[0] === "api" && /^repos\/[^/]+\/[^/]+$/.test(args.at(-1) ?? "")) {
+            return JSON.stringify({ default_branch: "main", permissions: { push: true } });
+        }
+
+        if (args[0] === "api") {
+            return "[]";
+        }
+
+        const number = Number(args[args.indexOf("--") + 1] ?? 7) || 7;
+
+        return JSON.stringify({
+            number,
+            url: `https://github.com/acme/app/pull/${number}`,
+            title: "Count",
+            state: gh.state,
+            headRefName: "count",
+            headRefOid: "abc1234",
+            baseRefName: "main",
+            mergeable: "MERGEABLE",
+            statusCheckRollup: gh.checks,
+            comments: [],
+            reviews: [],
+        });
+    };
+
+    app.watches.timing = { soon: 40, quiet: 40, retry: 40 };
+
+    const thread = app.sessions().find((each) => each.linkedFrom?.id === Number(coordinator))!;
+    const id = thread.id as unknown as ConversationId;
+
+    const row = async () => {
+        const listed = await call("owner", "projects");
+        const project = (
+            listed.data.projects as { id: string; threads: Record<string, unknown>[] }[]
+        ).find((each) => each.id === "my-app")!;
+
+        return project.threads.find((each) => each.id === thread.id)!;
+    };
+
+    await app.commands.watchPr(id, owner(app), "7");
+    await until(async () => (await row()).state === "pr-open", "the PR to show as open");
+    assert.match(String((await row()).note), /^PR #7: /);
+
+    gh.state = "CLOSED";
+    await until(async () => (await row()).state === "pr-closed", "the PR to show as closed");
+
+    await app.commands.unwatchPr(id, owner(app));
+    gh.state = "OPEN";
+    await app.commands.watchPr(id, owner(app), "7");
+    await until(async () => (await row()).state === "pr-open", "the PR to show as open again");
+    gh.state = "MERGED";
+    await until(async () => (await row()).state === "resolved", "the thread to resolve");
+    assert.equal(app.sessionMeta(id)?.archived, true);
+});

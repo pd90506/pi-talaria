@@ -19,6 +19,7 @@ import {
 import type { Context } from "@earendil-works/chord/context";
 // Types only: at run time this module uses nothing of Pi Pocket's but the host and web.
 import type { ExtensionWeb, PocketHost, WebHandler } from "../host.ts";
+import type { PrWatch } from "../docs.ts";
 import type { SessionMessage } from "../session-messages.ts";
 import { PROJECTS_PIP_EXTENSION } from "../pip.ts";
 import { literal } from "../tool-schema.ts";
@@ -115,16 +116,37 @@ export const Handoffs = defineDoc<{ items: Record<string, HandoffRecord[]> }>({
 });
 
 /** Where a thread stands, as the Projects page and the coordinator see it. */
-export type ThreadState = "waiting" | "failed" | "working" | "review" | "idle" | "resolved";
+export type ThreadState =
+    "waiting" | "failed" | "working" | "pr-open" | "pr-closed" | "review" | "idle" | "resolved";
+
+/** A thread's pull request, as its watch (`watch_pr`) sees it. */
+export type ThreadPr = Pick<PrWatch, "number" | "status" | "checks">;
+
+/** A PR's state in a few words, for a thread's note. */
+function prNote(pr: ThreadPr): string {
+    const checks =
+        pr.checks === "failed"
+            ? "checks failed"
+            : pr.checks === "pending"
+              ? "checks running"
+              : pr.checks === "passed"
+                ? "checks passed"
+                : "waiting for merge";
+
+    return `PR #${pr.number}: ${checks}`;
+}
 
 /**
  * A thread's state: resolved when archived; waiting while a call of it waits for the person; failed while its last
- * run's failure stands; working while it runs; else what it said of itself in its last run, or idle.
+ * run's failure stands; working while it runs (a failed check or a review on its PR wakes it); pr-open while its PR is
+ * watched; pr-closed when its PR was closed without a merge (a merged one resolves the thread); else what it said of
+ * itself in its last run, or idle.
  */
 export function threadState(
     thread: { archived?: boolean; busy?: boolean; failed?: string; asks?: string },
     report: ThreadReport | undefined,
     lastStart: number | undefined,
+    pr?: ThreadPr,
 ): { state: ThreadState; note?: string } {
     if (thread.archived === true) {
         return { state: "resolved" };
@@ -140,6 +162,14 @@ export function threadState(
 
     if (thread.busy === true) {
         return { state: "working" };
+    }
+
+    if (pr?.status === "watching") {
+        return { state: "pr-open", note: prNote(pr) };
+    }
+
+    if (pr?.status === "closed") {
+        return { state: "pr-closed", note: `PR #${pr.number} was closed without a merge` };
     }
 
     if (report !== undefined && report.at >= (lastStart ?? 0)) {
@@ -197,6 +227,7 @@ const FLAGGED: Partial<Record<ThreadState, string>> = {
     waiting: "waiting on the person",
     failed: "failed",
     review: "ready for review",
+    "pr-closed": "PR closed without a merge",
 };
 
 /** Where pip keeps its folders: `PI_TALARIA_PIP_DIR`, or `~/pip`. */
@@ -414,7 +445,7 @@ function coordinatorRules(project: { id: string; folder: string; file: ProjectFi
         "- The person has not read any thread. Never refer to something only a thread said (its option names, its file names, its terms) as if they know it; explain it in plain words, or leave it out.",
         "- Bring back only the decisions the person really has to make, first, before any summary of the work. Settle small things yourself or let the thread decide, and say what was decided.",
         "- Resolving: when a thread's work has ended and nothing is left for it or the person to do, resolve it (project_thread resolve) in the turn you pass its report on, and say so in a few words. Leave it open while anyone owes a next step: a review, an answer, a document the person may still want changed, a merge. When unsure, leave it open. Sending to a resolved thread reopens it.",
-        "- Thread states: working, waiting (on the person: an approval, or a question it asked), failed, review (done, for the person to look over), idle, resolved. Your prompt lists open threads and flags those waiting, failed, or ready for review; project_thread list gives every state now. When asked for status, list every thread: what waits on the person first, then what is working, then what is done.",
+        "- Thread states: working, waiting (on the person: an approval, or a question it asked), failed, pr-open (its pull request is open and watched: a failed check or a new review wakes it), pr-closed (its PR was closed without a merge: ask the person what next), review (done, for the person to look over), idle, resolved (a merged PR resolves its thread by itself). Your prompt lists open threads and flags those waiting, failed, or ready for review; project_thread list gives every state now. When asked for status, list every thread: what waits on the person first, then what is working, then what is done.",
         "- Thread reports are messages in this conversation, so after a summary only the summary keeps them. When you need what a thread did or said and it is not here or in project memory, read that thread with project_thread read (newest first, paged); one thread at a time, only as far back as you need.",
         '- Preferences such as "propose before starting" or "at most two threads at a time" go into project memory; follow them.',
         "- Write in the language the person writes in.",
@@ -466,6 +497,7 @@ function threadRules(project: { id: string; file: ProjectFile }): string {
         "- To coordinate with another thread of this project (shared files, a dependency, a handoff), message it with the team tool (list, then send). Only when your work depends on theirs, or theirs on yours.",
         "- Your final answer is relayed to the coordinator, who passes it on to a person who never reads this thread. Put first anything they must decide, each option in plain words with what happens if chosen and your recommendation; settle small choices yourself. Do not lean on names you made up here without saying what they mean.",
         '- When the task is done, end with a short final answer: what you did, where the results are, and what is left open. Before it, say where you stand with project_thread status: "review" when the person should look something over (a document, a pull request, a change), "waiting" with the question as the note when you need their answer or a decision, "idle" when nothing is left for them. A call waiting for the person\'s approval marks you waiting by itself.',
+        "- After you open a pull request, watch it with watch_pr (start): the thread shows as pr-open, a failed check or a new review wakes you, a merge resolves the thread, and a close without a merge shows as pr-closed.",
         "- Write in the language of the person the project is for.",
     ].join("\n");
 }
@@ -698,10 +730,77 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
         }
     }
 
-    /** A thread's state, from its session as listed and its own word. */
+    /** The threads' PRs, by session id: those with a watch that is on, or ended merged or closed. */
+    async function prsOf(sessions: (number | undefined)[]): Promise<Map<number, ThreadPr>> {
+        const found = new Map<number, ThreadPr>();
+
+        await Promise.all(
+            sessions.map(async (id) => {
+                if (id === undefined) {
+                    return;
+                }
+
+                const watch = await host.watches
+                    .get(id as unknown as ConversationId)
+                    .catch(() => undefined);
+
+                if (
+                    watch !== undefined &&
+                    ["watching", "closed", "merged"].includes(watch.status)
+                ) {
+                    found.set(id, {
+                        number: watch.number,
+                        status: watch.status,
+                        ...(watch.checks === undefined ? {} : { checks: watch.checks }),
+                    });
+                }
+            }),
+        );
+
+        return found;
+    }
+
+    // A thread whose PR was merged is done: resolve it, as its coordinator would.
+    const stopEndedWatches = host.watches.onEnded?.(async (id, watch) => {
+        if (watch.status !== "merged") {
+            return;
+        }
+
+        const lead = host.linkedFromOf?.(id);
+
+        if (lead === undefined || projectAt(host.cwdOf(lead)) === undefined) {
+            return;
+        }
+
+        const address = (await linked.list(lead)).find(
+            (each) => each.started === true && Number(each.session) === Number(id),
+        );
+
+        if (address === undefined || address.archived === true) {
+            return;
+        }
+
+        await linked.archive(
+            lead,
+            { to: address.address, archived: true },
+            `pr-merged:${String(watch.taskId)}`,
+        );
+        host.notice(
+            "info",
+            `PR #${watch.number} was merged: thread ${text.quoted(address.title ?? address.address)} is resolved.`,
+            lead,
+        );
+    });
+
+    if (stopEndedWatches !== undefined) {
+        web?.onDispose(stopEndedWatches);
+    }
+
+    /** A thread's state, from its session as listed, its own word, and its PR. */
     const stateOf = (
         thread: { session?: number; archived?: boolean; busy?: boolean; failed?: string },
         reports: Record<string, ThreadReport>,
+        prs?: Map<number, ThreadPr>,
     ) =>
         threadState(
             {
@@ -710,6 +809,7 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
             },
             thread.session === undefined ? undefined : reports[String(thread.session)],
             thread.session === undefined ? undefined : lastStart.get(thread.session),
+            thread.session === undefined ? undefined : prs?.get(Number(thread.session)),
         );
 
     if (web !== undefined) {
@@ -731,6 +831,11 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
                     each,
                 ]),
             );
+            const prs = await prsOf(
+                [...sessions.values()]
+                    .filter((each) => each.linkedFrom !== undefined && !each.archived)
+                    .map((each) => each.id),
+            );
             const items = Object.values(doc?.items ?? {}).map((project) => {
                 const session = sessions.get(project.coordinator);
                 const file = projectAt(project.folder)?.file;
@@ -738,7 +843,11 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
                     .filter((each) => each.linkedFrom === project.coordinator)
                     .sort((x, y) => y.updatedAt - x.updatedAt)
                     .map((each) => {
-                        const { state, note } = stateOf({ ...each, session: each.id }, reports);
+                        const { state, note } = stateOf(
+                            { ...each, session: each.id },
+                            reports,
+                            prs,
+                        );
 
                         // Its helpers (Agent Teams): sessions it started, reached from the thread's ⋯ menu.
                         const helpers = [...sessions.values()]
@@ -1429,13 +1538,14 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
             if (args.action === "list") {
                 const all = (await linked.list(source)).filter((each) => each.started === true);
                 const reports = (await api.snapshot(ThreadReports, context))?.items ?? {};
+                const prs = await prsOf(all.map((each) => each.session as number | undefined));
 
                 const line = (each: (typeof all)[number]) => {
                     if (each.title === undefined) {
                         return `${each.address} · details hidden`;
                     }
 
-                    const { state, note } = stateOf(each, reports);
+                    const { state, note } = stateOf(each, reports, prs);
 
                     return `${each.address} · ${text.quoted(each.title)} · ${state}${note === undefined ? "" : `: ${text.quoted(note)}`} · ${text.quoted(each.cwd ?? "")}`;
                 };
@@ -1607,10 +1717,12 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
             return "No open threads.";
         }
 
+        const prs = await prsOf(open.map((each) => each.session as number | undefined));
+
         return [
             "Open threads (project_thread list gives who is working now):",
             ...open.slice(0, 15).map((each) => {
-                const { state, note } = stateOf(each, reports);
+                const { state, note } = stateOf(each, reports, prs);
                 const flag = FLAGGED[state];
 
                 return `- ${each.address}${each.title === undefined ? "" : ` · ${text.quoted(each.title)}`}${flag === undefined ? "" : ` [${flag}${note === undefined ? "" : `: ${text.quoted(note)}`}]`}`;

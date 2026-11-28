@@ -246,6 +246,8 @@ export class Watches {
     timing = { soon: LOOK_SOON_MS, quiet: LOOK_MS, retry: RETRY_MS };
     /** Who `gh` is signed in as on each host, and when that was asked. */
     readonly #viewers = new Map<string, { login: string; at: number }>();
+    /** Who hears when a watch ends: the Projects module resolves a thread whose PR was merged. */
+    readonly #ended = new Set<(conversationId: ConversationId, watch: PrWatch) => unknown>();
     readonly task: Task<WatchInput, WatchState, null, object>;
 
     constructor(app: PocketApp) {
@@ -292,6 +294,15 @@ export class Watches {
     }
 
     /** A session's watch, watching or ended; a subagent's session's. */
+    /** Hear of each watch that ends, after its commit, with the watch as it ended. Returns how to stop. */
+    onEnded(listener: (conversationId: ConversationId, watch: PrWatch) => unknown): () => void {
+        this.#ended.add(listener);
+
+        return () => {
+            this.#ended.delete(listener);
+        };
+    }
+
     async get(asking: ConversationId): Promise<PrWatch | undefined> {
         return (await this.#app.harness.snapshot(WatchDoc, this.#app.rootOf(asking), context))
             ?.watch;
@@ -1053,6 +1064,16 @@ export class Watches {
 
         if (ended === undefined) {
             return;
+        }
+
+        for (const listener of [...this.#ended]) {
+            const copy = JSON.parse(JSON.stringify(ended)) as PrWatch;
+
+            Promise.resolve()
+                .then(() => listener(id, copy))
+                .catch((error: unknown) =>
+                    app.log(`a watch's end listener failed: ${describe(error)}`),
+                );
         }
 
         const title = `PR #${ended.number} ${status === "merged" ? "merged" : status === "closed" ? "closed" : "no longer watched"}`;

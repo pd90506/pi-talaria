@@ -17,7 +17,9 @@ const GROUPS = [
     ["waiting", "Waiting on you"],
     ["failed", "Failed"],
     ["working", "Working"],
+    ["pr-closed", "PR closed, not merged"],
     ["review", "Ready for review"],
+    ["pr-open", "PR open"],
     ["idle", "Idle"],
 ];
 
