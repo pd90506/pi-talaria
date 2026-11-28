@@ -963,6 +963,13 @@ kbd {
     }
 }
 
+/* Another tab of the side dock: its panel takes the place of the one before, with no pop-in (app.js). */
+@media (min-width: 1100px) {
+    :root .layout.dock-steady > :is(.files-tile, .browser, .ext-panel) {
+        animation: none;
+    }
+}
+
 /* The gap between two cards, where a drag resizes the one beside it (the sidebar's gap, the side dock's): no width of
  * its own, and its margins take back the gap the layout puts around it, so the cards keep one gap between them. Its
  * handle is centered in that gap and a little wider, for an easier hold. Only where the cards sit side by side. */

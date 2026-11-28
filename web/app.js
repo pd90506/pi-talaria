@@ -496,6 +496,10 @@ function DevBanner({ sandbox }) {
     </div>`;
 }
 
+/** Which panel the side dock showed at the last render, and whether a tab changed since it opened (`App`). */
+let lastDocked = null;
+let dockSteady = false;
+
 function App() {
     const state = store.state;
 
@@ -555,9 +559,15 @@ function App() {
     // A panel of the side dock beside the conversation: the gap left of it drags its width (dock-edge.js).
     const docking =
         browsing || filing || (paneling && isDockTab(state.extPanel.module, state.extPanel.id));
+    const docked = !docking ? null : browsing ? "browser" : filing ? "files" : "ext";
+
+    // A tab of the side dock changed while the dock stayed open: the same place, so the panel that comes does not pop
+    // in as a new window would. Until the dock closes.
+    dockSteady = docked !== null && (dockSteady || (lastDocked !== null && lastDocked !== docked));
+    lastDocked = docked;
 
     return html`<div
-        class=${`layout ${inConversation || placed ? "" : "home"} ${browsing ? "browsing" : ""} ${filing ? "filing" : ""} ${paneling ? "paneling" : ""}`}
+        class=${`layout ${inConversation || placed ? "" : "home"} ${browsing ? "browsing" : ""} ${filing ? "filing" : ""} ${paneling ? "paneling" : ""} ${dockSteady ? "dock-steady" : ""}`}
         data-part="app"
     >
         <aside class="sidebar window" data-part="sidebar">
