@@ -1244,6 +1244,7 @@ const ICONS = {
     fork: "M6 3v12M18 9a3 3 0 100-6 3 3 0 000 6zM6 21a3 3 0 100-6 3 3 0 000 6zM18 9a9 9 0 01-9 9",
     command: "M9 6a3 3 0 10-3 3h12a3 3 0 10-3-3v12a3 3 0 103-3H6a3 3 0 103 3z",
     sidebar: "M4 4h16v16H4zM9 4v16",
+    dock: "M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2zM15 4v16",
     tiles: "M3 5h12v14H3zM17 5h4v6h-4zM17 13h4v6h-4z",
     grid: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z",
     pin: "M9 4h6M10 4v6l-3 4h10l-3-4V4M12 14v6",

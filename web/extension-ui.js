@@ -786,8 +786,10 @@ function check(kind, spec) {
         throw new Error(`${name} ${spec.id}: tone is "warn", "error", or "muted"`);
     }
 
-    // A page can keep Esc and sideways swipes for itself; a sheet and a panel can be wide.
-    const flags = { page: ["escape", "swipe"], sheet: ["wide"], panel: ["wide"] }[kind] ?? [];
+    // A page can keep Esc and sideways swipes for itself; a sheet and a panel can be wide, and a panel can keep out of
+    // the top bar (`topbar: false`).
+    const flags =
+        { page: ["escape", "swipe"], sheet: ["wide"], panel: ["wide", "topbar"] }[kind] ?? [];
 
     for (const field of flags) {
         if (spec[field] !== undefined && typeof spec[field] !== "boolean") {
@@ -2302,7 +2304,7 @@ function arrangementOf(slot, arrangement) {
         }
 
         if (!Array.isArray(value) || !value.every((each) => typeof each === "string")) {
-            throw new Error(`pocket.arrange: ${field} is a list of item ids, such as "core:files"`);
+            throw new Error(`pocket.arrange: ${field} is a list of item ids, such as "core:dock"`);
         }
 
         return [...value];
@@ -2369,15 +2371,21 @@ function statusNode(record, spec) {
 
 /**
  * The top bar's items that extensions added: a button for each panel, which toggles it, and each `pocket.topbar`
- * action. On a phone, and in a narrow pane, they go, as the Files button does: the menu's rows open the panels there.
+ * action. On a phone, and in a narrow pane, they go, as the side dock's button does: the menu's rows open the panels
+ * there. A panel that is a tab of the side dock now has no button of its own (the dock's opens it), nor one that asks
+ * for none (`topbar: false`).
  */
 function topbarItems() {
-    const panels = added("panel").map(({ record, spec }) => ({
-        id: itemId(record, spec),
-        label: spec.title,
-        module: record.title,
-        render: () => topbarButton(record, spec, { panel: spec.id }),
-    }));
+    const panels = added("panel")
+        .filter(({ spec }) => spec.topbar !== false)
+        .map(({ record, spec }) => ({
+            id: itemId(record, spec),
+            label: spec.title,
+            module: record.title,
+            render: () =>
+                !isDockTab(record.module, spec.id) &&
+                topbarButton(record, spec, { panel: spec.id }),
+        }));
     const actions = added("topbar").map(({ record, spec }) => ({
         id: itemId(record, spec),
         label: spec.title,

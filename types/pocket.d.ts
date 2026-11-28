@@ -2182,6 +2182,13 @@ export interface PanelSpec {
      * @experimental
      */
     tab?: () => boolean;
+    /**
+     * With `false`, the top bar has no button for the panel (a sidebar place or the menu opens it). A panel that is a
+     * tab of the dock has none either way: the dock's button opens it.
+     * @since 0.31.0
+     * @experimental
+     */
+    topbar?: boolean;
 }
 
 /**
@@ -2237,7 +2244,7 @@ export type StatusSpec = (Action | { page?: never; sheet?: never; panel?: never;
 export type Placement = { before?: string; after?: never } | { after?: string; before?: never };
 
 /**
- * A button in the top bar, after `core:browser` and before `core:artifacts`, `core:people`, and the menu.
+ * A button in the top bar, after `core:dock` and before `core:artifacts`, `core:people`, and the menu.
  * @since 0.19.0
  * @experimental
  */

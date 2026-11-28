@@ -571,7 +571,7 @@ test(
         const before = await ids();
 
         await withMeter(
-            `pocket.arrange("topbar", { order: ["core:files", "core:files", "core:changes"] }); return "null";`,
+            `pocket.arrange("topbar", { order: ["core:dock", "core:dock", "core:changes"] }); return "null";`,
         );
         const after = await ids();
 

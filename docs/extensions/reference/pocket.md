@@ -501,7 +501,7 @@ topbar(spec: TopbarSpec): Added<TopbarSpec>;
 
 Since 0.19.0 · Experimental
 
-Adds a button in the top bar, after `core:browser` and before `core:artifacts`, `core:people`, and the menu. On a phone, and in a narrow pane, it goes from the top bar, as the Files button does. See [`TopbarSpec`](#topbarspec).
+Adds a button in the top bar, after `core:dock` and before `core:artifacts`, `core:people`, and the menu. On a phone, and in a narrow pane, it goes from the top bar, as the side panel's button does. See [`TopbarSpec`](#topbarspec).
 
 ### `composerButton`
 
@@ -922,6 +922,7 @@ interface PanelSpec {
     badge?: number | string | null | false;
     wide?: boolean;
     tab?: () => boolean;
+    topbar?: boolean;
 }
 ```
 
@@ -935,7 +936,8 @@ A panel beside the conversation.
 - `icon`, `iconPath`: the icon of its buttons, as for a rail button.
 - `badge`: a short count or word on its buttons, as for a rail button.
 - `wide`: with `true`, the panel takes more of the width beside the conversation.
-- `tab`: while it returns true, the panel is a tab of the dock beside the conversation, before Files, Changes, and Browser, as a project's Threads is. Keep it fast: the dock asks as it draws. Since 0.31.0.
+- `tab`: while it returns true, the panel is a tab of the dock beside the conversation, before Files, Changes, and Browser, as a project's Threads is. Keep it fast: the dock asks as it draws. While it is a tab, the panel has no top bar button of its own: the dock's one button opens it. Since 0.31.0.
+- `topbar`: with `false`, the top bar has no button for the panel; a sidebar place, the menu, or the launcher opens it. Since 0.31.0.
 
 The panel shows only in a session. The app keeps it open in the tab across a reload, and closes it when its module goes.
 
@@ -1292,12 +1294,12 @@ A slot is a place in the app that is a list of named items: the app's own items 
 
 What shows comes in layers, the last one wins: each item's default place, then the `before` or `after` of a module's own item, then each module's `arrange`.
 
-| Slot       | Ids, in their default order                                                                                                    | Fixed                                                                          | Modules' items go    |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | -------------------- |
-| `topbar`   | `core:subagents`, `core:changes`, `core:files`, `core:browser`, `core:artifacts`, `core:menu`                                  | `core:menu`, last                                                              | after `core:browser` |
-| `status`   | `core:connection`, `core:schedules`, `core:speed`, `core:context`, `core:cache`, `core:spend`, `core:background`, `core:guard` | `core:connection`, `core:guard`                                                | after `core:cache`   |
-| `composer` | `core:attach`, `core:model`, `core:plan`                                                                                       | none (Send, Stop, the mic, and Steer, Queue and Interrupt are not in the slot) | after `core:plan`    |
-| `reply`    | `core:time`, `core:react`, `core:discuss`, `core:pin`, `core:copy`, `core:more`                                                | `core:more`, last                                                              | before `core:more`   |
+| Slot       | Ids, in their default order                                                                                                    | Fixed                                                                          | Modules' items go  |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | ------------------ |
+| `topbar`   | `core:subagents`, `core:changes`, `core:dock`, `core:artifacts`, `core:menu`                                                   | `core:menu`, last                                                              | after `core:dock`  |
+| `status`   | `core:connection`, `core:schedules`, `core:speed`, `core:context`, `core:cache`, `core:spend`, `core:background`, `core:guard` | `core:connection`, `core:guard`                                                | after `core:cache` |
+| `composer` | `core:attach`, `core:model`, `core:plan`                                                                                       | none (Send, Stop, the mic, and Steer, Queue and Interrupt are not in the slot) | after `core:plan`  |
+| `reply`    | `core:time`, `core:react`, `core:discuss`, `core:pin`, `core:copy`, `core:more`                                                | `core:more`, last                                                              | before `core:more` |
 
 The `core:time` item shows a completed reply's stored message time.
 

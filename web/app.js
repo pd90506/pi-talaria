@@ -4,17 +4,11 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/ho
 import { folderColor } from "./colors.js";
 import { framed, hearFrames } from "./frame.js";
 import { canGoBack, goBack, replaceAddress, startHistory, useBack } from "./back.js";
-import { BrowserButton, BrowserPanel } from "./browser-panel.js";
+import { BrowserPanel } from "./browser-panel.js";
 import { browserAvailable, setBrowserOpen, toggleBrowser } from "./browser.js";
 import { Composer, openingByAlt, shortModel, StatusLine } from "./composer.js";
 import { useChanges } from "./diff.js";
-import {
-    FilesButton,
-    FilesPanel,
-    filesAvailable,
-    setFilesOpen,
-    toggleFiles,
-} from "./files-panel.js";
+import { FilesPanel, filesAvailable, setFilesOpen, toggleFiles } from "./files-panel.js";
 import { ExtensionPage, ExtensionPanel, extPanelShown } from "./extension-ui.js";
 import { startEdgeBack, startSwipes, useDragToClose } from "./gestures.js";
 import { DockEdge } from "./dock-edge.js";
@@ -40,7 +34,7 @@ import { QuoteReplyButton } from "./quote-reply.js";
 import { Sheets } from "./sheets.js";
 import { defineItem, slotItems } from "./slots.js";
 import { branchAvailable, headLabel } from "./sheets/branch.js";
-import { isDockTab } from "./side-dock.js";
+import { DockButton, isDockTab } from "./side-dock.js";
 import { SignIn } from "./signin.js";
 import { openSubagents } from "./subagents.js";
 import { RunningBoard } from "./running-board.js";
@@ -137,17 +131,12 @@ defineItem("topbar", {
     order: 200,
     render: () => filesAvailable() && html`<${ChangesButton} key=${store.state.conversationId} />`,
 });
+// One button for the side dock (Threads, Files, Changes, Browser): its tabs switch between them.
 defineItem("topbar", {
-    id: "core:files",
-    label: "Files",
+    id: "core:dock",
+    label: "Side panel",
     order: 400,
-    render: () => html`<${FilesButton} />`,
-});
-defineItem("topbar", {
-    id: "core:browser",
-    label: "Browser",
-    order: 500,
-    render: () => html`<${BrowserButton} />`,
+    render: () => html`<${DockButton} />`,
 });
 defineItem("topbar", {
     id: "core:artifacts",
