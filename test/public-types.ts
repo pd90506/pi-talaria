@@ -87,7 +87,8 @@ type Internal =
     | "waitsForLimit"
     | "alertOwner"
     | "linkedFromOf"
-    | "messagesOf";
+    | "messagesOf"
+    | "availableModels";
 
 type PublicHost = Pick<PocketHost, keyof Host>;
 

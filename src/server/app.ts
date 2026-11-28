@@ -871,6 +871,12 @@ export class PocketApp {
             skills: (cwd) => this.skills(cwd),
             resolveModel: (spec) => resolveModel(this.models, spec, this.signInNeeded),
             subagentModels: () => this.config.subagentModels,
+            availableModels: () =>
+                modelList(this.models, this.signInNeeded).map((each) => ({
+                    spec: `${each.provider}/${each.id}`,
+                    name: each.name,
+                    thinkingLevels: each.levels as ModelThinkingLevel[],
+                })),
             modelProblem: (ref, fresh) => this.providers.problem(ref, fresh),
             registerModelProvider: (provider, config) =>
                 this.#registerModelProvider(provider, config),

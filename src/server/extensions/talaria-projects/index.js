@@ -785,6 +785,145 @@ export default function setup(pocket) {
         </div>`;
     }
 
+    /**
+     * A project's models, folded until opened: the coordinator's model and thinking, and the default for new threads.
+     * "As now" leaves one unset: the coordinator keeps its own, and threads start on the coordinator's.
+     */
+    function ModelSettings({ project }) {
+        const [open, setOpen] = useState(false);
+        const [models, setModels] = useState(null);
+        const [draft, setDraft] = useState(null);
+        const [error, setError] = useState(null);
+        const [busy, setBusy] = useState(false);
+        const [saved, setSaved] = useState(false);
+
+        useEffect(() => {
+            if (!open) {
+                return;
+            }
+
+            setDraft({
+                coordinator: project.models?.coordinator ?? null,
+                threads: project.models?.threads ?? null,
+            });
+            pocket
+                .api("models")
+                .then((data) => setModels(data.models))
+                .catch((failure) => setError(failure.message));
+        }, [open, project.id]);
+
+        const levelsOf = (spec) => models?.find((each) => each.spec === spec)?.levels ?? [];
+
+        const change = (role, patch) => {
+            setSaved(false);
+            setDraft((now) => {
+                const next = patch === null ? null : { ...(now[role] ?? {}), ...patch };
+
+                // A level the new model lacks is dropped: the model's own default then.
+                if (next?.thinking && !levelsOf(next.model).includes(next.thinking)) {
+                    delete next.thinking;
+                }
+
+                return { ...now, [role]: next };
+            });
+        };
+
+        const save = async () => {
+            setBusy(true);
+            setError(null);
+
+            try {
+                await pocket.api(`projects/${encodeURIComponent(project.id)}/models`, draft);
+                setSaved(true);
+                void refresh();
+            } catch (failure) {
+                setError(failure.message);
+            } finally {
+                setBusy(false);
+            }
+        };
+
+        const row = (role, label, unset) => {
+            const choice = draft?.[role] ?? null;
+            const known = choice === null || models?.some((each) => each.spec === choice.model);
+
+            return html`<div class="talaria-model-row">
+                <label class="small" for=${`talaria-${role}-model`}>${label}</label>
+                <select
+                    id=${`talaria-${role}-model`}
+                    value=${choice?.model ?? ""}
+                    onChange=${(event) =>
+                        change(
+                            role,
+                            event.currentTarget.value === ""
+                                ? null
+                                : { model: event.currentTarget.value },
+                        )}
+                >
+                    <option value="">${unset}</option>
+                    ${!known && html`<option value=${choice.model}>${choice.model}</option>`}
+                    ${(models ?? []).map(
+                        (each) =>
+                            html`<option key=${each.spec} value=${each.spec}>
+                                ${each.name} (${each.spec})
+                            </option>`,
+                    )}
+                </select>
+                <select
+                    aria-label=${`${label}: thinking`}
+                    disabled=${choice === null}
+                    value=${choice?.thinking ?? ""}
+                    onChange=${(event) =>
+                        change(role, { thinking: event.currentTarget.value || undefined })}
+                >
+                    <option value="">Thinking: model's default</option>
+                    ${(choice === null ? [] : levelsOf(choice.model)).map(
+                        (level) =>
+                            html`<option key=${level} value=${level}>Thinking: ${level}</option>`,
+                    )}
+                </select>
+            </div>`;
+        };
+
+        return html`<div class="talaria-memory">
+            <button
+                type="button"
+                class="talaria-group talaria-toggle"
+                aria-expanded=${open}
+                onClick=${() => setOpen(!open)}
+            >
+                ${open ? "Hide" : "Show"} models
+            </button>
+            ${
+                open &&
+                html`<div class="talaria-memory-body talaria-models">
+                    ${error && html`<div class="error-box">${error}</div>`}
+                    ${
+                        models === null || draft === null
+                            ? html`<${Loader} label="Reading the models" />`
+                            : html`${row("coordinator", "Coordinator", "As it runs now")}
+                                  ${row("threads", "New threads", "Same as the coordinator")}
+                                  <p class="muted small">
+                                      The coordinator can name another model for one thread. A
+                                      thread's own model picker still works.
+                                  </p>
+                                  <div class="sheet-actions">
+                                      ${saved && html`<span class="muted small">Saved</span>`}
+                                      <button
+                                          type="button"
+                                          class="button primary"
+                                          disabled=${busy}
+                                          onClick=${save}
+                                      >
+                                          ${busy ? "Saving…" : "Save"}
+                                      </button>
+                                  </div>`
+                    }
+                </div>`
+            }
+        </div>`;
+    }
+
     /** Beside a project's coordinator or thread: its threads by state, and its memory; a thread opens here. */
     function ProjectPanel() {
         const { data, failure: failed } = useProjects();
@@ -836,6 +975,7 @@ export default function setup(pocket) {
             <div class="sheet-list">
                 <${Project} project=${project} open=${open} current=${shown} />
             </div>
+            <${ModelSettings} project=${project} />
         </div>`;
     }
 

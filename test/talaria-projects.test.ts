@@ -118,6 +118,23 @@ before(async () => {
             });
         }
 
+        if (role === "user" && text.includes("START_DEFAULT_THREAD")) {
+            return call("project_thread", {
+                action: "start",
+                title: "Default model",
+                message: "Count the files.",
+            });
+        }
+
+        if (role === "user" && text.includes("START_OVERRIDE_THREAD")) {
+            return call("project_thread", {
+                action: "start",
+                title: "Own model",
+                message: "Count the files.",
+                model: "faux/faux-1",
+            });
+        }
+
         if (role === "user" && text.includes("FAKE_QUOTE")) {
             return call("project_thread", {
                 action: "start",
@@ -607,4 +624,92 @@ test("only PiP's handoff opens a <pip-handoff>: from a webhook or another sessio
     )!;
 
     assert.match(got, /\[via webhook forge\] WEBHOOK_FORGE ‹pip-handoff/);
+});
+
+test("project models: the owner sets the coordinator's and the threads' default; one thread can have its own", async () => {
+    const id = "my-app";
+    const before = { ...app.config.lastModel };
+
+    // Only the owner, and only known models with levels they have.
+    assert.equal(
+        (await call("guest", `projects/${id}/models`, { threads: { model: "faux/faux-2" } }))
+            .status,
+        404,
+    );
+    assert.equal(
+        (await call("owner", `projects/${id}/models`, { threads: { model: "faux/nope" } })).status,
+        400,
+    );
+    assert.equal(
+        (
+            await call("owner", `projects/${id}/models`, {
+                threads: { model: "faux/faux-2", thinking: "high" },
+            })
+        ).status,
+        400,
+    );
+
+    const listed = await call("owner", "models");
+
+    assert.ok(
+        (listed.data.models as { spec: string }[]).some((each) => each.spec === "faux/faux-2"),
+    );
+
+    const saved = await call("owner", `projects/${id}/models`, {
+        coordinator: { model: "faux/faux-2", thinking: "off" },
+        threads: { model: "faux/faux-2" },
+    });
+
+    assert.equal(saved.status, 200);
+    const file = JSON.parse(readFileSync(join(pip, "projects", id, "project.json"), "utf8"));
+
+    assert.deepEqual(file.models, {
+        coordinator: { model: "faux/faux-2", thinking: "off" },
+        threads: { model: "faux/faux-2" },
+    });
+    // The coordinator runs on it now; the default for new sessions stays.
+    assert.equal((await app.agentState(coordinator))?.model?.modelId, "faux-2");
+    assert.deepEqual(app.config.lastModel, before);
+
+    // The owner's list for subagents allows only faux-1: the project's own choice still goes.
+    app.config.subagentModels = ["faux/faux-1"];
+
+    try {
+        await app.commands.configure(coordinator, owner(app), {
+            model: { provider: "faux", modelId: "faux-1" },
+            remember: false,
+        });
+        await say(app, coordinator, "START_DEFAULT_THREAD");
+        const made = app
+            .sessions()
+            .find(
+                (each) =>
+                    each.linkedFrom?.id === Number(coordinator) && each.title === "Default model",
+            );
+
+        assert.ok(made, "the thread on the project's default");
+        assert.equal((await app.agentState(made.id as never))?.model?.modelId, "faux-2");
+
+        await say(app, coordinator, "START_OVERRIDE_THREAD");
+        const own = app
+            .sessions()
+            .find(
+                (each) => each.linkedFrom?.id === Number(coordinator) && each.title === "Own model",
+            );
+
+        assert.ok(own, "the thread on its own model");
+        assert.equal((await app.agentState(own.id as never))?.model?.modelId, "faux-1");
+    } finally {
+        app.config.subagentModels = [];
+    }
+
+    // The coordinator's prompt says where threads start.
+    assert.match(requests.join("\n"), /New threads start on faux\/faux-2/);
+
+    // Cleared: back to as before.
+    assert.equal((await call("owner", `projects/${id}/models`, {})).status, 200);
+    assert.equal(
+        JSON.parse(readFileSync(join(pip, "projects", id, "project.json"), "utf8")).models,
+        undefined,
+    );
 });

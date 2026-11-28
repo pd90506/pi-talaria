@@ -128,6 +128,8 @@ export async function extensionRoute(
             commit: scope.commit,
             createSession: (request: { cwd: string; title?: string }) =>
                 scope.createSession(request),
+            configureSession: (target: number, request: { model: string; thinking?: string }) =>
+                scope.configureSession(target, request),
             // Read when the handler asks, as the person is then: a copy, so the handler cannot change the list.
             sessions: (): WebSession[] =>
                 app.sessions(scope.current()).map((session) => ({
