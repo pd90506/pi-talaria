@@ -170,7 +170,7 @@ test("the manifest takes the icons and colors of the cookie, and is left alone w
     );
 
     assert.equal(made.name, "Pi Pocket", "the rest stays");
-    assert.equal(made.theme_color, "#070707");
+    assert.equal(made.theme_color, "#000", "the card's color, the page's ground");
     assert.deepEqual(
         made.icons.map((icon: { sizes: string; purpose?: string }) => [icon.sizes, icon.purpose]),
         [

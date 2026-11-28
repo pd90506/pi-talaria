@@ -376,6 +376,42 @@ body {
     height: 100dvh;
 }
 
+/*
+ * Narrower than the sidebar shows, the page's ground is the window's, not the desk's: Safari (26 and later) tints its
+ * status bar and its toolbars from the body's color, and the keyboard's bar shows it too, so the desk's darker paper
+ * made bands around the app. Wider, the tiled windows sit on the desk.
+ */
+@media (max-width: 959px) {
+    html,
+    body {
+        background: var(--bg);
+    }
+}
+
+/*
+ * The status bar's ground (index.html): a fixed strip as tall as the status bar, in the window's color. iOS 26 and later
+ * no longer read `theme-color`; a Home Screen app draws under the status bar and blurs what is there, down past the
+ * bar, over the top bar's title. A solid fixed element at the top edge is what iOS takes the bar's color from instead,
+ * with no blur. No height where nothing covers the top (a desktop, Safari's own bar).
+ */
+.status-cover {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: env(safe-area-inset-top, 0px);
+    background: var(--bg);
+    z-index: 2;
+    pointer-events: none;
+}
+
+/* While a phone's keyboard is up, the app is as tall as what shows above it (`keyboard.js`): the message box sits on
+ * the keyboard, and nothing pans under the status bar. */
+:root[data-keyboard],
+:root[data-keyboard] :is(body, #app, .layout, .pane, .boot) {
+    height: var(--keyboard-room, 100dvh);
+}
+
 button,
 input,
 textarea,
@@ -3661,9 +3697,13 @@ pre.diff .del {
 
 /* ─── Composer ─────────────────────────────────────────────── */
 
+/*
+ * Its foot: the usual gap, or room for the home indicator where there is one. Not the two added up: the inset is
+ * already more than a gap (34px on an iPhone), and the status line's small text may sit beside the indicator.
+ */
 .composer-wrap {
     padding: 4px calc(24px * var(--space-x) + var(--inset-r))
-        calc(env(safe-area-inset-bottom) + 12px * var(--space-y))
+        max(12px * var(--space-y), env(safe-area-inset-bottom, 0px) - 12px)
         calc(24px * var(--space-x) + var(--inset-l));
     max-width: var(--composer-width);
     width: 100%;

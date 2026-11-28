@@ -16,6 +16,8 @@ import { Splash } from "./home.js";
 import { Launcher } from "./launcher.js";
 import "./embedder.js";
 import "./window-controls.js";
+// The app fits above a phone's keyboard.
+import "./keyboard.js";
 import { registerWorker, updateBadge } from "./notify.js";
 import {
     closePip,

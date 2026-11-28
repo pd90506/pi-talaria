@@ -189,8 +189,9 @@ export function manifestFor(
 
     return JSON.stringify({
         ...manifest,
-        background_color: `#${colors[0]}`,
-        theme_color: `#${colors[0]}`,
+        // The window's color (the icon's card), not the desk's (its frame): the page's own ground on a phone.
+        background_color: `#${colors[1]}`,
+        theme_color: `#${colors[1]}`,
         icons: [icon(192, false), icon(192, true)],
     });
 }
