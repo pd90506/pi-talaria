@@ -6,6 +6,9 @@
 export const pocketApi = 2;
 
 /** Lucide's folder-kanban icon. */
+const GEAR_PATH =
+    "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z";
+
 const PROJECTS_PATH =
     "M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z M8 10v4 M12 10v2 M16 10v6";
 
@@ -785,6 +788,149 @@ export default function setup(pocket) {
         </div>`;
     }
 
+    /** The project settings sheet, from the top bar of a project's coordinator (the owner's): its models. */
+    function ProjectSettings() {
+        const { data, failure: failed } = useProjects();
+        const shown = useShown();
+        const project = data?.projects.find((each) => each.coordinator === shown);
+
+        if (data === null) {
+            return failed
+                ? html`<div class="error-box">${failed}</div>`
+                : html`<${Loader} label="Reading the project" />`;
+        }
+
+        if (project === undefined) {
+            return html`<p class="muted">Open a project's coordinator to change its settings.</p>`;
+        }
+
+        return html`<div class="talaria-settings">
+            <h3 class="talaria-group">Models of ${project.name}</h3>
+            <${ModelSettings} key=${project.id} project=${project} />
+        </div>`;
+    }
+
+    /**
+     * A project's models: the coordinator's model and thinking, and the default for new threads. "As now" leaves one
+     * unset: the coordinator keeps its own, and threads start on the coordinator's.
+     */
+    function ModelSettings({ project }) {
+        const [models, setModels] = useState(null);
+        const [draft, setDraft] = useState(null);
+        const [error, setError] = useState(null);
+        const [busy, setBusy] = useState(false);
+        const [saved, setSaved] = useState(false);
+
+        useEffect(() => {
+            setDraft({
+                coordinator: project.models?.coordinator ?? null,
+                threads: project.models?.threads ?? null,
+            });
+            pocket
+                .api("models")
+                .then((data) => setModels(data.models))
+                .catch((failure) => setError(failure.message));
+        }, [project.id]);
+
+        const levelsOf = (spec) => models?.find((each) => each.spec === spec)?.levels ?? [];
+
+        const change = (role, patch) => {
+            setSaved(false);
+            setDraft((now) => {
+                const next = patch === null ? null : { ...(now[role] ?? {}), ...patch };
+
+                // A level the new model lacks is dropped: the model's own default then.
+                if (next?.thinking && !levelsOf(next.model).includes(next.thinking)) {
+                    delete next.thinking;
+                }
+
+                return { ...now, [role]: next };
+            });
+        };
+
+        const save = async () => {
+            setBusy(true);
+            setError(null);
+
+            try {
+                await pocket.api(`projects/${encodeURIComponent(project.id)}/models`, draft);
+                setSaved(true);
+                void refresh();
+            } catch (failure) {
+                setError(failure.message);
+            } finally {
+                setBusy(false);
+            }
+        };
+
+        const row = (role, label, unset) => {
+            const choice = draft?.[role] ?? null;
+            const known = choice === null || models?.some((each) => each.spec === choice.model);
+
+            return html`<div class="talaria-model-row">
+                <label class="small" for=${`talaria-${role}-model`}>${label}</label>
+                <select
+                    id=${`talaria-${role}-model`}
+                    value=${choice?.model ?? ""}
+                    onChange=${(event) =>
+                        change(
+                            role,
+                            event.currentTarget.value === ""
+                                ? null
+                                : { model: event.currentTarget.value },
+                        )}
+                >
+                    <option value="">${unset}</option>
+                    ${!known && html`<option value=${choice.model}>${choice.model}</option>`}
+                    ${(models ?? []).map(
+                        (each) =>
+                            html`<option key=${each.spec} value=${each.spec}>
+                                ${each.name} (${each.spec})
+                            </option>`,
+                    )}
+                </select>
+                <select
+                    aria-label=${`${label}: thinking`}
+                    disabled=${choice === null}
+                    value=${choice?.thinking ?? ""}
+                    onChange=${(event) =>
+                        change(role, { thinking: event.currentTarget.value || undefined })}
+                >
+                    <option value="">Thinking: model's default</option>
+                    ${(choice === null ? [] : levelsOf(choice.model)).map(
+                        (level) =>
+                            html`<option key=${level} value=${level}>Thinking: ${level}</option>`,
+                    )}
+                </select>
+            </div>`;
+        };
+
+        return html`<div class="talaria-models">
+            ${error && html`<div class="error-box">${error}</div>`}
+            ${
+                models === null || draft === null
+                    ? html`<${Loader} label="Reading the models" />`
+                    : html`${row("coordinator", "Coordinator", "As it runs now")}
+                          ${row("threads", "New threads", "Same as the coordinator")}
+                          <p class="muted small">
+                              The coordinator can name another model for one thread. A thread's own
+                              model picker still works.
+                          </p>
+                          <div class="sheet-actions">
+                              ${saved && html`<span class="muted small">Saved</span>`}
+                              <button
+                                  type="button"
+                                  class="button primary"
+                                  disabled=${busy}
+                                  onClick=${save}
+                              >
+                                  ${busy ? "Saving…" : "Save"}
+                              </button>
+                          </div>`
+            }
+        </div>`;
+    }
+
     /** Beside a project's coordinator or thread: its threads by state, and its memory; a thread opens here. */
     function ProjectPanel() {
         const { data, failure: failed } = useProjects();
@@ -917,6 +1063,31 @@ export default function setup(pocket) {
                 }
             });
         });
+    }
+
+    // Project settings: a button in the top bar of a project's coordinator, for the owner only.
+    pocket.sheet({ id: "project-settings", title: "Project settings", component: ProjectSettings });
+
+    if (typeof pocket.topbar === "function" && pocket.me()?.role === "owner") {
+        pocket.topbar({
+            id: "project-settings",
+            title: "Project settings",
+            iconPath: GEAR_PATH,
+            sheet: "project-settings",
+        });
+
+        // Shown only on a coordinator: elsewhere a CSS class keeps it out (`style.css`).
+        const mark = () => {
+            const here = latest?.projects.some(
+                (project) => project.coordinator === pocket.conversationId(),
+            );
+
+            document.documentElement.toggleAttribute("data-talaria-coordinator", Boolean(here));
+        };
+
+        hearers.add(mark);
+        pocket.onConversation(() => mark());
+        void refresh().then(mark);
     }
 
     pocket.page({ id: "projects", title: "Projects", component: Projects });

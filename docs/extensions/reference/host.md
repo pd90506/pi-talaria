@@ -598,6 +598,7 @@ start(
         thinking?: string;
         cwd?: string;
         thread?: boolean;
+        ownerModel?: boolean;
     },
     key: string,
 ): Promise<{ session: ConversationId; address: string; answers?: boolean }>;
@@ -613,6 +614,7 @@ Makes a session linked to `source` and sends it `message` as its first message. 
 - `thinking` can be any level, also one above the level of `source`. Without it, the session uses the level of `source`. Pi Pocket lowers it to the highest level that the model has, or uses the lowest level of the model when it has none that low.
 - When Pi cannot use the model now, `start` makes nothing and throws an error.
 - `thread: true` starts a project thread. Unlike other linked sessions, a thread may start linked sessions of its own, its helpers, and a helper may not. Its helpers' spend counts against its spend limit. Only a `source` that is not linked can start a thread; from a linked `source`, `thread` is ignored. The human-bound `linkedSessions.start` of a route has no `thread`.
+- `ownerModel: true` (experimental), with `thread` and `model`, says that the owner chose `model` for the thread (a project's settings): the owner's list of models for subagents does not limit it. Its sign-in must still work.
 
 #### `linkedSessions.send`
 

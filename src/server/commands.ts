@@ -1873,6 +1873,8 @@ export class Commands {
             thinkingLevel?: string;
             cwd?: string;
             pipPanel?: boolean;
+            /** False: leave the default for new sessions (the last model picked) as it is. */
+            remember?: boolean;
         },
     ): Promise<void> {
         const app = this.#app;
@@ -1973,7 +1975,7 @@ export class Commands {
             }, context);
         }
 
-        if (ref !== undefined && request.pipPanel !== true) {
+        if (ref !== undefined && request.pipPanel !== true && request.remember !== false) {
             app.config.lastModel = { provider: ref.provider, modelId: ref.modelId, thinkingLevel };
         }
 

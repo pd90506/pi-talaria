@@ -7,6 +7,7 @@ import type { User } from "./config.ts";
 import { HttpError } from "./errors.ts";
 import { mayUse } from "./extension-web.ts";
 import type { WebAccess, WebRequest } from "./host.ts";
+import { isThinkingLevel, resolveModel, THINKING_LEVELS } from "./models.ts";
 
 /** Internal only: no extension can select an actor through the public host. */
 export interface RequestActor {
@@ -49,6 +50,33 @@ export class ExtensionRequest implements RequestActor {
         return this.#app.commands.createSession(this.current(), {
             cwd: request.cwd,
             ...(request.title === undefined ? {} : { title: request.title }),
+        });
+    }
+
+    async configureSession(
+        id: number,
+        request: { model: string; thinking?: string },
+    ): Promise<void> {
+        if (this.#access !== "owner" || this.current().role !== "owner") {
+            throw new HttpError(403, "Only the owner can change a session's model here.");
+        }
+
+        if (request.thinking !== undefined && !isThinkingLevel(request.thinking)) {
+            throw new HttpError(400, `Thinking must be one of: ${THINKING_LEVELS.join(", ")}.`);
+        }
+
+        let model: { provider: string; modelId: string };
+
+        try {
+            model = resolveModel(this.#app.models, request.model, this.#app.signInNeeded);
+        } catch (error) {
+            throw new HttpError(400, (error as Error).message);
+        }
+
+        await this.#app.commands.configure(id as unknown as ConversationId, this.current(), {
+            model,
+            ...(request.thinking === undefined ? {} : { thinkingLevel: request.thinking }),
+            remember: false,
         });
     }
 

@@ -104,6 +104,11 @@ export interface LinkedSessionsApi {
              * from its last commit; ignored when \`cwd\` is not in a git repository. Only an extension's own call.
              */
             worktree?: boolean;
+            /**
+             * With `thread`: `model` is one the owner set for the project's threads, so the owner's list for subagents
+             * does not limit it. Its sign-in still must work. @experimental
+             */
+            ownerModel?: boolean;
         },
         key: string,
     ): Promise<{ session: ConversationId; address: string; answers?: boolean }>;
@@ -560,6 +565,8 @@ export interface PocketHost {
      * Empty, the default: none.
      */
     subagentModels(): readonly string[];
+    /** The models people can pick now (signed in), as `provider/modelId` with their name and levels. @experimental */
+    availableModels?(): { spec: string; name: string; thinkingLevels: ModelThinkingLevel[] }[];
     /**
      * Why Pi may not use a model now, in words for Pi to pass on (not known here, its provider not signed in, or its
      * sign-in expired), or undefined when it may. `fresh` asks the provider's sign-in again first.
@@ -771,6 +778,11 @@ export type WebMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 export interface WebRequest {
     /** @experimental @since 0.28.0 */
     createSession(request: { cwd: string; title?: string }): Promise<{ id: number }>;
+    /**
+     * On owner-only routes: set a session's model (`provider/modelId`, signed in) and thinking level, as its model
+     * picker does, without changing the default for new sessions. @experimental
+     */
+    configureSession?(id: number, request: { model: string; thinking?: string }): Promise<void>;
     readonly method: WebMethod;
     /** The path's `:name` parts, by name. */
     readonly params: Readonly<Record<string, string>>;

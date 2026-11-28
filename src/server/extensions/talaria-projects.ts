@@ -24,6 +24,12 @@ import { PROJECTS_PIP_EXTENSION } from "../pip.ts";
 import { literal } from "../tool-schema.ts";
 import { parseRepo, runGh } from "../github.ts";
 import {
+    checkProjectModels,
+    parseProjectModels,
+    type ProjectModels,
+    threadChoice,
+} from "../talaria-project-models.ts";
+import {
     cloneCheckout,
     defaultClonePlace,
     developAgents,
@@ -159,6 +165,8 @@ interface ProjectFile {
     checkout?: string;
     /** False: threads work in the folder itself, not each in a git worktree of their own. */
     worktrees?: boolean;
+    /** The coordinator's model and thinking, and the default for new threads; only the owner sets them. */
+    models?: ProjectModels;
 }
 
 const MAX_NAME = 80;
@@ -280,10 +288,8 @@ function readProjectFile(path: string): ProjectFile {
         const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
 
         if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
-            const { name, folders, repository, upstream, checkout, worktrees } = parsed as Record<
-                string,
-                unknown
-            >;
+            const { name, folders, repository, upstream, checkout, worktrees, models } =
+                parsed as Record<string, unknown>;
             const repo = (value: unknown) =>
                 typeof value === "string" && parseRepo(value) === value ? value : undefined;
 
@@ -303,6 +309,9 @@ function readProjectFile(path: string): ProjectFile {
                 ...(repo(upstream) === undefined ? {} : { upstream: repo(upstream)! }),
                 ...(typeof checkout === "string" && isAbsolute(checkout) ? { checkout } : {}),
                 ...(worktrees === false ? { worktrees: false } : {}),
+                ...(parseProjectModels(models) === undefined
+                    ? {}
+                    : { models: parseProjectModels(models)! }),
             };
         }
     } catch {
@@ -388,6 +397,7 @@ function coordinatorRules(project: { id: string; folder: string; file: ProjectFi
         `You are the coordinator of the project ${JSON.stringify(name)}: the one ongoing conversation where the person sends all of this project's work. You organize; threads do the work. Like a lead who delegates, you never do the task yourself.`,
         `Threads may work in: ${folders.map((each) => JSON.stringify(each)).join(", ")}. To allow another folder, add it to "folders" in ${JSON.stringify(join(project.folder, "project.json"))}, only when the person says which.`,
         ...repositoryRules(project.file),
+        ...modelRules(project.file),
         "",
         "## How you coordinate",
         `- In this conversation, tools that run commands, change files, or hand work to other agents (${COORDINATOR_WITHOUT.join(", ")}) are refused. Use threads. You may read a file or two, look something up, and keep project memory.`,
@@ -409,6 +419,19 @@ function coordinatorRules(project: { id: string; folder: string; file: ProjectFi
         '- Preferences such as "propose before starting" or "at most two threads at a time" go into project memory; follow them.',
         "- Write in the language the person writes in.",
     ].join("\n");
+}
+
+/** What a coordinator is told of the models its threads start on. */
+function modelRules(file: ProjectFile): string[] {
+    const threads = file.models?.threads;
+    const choice = (each: { model: string; thinking?: string }) =>
+        `${each.model}${each.thinking === undefined ? "" : ` with thinking ${each.thinking}`}`;
+
+    return [
+        threads === undefined
+            ? "New threads start on your model and thinking level, unless you name others in project_thread start (model, thinking)."
+            : `New threads start on ${choice(threads)}, the project's default for threads, unless you name others in project_thread start (model, thinking). Name them only when the person asks, or the task clearly needs another level.`,
+    ];
 }
 
 /** What a coordinator is told of its project's repository and checkout, when it has one. */
@@ -745,6 +768,7 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
                     threads,
                     name: file?.name ?? project.name,
                     folders: file?.folders ?? [],
+                    models: file?.models ?? {},
                     // Where it stands, in one line: its memory's first plain line.
                     ...(() => {
                         const summary = memorySummary(projectMemory(project));
@@ -762,6 +786,59 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
             items.sort((a, b) => b.lastActive - a.lastActive);
 
             return { root: pipRoot(), projects: items };
+        });
+
+        // The models the settings offer: those signed in now, with their thinking levels.
+        web.route("GET", "models", () => ({
+            models:
+                typeof host.availableModels === "function"
+                    ? host.availableModels().map((each) => ({
+                          spec: each.spec,
+                          name: each.name,
+                          levels: each.thinkingLevels,
+                      }))
+                    : [],
+        }));
+
+        // A project's model settings: kept in its project.json; the coordinator's take effect on it now.
+        web.route("POST", "projects/:id/models", async (request) => {
+            const record = (await request.snapshot(Projects, request.context))?.items[
+                request.params.id ?? ""
+            ];
+
+            if (record === undefined || projectAt(record.folder) === undefined) {
+                throw web.error(404, "There is no such project.");
+            }
+
+            let models: ProjectModels;
+
+            try {
+                models = checkProjectModels(
+                    request.body,
+                    (spec) => host.modelInfo(spec)?.thinkingLevels,
+                );
+            } catch (error) {
+                throw web.error(400, (error as Error).message);
+            }
+
+            if (models.coordinator !== undefined) {
+                if (typeof request.configureSession !== "function") {
+                    throw web.error(503, "Project models need a server restart first.");
+                }
+
+                await request.configureSession(record.coordinator, models.coordinator);
+            }
+
+            updateProjectJson(record.folder, (json) => {
+                if (Object.keys(models).length === 0) {
+                    delete json.models;
+                } else {
+                    json.models = models;
+                }
+            });
+            web.send("changed");
+
+            return { models };
         });
 
         /** The memory folder a route names: `home` for the person's, or a project's id. */
@@ -1191,6 +1268,19 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
             ),
             title: opt(str({ description: "start: the thread's title" })),
             message: opt(str({ description: "start: the task; send, coordinator: the message" })),
+            model: opt(
+                str({
+                    description: "start: provider/modelId; default: the project's",
+                }),
+            ),
+            thinking: opt(
+                union(
+                    host.thinkingLevels.map((each) => literal(each)),
+                    {
+                        description: "start: default: the project's",
+                    },
+                ),
+            ),
             quotes: opt(
                 arr(str(), {
                     description:
@@ -1371,6 +1461,14 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
 
                 const cited = await quoted();
                 const isolated = project.file.worktrees !== false;
+                const models = project.file.models;
+                const choice = threadChoice(models, { model: args.model, thinking: args.thinking });
+                // The owner set these models in the project's settings: a thread may use them, list or not.
+                const ownerSet = new Set(
+                    [models?.threads?.model, models?.coordinator?.model].filter(
+                        (each): each is string => each !== undefined,
+                    ),
+                );
                 const { address, session } = await linked.start(
                     source,
                     {
@@ -1378,6 +1476,11 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
                         message: threadBrief(name, folder, args.message, cited, isolated),
                         cwd: folder,
                         thread: true,
+                        ...(choice.model === undefined ? {} : { model: choice.model }),
+                        ...(choice.thinking === undefined ? {} : { thinking: choice.thinking }),
+                        ...(choice.model !== undefined && ownerSet.has(choice.model)
+                            ? { ownerModel: true }
+                            : {}),
                         ...(isolated ? { worktree: true } : {}),
                     },
                     key,
@@ -1385,9 +1488,13 @@ export default function createTalariaProjects(host: PocketHost, web?: ExtensionW
                 const cwd = host.cwdOf(session);
                 const where =
                     cwd === folder ? folder : `its own worktree ${cwd} (a branch of ${folder})`;
+                const runs =
+                    choice.model === undefined && choice.thinking === undefined
+                        ? ""
+                        : `, on ${choice.model ?? "your model"}${choice.thinking === undefined ? "" : ` (thinking ${choice.thinking}, or the nearest the model has)`}`;
 
                 return reply(
-                    `Started thread ${address} in ${where}. Its report comes back by itself when its run ends: end your turn and wait; do not poll.`,
+                    `Started thread ${address} in ${where}${runs}. Its report comes back by itself when its run ends: end your turn and wait; do not poll.`,
                 );
             }
 

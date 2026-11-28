@@ -786,6 +786,7 @@ export class LinkedSessions implements LinkedSessionsApi {
             cwd?: string;
             thread?: boolean;
             worktree?: boolean;
+            ownerModel?: boolean;
         },
         key: string,
     ): Promise<{ session: ConversationId; address: string; answers: boolean }> {
@@ -802,6 +803,7 @@ export class LinkedSessions implements LinkedSessionsApi {
             cwd?: string;
             thread?: boolean;
             worktree?: boolean;
+            ownerModel?: boolean;
         },
         key: string,
         actor?: RequestActor,
@@ -912,9 +914,15 @@ export class LinkedSessions implements LinkedSessionsApi {
     }
 
     /** Resolve exactly the requested policy, without network work. Human choices are never silently lowered. */
-    #selection(agent: AgentState, request: { model?: string; thinking?: string }, strict: boolean) {
+    #selection(
+        agent: AgentState,
+        request: { model?: string; thinking?: string; ownerModel?: boolean },
+        strict: boolean,
+    ) {
         const app = this.#app;
-        const listed = app.config.subagentModels;
+        // A project thread on a model the owner set for it in the project's settings: the owner's list does not apply.
+        const ownerSet = request.ownerModel === true && Boolean(request.model?.trim());
+        const listed = ownerSet ? [] : app.config.subagentModels;
         const source = agent.model && `${agent.model.provider}/${agent.model.modelId}`;
 
         // Left out: the source's model, unless the owner keeps a list and it is not on it: then the choice is the
@@ -956,7 +964,9 @@ export class LinkedSessions implements LinkedSessionsApi {
 
         // The owner's list is the only choice while it has models; the source's own model counts only when it is on it.
         // With no list, the source's model alone.
-        if (listed.length === 0 ? chosen !== source : !listed.includes(chosen)) {
+        if (ownerSet) {
+            // The owner chose it: only its sign-in matters, which the caller checks.
+        } else if (listed.length === 0 ? chosen !== source : !listed.includes(chosen)) {
             this.#notListed(chosen, listed);
         }
 
@@ -984,6 +994,7 @@ export class LinkedSessions implements LinkedSessionsApi {
             cwd?: string;
             thread?: boolean;
             worktree?: boolean;
+            ownerModel?: boolean;
         },
         token: string,
         actor?: RequestActor,
@@ -1007,7 +1018,16 @@ export class LinkedSessions implements LinkedSessionsApi {
 
         actor?.checkSource(agent);
 
-        const { spec, model, thinking } = this.#selection(agent, request, actor !== undefined);
+        // Only an extension's own thread start may name an owner-set model; a person's route never does.
+        const { spec, model, thinking } = this.#selection(
+            agent,
+            {
+                ...request,
+                ownerModel:
+                    request.ownerModel === true && request.thread === true && actor === undefined,
+            },
+            actor !== undefined,
+        );
         const problem = await app.providers.problem(model, true);
 
         if (problem !== undefined) {
