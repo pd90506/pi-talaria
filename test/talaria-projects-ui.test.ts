@@ -333,6 +333,14 @@ test(
                 );
             }
 
+            // Open in full view is a button in the head, beside Done, and no longer in the ⋯ menu.
+            assert.deepEqual(
+                await inPage<string[]>(
+                    `return JSON.stringify([...document.querySelectorAll(".talaria-thread-head .icon-button")].map((each) => each.getAttribute("aria-label")))`,
+                ),
+                ["Back to the threads", "Done: resolve this thread", "Open in full view", "More"],
+            );
+
             // ⋯ lists its helpers; it has none.
             await inPage(
                 `document.querySelector('.talaria-thread-head [aria-label="More"]').click(); return "null"`,
@@ -343,6 +351,12 @@ test(
                     `return JSON.stringify(document.querySelector(".talaria-menu").textContent)`,
                 ),
                 /Helpers and subagents[\s\S]*No helpers yet/,
+            );
+            assert.doesNotMatch(
+                await inPage<string>(
+                    `return JSON.stringify(document.querySelector(".talaria-menu").textContent)`,
+                ),
+                /Open in full view/,
             );
             await inPage(
                 `document.querySelector('.talaria-thread-head [aria-label="More"]').click(); return "null"`,

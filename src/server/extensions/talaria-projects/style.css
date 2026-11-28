@@ -284,6 +284,26 @@
     color: var(--ok);
 }
 
+.talaria-thread-head .talaria-full:hover {
+    color: var(--text);
+}
+
+/* Touch: the head's buttons a thumb wide (44 × 44), the title still ellipsized between them. */
+@media (pointer: coarse) {
+    .talaria-thread-head {
+        height: 48px;
+        gap: 0;
+        padding: 0 2px;
+    }
+    .talaria-thread-head .icon-button {
+        width: 44px;
+        height: 44px;
+    }
+    .talaria-menu {
+        top: 44px;
+    }
+}
+
 .talaria-thread-name {
     flex: 1;
     min-width: 0;
