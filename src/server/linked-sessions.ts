@@ -785,11 +785,8 @@ export class LinkedSessions implements LinkedSessionsApi {
             thinking?: string;
             cwd?: string;
             thread?: boolean;
-<<<<<<< HEAD
             worktree?: boolean;
-=======
             ownerModel?: boolean;
->>>>>>> dba7be09 (Projects: per-project models for the coordinator and new threads; project_thread start takes model and thinking)
         },
         key: string,
     ): Promise<{ session: ConversationId; address: string; answers: boolean }> {
@@ -805,11 +802,8 @@ export class LinkedSessions implements LinkedSessionsApi {
             thinking?: string;
             cwd?: string;
             thread?: boolean;
-<<<<<<< HEAD
             worktree?: boolean;
-=======
             ownerModel?: boolean;
->>>>>>> dba7be09 (Projects: per-project models for the coordinator and new threads; project_thread start takes model and thinking)
         },
         key: string,
         actor?: RequestActor,
@@ -999,11 +993,8 @@ export class LinkedSessions implements LinkedSessionsApi {
             thinking?: string;
             cwd?: string;
             thread?: boolean;
-<<<<<<< HEAD
             worktree?: boolean;
-=======
             ownerModel?: boolean;
->>>>>>> dba7be09 (Projects: per-project models for the coordinator and new threads; project_thread start takes model and thinking)
         },
         token: string,
         actor?: RequestActor,

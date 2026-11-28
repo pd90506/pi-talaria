@@ -288,10 +288,8 @@ function readProjectFile(path: string): ProjectFile {
         const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
 
         if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
-            const { name, folders, repository, upstream, checkout, worktrees, models } = parsed as Record<
-                string,
-                unknown
-            >;
+            const { name, folders, repository, upstream, checkout, worktrees, models } =
+                parsed as Record<string, unknown>;
             const repo = (value: unknown) =>
                 typeof value === "string" && parseRepo(value) === value ? value : undefined;
 
