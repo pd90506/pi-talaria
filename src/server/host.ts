@@ -99,6 +99,11 @@ export interface LinkedSessionsApi {
              * helpers), which may not. Its helpers' spend counts against its limit too.
              */
             thread?: boolean;
+            /**
+             * Work in a clean git worktree of \`cwd\`'s repository, on a branch of its own (\`pocket/<title>-<id>\`), made
+             * from its last commit; ignored when \`cwd\` is not in a git repository. Only an extension's own call.
+             */
+            worktree?: boolean;
         },
         key: string,
     ): Promise<{ session: ConversationId; address: string; answers?: boolean }>;
@@ -123,9 +128,17 @@ export interface LinkedSessionsApi {
      */
     archive(
         source: ConversationId,
-        request: { to: string; archived?: boolean },
+        request: {
+            to: string;
+            archived?: boolean;
+            /**
+             * On archive, remove the session's worktree and branch when the branch is merged and nothing is uncommitted;
+             * \`worktree\` then says what happened to them.
+             */
+            tidy?: boolean;
+        },
         key: string,
-    ): Promise<{ archived: boolean; repeating: number }>;
+    ): Promise<{ archived: boolean; repeating: number; worktree?: string }>;
     /**
      * Set whether `source`, as a lead, takes the run-end answers of the sessions it started (`take`, the default true).
      * Returns the state now.
