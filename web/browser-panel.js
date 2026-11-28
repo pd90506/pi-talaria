@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { useBack } from "./back.js";
 import { screenPaste } from "./browser-paste.js";
+import { DockEdge } from "./dock-edge.js";
 import { DockHead } from "./side-dock.js";
 import {
     browserApi,
@@ -16,9 +17,7 @@ import {
     toggleBrowser,
 } from "./browser.js";
 import { api, attempt, canSteer, notify, panelsBeside, store } from "./store.js";
-import { APPLE, dragWidth, html, Icon, Spinner } from "./ui.js";
-
-const WIDTH_KEY = "pocket.browserWidth";
+import { APPLE, html, Icon, Spinner } from "./ui.js";
 
 /** Sizes the size button steps through. Fit makes the page the panel's size, as a browser window is. */
 const PRESETS = [
@@ -664,50 +663,6 @@ function StartScreen({ steer }) {
     </div>`;
 }
 
-/** Drag the panel's left edge to resize it on wide screens; double-click goes back to half. */
-function ResizeEdge() {
-    const start = (event) => {
-        if (event.button !== 0) {
-            return;
-        }
-
-        event.preventDefault();
-        const panel = event.currentTarget.parentElement;
-        const right = panel.getBoundingClientRect().right;
-
-        dragWidth(event, {
-            element: panel,
-            property: "flex-basis",
-            widthAt: (each) =>
-                Math.round(Math.min(innerWidth - 420, Math.max(360, right - each.clientX))),
-            done: (width) => {
-                document.documentElement.style.setProperty("--browser-w", `${width}px`);
-                localStorage.setItem(WIDTH_KEY, String(width));
-            },
-        });
-    };
-
-    const reset = () => {
-        localStorage.removeItem(WIDTH_KEY);
-        document.documentElement.style.removeProperty("--browser-w");
-    };
-
-    return html`<div
-        class="resize-handle browser-resize"
-        role="separator"
-        aria-orientation="vertical"
-        title="Drag to resize"
-        onPointerDown=${start}
-        onDblClick=${reset}
-    ></div>`;
-}
-
-const savedWidth = Number(localStorage.getItem(WIDTH_KEY));
-
-if (savedWidth > 0) {
-    document.documentElement.style.setProperty("--browser-w", `${savedWidth}px`);
-}
-
 /** The page may close again after it opens (a crash, a long while unused): open it by itself at most this often. */
 const REOPEN_MS = 2 * 60_000;
 
@@ -914,7 +869,7 @@ export function BrowserPanel({ leaving = false }) {
         tabindex="-1"
         inert=${leaving}
     >
-        <${ResizeEdge} />
+        <${DockEdge} className="browser-resize" />
         ${beside && html`<${DockHead} />`}
         <header class="browser-bar">
             <button

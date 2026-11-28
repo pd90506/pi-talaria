@@ -8,10 +8,10 @@ import { useBack } from "./back.js";
 import { DiffReview, KIND_LETTERS, reloadChanges, useChanges, useWidth } from "./diff.js";
 import { loadFiles, suggestFiles } from "./files.js";
 import { FileView } from "./sheets/file.js";
+import { DockEdge } from "./dock-edge.js";
 import { DockHead } from "./side-dock.js";
 import { actions, canSteer, panelsBeside, store } from "./store.js";
 import {
-    dragWidth,
     html,
     Icon,
     Loader,
@@ -22,7 +22,6 @@ import {
     usePresence,
 } from "./ui.js";
 
-const WIDTH_KEY = "pocket.filesWidth";
 /** Tree and viewer side by side from this width of the tile; one at a time below it. */
 const SIDE_BY_SIDE = 600;
 /** A workspace URI (`ssh://host/path`), as `workspaceScheme` in `src/server/paths.ts` reads it. */
@@ -237,50 +236,6 @@ function Matches({ query, root, onPick }) {
 }
 
 // ─── The tile ──────────────────────────────────────────────────────────────────────
-
-/** Drag the tile's left edge to resize it on wide screens; double-click goes back to the usual width. */
-function ResizeEdge() {
-    const start = (event) => {
-        if (event.button !== 0) {
-            return;
-        }
-
-        event.preventDefault();
-        const tile = event.currentTarget.parentElement;
-        const right = tile.getBoundingClientRect().right;
-
-        dragWidth(event, {
-            element: tile,
-            property: "flex-basis",
-            widthAt: (each) =>
-                Math.round(Math.min(innerWidth - 420, Math.max(320, right - each.clientX))),
-            done: (width) => {
-                document.documentElement.style.setProperty("--files-w", `${width}px`);
-                localStorage.setItem(WIDTH_KEY, String(width));
-            },
-        });
-    };
-
-    const reset = () => {
-        localStorage.removeItem(WIDTH_KEY);
-        document.documentElement.style.removeProperty("--files-w");
-    };
-
-    return html`<div
-        class="resize-handle files-resize"
-        role="separator"
-        aria-orientation="vertical"
-        title="Drag to resize"
-        onPointerDown=${start}
-        onDblClick=${reset}
-    ></div>`;
-}
-
-const savedWidth = Number(localStorage.getItem(WIDTH_KEY));
-
-if (savedWidth > 0) {
-    document.documentElement.style.setProperty("--files-w", `${savedWidth}px`);
-}
 
 /**
  * The Files tab: the tree, a filter over every file in the folder, and the open file. `covering`: the tile covers the
@@ -679,7 +634,7 @@ function FilesPanelContent({ leaving = false }) {
         tabindex="-1"
         inert=${leaving}
     >
-        <${ResizeEdge} />
+        <${DockEdge} className="files-resize" />
         ${beside && html`<${DockHead} counts=${{ changes: count }} />`}
         <header class="files-bar">
             ${

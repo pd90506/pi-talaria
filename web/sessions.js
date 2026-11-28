@@ -2846,6 +2846,8 @@ export function Sidebar({ compact = false }) {
 /** The sidebar's list is this wide at least and at most. */
 const LIST_MIN = 204;
 const LIST_MAX = 464;
+/** The room the conversation keeps beside the sidebar as it is dragged wider. */
+const PANE_MIN = 420;
 
 /** The sidebar's usual width: the one a new browser starts with (theme.js). */
 export const SIDEBAR_WIDTH = 312;
@@ -2867,7 +2869,13 @@ export function ResizeHandle() {
         // The borders and paddings, which keep their width.
         const rest = sidebar.offsetWidth - (sidebar.querySelector(".sessions")?.offsetWidth ?? 0);
         // No wider than the stylesheet lets it be: 40% of the screen.
-        const max = Math.min(LIST_MAX + rest, Math.max(SIDEBAR_WIDTH, innerWidth * 0.4));
+        // And the conversation keeps room beside it, a panel on its other side too.
+        const pane = document.querySelector(".layout > .pane")?.getBoundingClientRect();
+        const room = pane ? pane.right - box.left - PANE_MIN : Infinity;
+        const max = Math.max(
+            LIST_MIN + rest,
+            Math.min(LIST_MAX + rest, Math.max(SIDEBAR_WIDTH, innerWidth * 0.4), room),
+        );
 
         // The sidebar's own width as it moves; then `--sidebar-w` on the page's root (theme.js), once.
         dragWidth(event, {

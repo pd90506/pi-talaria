@@ -13715,7 +13715,7 @@ textarea.notes {
         position: relative;
         inset: auto;
         z-index: auto;
-        flex: 0 0 var(--files-w, 44%);
+        flex: 0 0 var(--dock-w, 44%);
         max-width: calc(100% - 440px);
         height: 100dvh;
         border-left: 1px solid var(--hair);
@@ -13747,6 +13747,10 @@ textarea.notes {
     animation: popin var(--t-in) var(--ease-out);
 }
 
+.ext-panel-resize {
+    display: none;
+}
+
 /* Over the conversation, below 1100px: no frame of its own. */
 @media (max-width: 1099px) {
     :root[data-tiling="on"] .ext-panel.window {
@@ -13773,6 +13777,15 @@ textarea.notes {
     }
     .layout.paneling .ext-panel.wide {
         --ext-panel-w: 44%;
+    }
+    /* A side dock tab: the dock's width, which its left edge drags (dock-edge.js). */
+    .layout.paneling .ext-panel.docked {
+        flex-basis: var(--dock-w, var(--ext-panel-w, 400px));
+    }
+    .ext-panel-resize {
+        display: block;
+        left: 0;
+        right: auto;
     }
 }
 
@@ -14274,7 +14287,7 @@ textarea.notes {
         position: relative;
         inset: auto;
         z-index: auto;
-        flex: 0 0 var(--browser-w, clamp(420px, 36vw, 520px));
+        flex: 0 0 var(--dock-w, clamp(420px, 36vw, 520px));
         max-width: calc(100% - 440px);
         height: 100dvh;
         border-left: 1px solid var(--line);
