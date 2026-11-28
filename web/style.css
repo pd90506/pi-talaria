@@ -445,6 +445,31 @@ select:focus {
     outline-offset: 1px;
 }
 
+/*
+ * A drop-down's arrow: the app's own chevron, 12px in from the edge, in the muted text color, instead of the browser's,
+ * which sat on the border. Two :not()s make it more specific than `.part select`, so a field's own `padding` or
+ * `background` shorthand (an extension's, a sheet's) keeps the arrow and its room: those set the color and the left
+ * padding only.
+ */
+select:not([multiple]):not([size]) {
+    appearance: none;
+    padding-right: 32px;
+    background-image:
+        linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+        linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    background-position:
+        right 17px center,
+        right 12px center;
+    background-size: 5px 5px;
+    background-repeat: no-repeat;
+    text-overflow: ellipsis;
+}
+
+select:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
 /* A field's ring lies on its own border, not a second line beside it. */
 input:not([type="checkbox"], [type="radio"]):focus-visible,
 textarea:focus-visible,

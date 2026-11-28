@@ -807,7 +807,7 @@ export default function setup(pocket) {
         }
 
         return html`<div class="talaria-settings">
-            <h3 class="talaria-group">Models of ${project.name}</h3>
+            <p class="muted small">Models of <b>${project.name}</b></p>
             <${ModelSettings} key=${project.id} project=${project} />
         </div>`;
     }
@@ -865,46 +865,72 @@ export default function setup(pocket) {
             }
         };
 
-        const row = (role, label, unset) => {
+        // The models by provider, in the order they come: a drop-down shows each by its name only, under its provider.
+        const providers = new Map();
+
+        for (const each of models ?? []) {
+            const provider = each.spec.slice(0, Math.max(0, each.spec.indexOf("/"))) || "Other";
+
+            providers.set(provider, [...(providers.get(provider) ?? []), each]);
+        }
+
+        const section = (role, title, note, unset) => {
             const choice = draft?.[role] ?? null;
             const known = choice === null || models?.some((each) => each.spec === choice.model);
+            const id = `talaria-${role}`;
 
-            return html`<div class="talaria-model-row">
-                <label class="small" for=${`talaria-${role}-model`}>${label}</label>
-                <select
-                    id=${`talaria-${role}-model`}
-                    value=${choice?.model ?? ""}
-                    onChange=${(event) =>
-                        change(
-                            role,
-                            event.currentTarget.value === ""
-                                ? null
-                                : { model: event.currentTarget.value },
-                        )}
-                >
-                    <option value="">${unset}</option>
-                    ${!known && html`<option value=${choice.model}>${choice.model}</option>`}
-                    ${(models ?? []).map(
-                        (each) =>
-                            html`<option key=${each.spec} value=${each.spec}>
-                                ${each.name} (${each.spec})
-                            </option>`,
-                    )}
-                </select>
-                <select
-                    aria-label=${`${label}: thinking`}
-                    disabled=${choice === null}
-                    value=${choice?.thinking ?? ""}
-                    onChange=${(event) =>
-                        change(role, { thinking: event.currentTarget.value || undefined })}
-                >
-                    <option value="">Thinking: model's default</option>
-                    ${(choice === null ? [] : levelsOf(choice.model)).map(
-                        (level) =>
-                            html`<option key=${level} value=${level}>Thinking: ${level}</option>`,
-                    )}
-                </select>
-            </div>`;
+            return html`<section class="talaria-models-section" aria-labelledby=${`${id}-title`}>
+                <div class="talaria-models-head">
+                    <h3 id=${`${id}-title`}>${title}</h3>
+                    <p class="muted">${note}</p>
+                </div>
+                <div class="talaria-models-pair">
+                    <div class="field">
+                        <label class="label" for=${`${id}-model`}>Model</label>
+                        <select
+                            id=${`${id}-model`}
+                            value=${choice?.model ?? ""}
+                            onChange=${(event) =>
+                                change(
+                                    role,
+                                    event.currentTarget.value === ""
+                                        ? null
+                                        : { model: event.currentTarget.value },
+                                )}
+                        >
+                            <option value="">${unset}</option>
+                            ${!known && html`<option value=${choice.model}>${choice.model}</option>`}
+                            ${[...providers].map(
+                                ([provider, list]) =>
+                                    html`<optgroup key=${provider} label=${provider}>
+                                        ${list.map(
+                                            (each) =>
+                                                html`<option key=${each.spec} value=${each.spec}>
+                                                    ${each.name}
+                                                </option>`,
+                                        )}
+                                    </optgroup>`,
+                            )}
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label class="label" for=${`${id}-thinking`}>Thinking</label>
+                        <select
+                            id=${`${id}-thinking`}
+                            disabled=${choice === null}
+                            value=${choice?.thinking ?? ""}
+                            onChange=${(event) =>
+                                change(role, { thinking: event.currentTarget.value || undefined })}
+                        >
+                            <option value="">Model's default</option>
+                            ${(choice === null ? [] : levelsOf(choice.model)).map(
+                                (level) =>
+                                    html`<option key=${level} value=${level}>${level}</option>`,
+                            )}
+                        </select>
+                    </div>
+                </div>
+            </section>`;
         };
 
         return html`<div class="talaria-models">
@@ -912,14 +938,38 @@ export default function setup(pocket) {
             ${
                 models === null || draft === null
                     ? html`<${Loader} label="Reading the models" />`
-                    : html`${row("coordinator", "Coordinator", "As it runs now")}
-                          ${row("threads", "New threads", "Same as the coordinator")}
-                          <p class="muted small">
-                              The coordinator can name another model for one thread. A thread's own
-                              model picker still works.
-                          </p>
-                          <div class="sheet-actions">
-                              ${saved && html`<span class="muted small">Saved</span>`}
+                    : html`${section(
+                              "coordinator",
+                              "Coordinator",
+                              "Takes effect at once.",
+                              "As it runs now",
+                          )}
+                          ${section(
+                              "threads",
+                              "New threads",
+                              "The coordinator can still pick another model for one thread.",
+                              "Same as the coordinator",
+                          )}
+                          <div class="talaria-models-foot">
+                              <span class="talaria-saved" role="status">
+                                  ${
+                                      saved &&
+                                      html`<svg
+                                              width="14"
+                                              height="14"
+                                              viewBox="0 0 24 24"
+                                              fill="none"
+                                              stroke="currentColor"
+                                              stroke-width="2.5"
+                                              stroke-linecap="round"
+                                              stroke-linejoin="round"
+                                              aria-hidden="true"
+                                          >
+                                              <path d="M20 6 9 17l-5-5" />
+                                          </svg>
+                                          Saved`
+                                  }
+                              </span>
                               <button
                                   type="button"
                                   class="button primary"
