@@ -2852,19 +2852,23 @@ const PANE_MIN = 420;
 /** The sidebar's usual width: the one a new browser starts with (theme.js). */
 export const SIDEBAR_WIDTH = 312;
 
-/** Drag the sidebar's right edge to resize its list; a double click puts it back to its usual width. */
+/**
+ * Drag the gap right of the sidebar to resize its list; a double click puts it back to its usual width. The handle sits
+ * in the gap between the sidebar's card and the conversation's (app.js), not inside the card.
+ */
 export function ResizeHandle() {
-    const ref = useRef(null);
-    // A theme may put the sidebar on the right: the handle goes to its other edge, and drags the other way.
-    const side = useSide(ref, (handle) => handle.parentElement);
-
     const start = (event) => {
         if (event.button !== 0) {
             return;
         }
 
+        const sidebar = document.querySelector(".layout > .sidebar");
+
+        if (sidebar === null) {
+            return;
+        }
+
         event.preventDefault();
-        const sidebar = event.currentTarget.parentElement;
         const box = sidebar.getBoundingClientRect();
         // The borders and paddings, which keep their width.
         const rest = sidebar.offsetWidth - (sidebar.querySelector(".sessions")?.offsetWidth ?? 0);
@@ -2881,21 +2885,22 @@ export function ResizeHandle() {
         dragWidth(event, {
             element: sidebar,
             property: "width",
-            widthAt: (each) => {
-                const across =
-                    side === "right" ? box.right - each.clientX : each.clientX - box.left;
-
-                return Math.round(Math.min(max, Math.max(LIST_MIN + rest, across)));
-            },
+            widthAt: (each) =>
+                Math.round(
+                    Math.min(
+                        max,
+                        Math.max(LIST_MIN + rest, box.width + each.clientX - event.clientX),
+                    ),
+                ),
             done: (width) => setPrefs({ sidebarWidth: width }),
         });
     };
 
     return html`<div
-        class=${`resize-handle ${side === "right" ? "at-left" : ""}`}
-        ref=${ref}
+        class="resize-handle"
         role="separator"
         aria-orientation="vertical"
+        aria-label="Resize the sidebar"
         title="Drag to resize"
         onPointerDown=${start}
         onDblClick=${() => setPrefs({ sidebarWidth: SIDEBAR_WIDTH })}

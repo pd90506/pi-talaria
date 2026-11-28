@@ -5,7 +5,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { useBack } from "./back.js";
 import { screenPaste } from "./browser-paste.js";
-import { DockEdge } from "./dock-edge.js";
 import { DockHead } from "./side-dock.js";
 import {
     browserApi,
@@ -869,7 +868,6 @@ export function BrowserPanel({ leaving = false }) {
         tabindex="-1"
         inert=${leaving}
     >
-        <${DockEdge} className="browser-resize" />
         ${beside && html`<${DockHead} />`}
         <header class="browser-bar">
             <button
